@@ -1,532 +1,418 @@
-import sqlite3
-import random
-from .base import BaseModel
+from app import db
+from sqlalchemy.orm import relationship
+from datetime import datetime, timedelta
+from .part import Part, Warehouse # Import Part and Warehouse models
 
-class Warehouse(BaseModel):
-    """倉庫管理模型"""
-    
-    @classmethod
-    def get_all(cls):
-        """取得所有倉庫"""
-        conn = cls.get_connection()
-        try:
-            warehouses = conn.execute(
-                'SELECT * FROM warehouses WHERE is_active = 1 ORDER BY code'
-            ).fetchall()
-            return [dict(warehouse) for warehouse in warehouses]
-        finally:
-            conn.close()
-    
-    @classmethod
-    def get_by_id(cls, warehouse_id):
-        """根據ID取得倉庫"""
-        conn = cls.get_connection()
-        try:
-            warehouse = conn.execute(
-                'SELECT * FROM warehouses WHERE id = ?', 
-                (warehouse_id,)
-            ).fetchone()
-            return dict(warehouse) if warehouse else None
-        finally:
-            conn.close()
+# Helper function to get current time in UTC+8
+def get_taipei_time():
+    from datetime import timezone
+    tz_taipei = timezone(timedelta(hours=8))
+    return datetime.now(tz_taipei)
 
+class CurrentInventory(db.Model):
+    __tablename__ = 'current_inventory'
+    id = db.Column(db.Integer, primary_key=True)
+    part_id = db.Column(db.Integer, db.ForeignKey('parts.id'), nullable=False)
+    warehouse_id = db.Column(db.Integer, db.ForeignKey('warehouses.id'), nullable=False)
+    quantity_on_hand = db.Column(db.Integer, default=0)
+    reserved_quantity = db.Column(db.Integer, default=0)
+    available_quantity = db.Column(db.Integer, default=0)
+    last_updated = db.Column(db.DateTime, default=get_taipei_time, onupdate=get_taipei_time)
 
-class Inventory(BaseModel):
-    """庫存管理模型"""
-    
+    # Relationships
+    part = relationship("Part", backref="inventory_records")
+    warehouse = relationship("Warehouse", backref="inventory_records")
+
+    __table_args__ = (db.UniqueConstraint('part_id', 'warehouse_id', name='_part_warehouse_uc'),)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'part_id': self.part_id,
+            'warehouse_id': self.warehouse_id,
+            'quantity_on_hand': self.quantity_on_hand,
+            'reserved_quantity': self.reserved_quantity,
+            'available_quantity': self.available_quantity,
+            'last_updated': self.last_updated.isoformat() if self.last_updated else None,
+            'part_number': self.part.part_number if self.part else None,
+            'part_name': self.part.name if self.part else None,
+            'unit': self.part.unit if self.part else None,
+            'safety_stock': self.part.safety_stock if self.part else None,
+            'reorder_point': self.part.reorder_point if self.part else None,
+            'warehouse_name': self.warehouse.name if self.warehouse else None,
+            'warehouse_code': self.warehouse.code if self.warehouse else None,
+        }
+
     @classmethod
     def get_current_stock(cls, part_id, warehouse_id=None):
-        """取得當前庫存"""
-        conn = cls.get_connection()
-        try:
-            if warehouse_id:
-                stock = conn.execute(
-                    '''SELECT ci.*, p.part_number, p.name as part_name, w.name as warehouse_name
-                       FROM current_inventory ci
-                       JOIN parts p ON ci.part_id = p.id
-                       JOIN warehouses w ON ci.warehouse_id = w.id
-                       WHERE ci.part_id = ? AND ci.warehouse_id = ?''',
-                    (part_id, warehouse_id)
-                ).fetchone()
-                return dict(stock) if stock else None
-            else:
-                stocks = conn.execute(
-                    '''SELECT ci.*, p.part_number, p.name as part_name, w.name as warehouse_name
-                       FROM current_inventory ci
-                       JOIN parts p ON ci.part_id = p.id
-                       JOIN warehouses w ON ci.warehouse_id = w.id
-                       WHERE ci.part_id = ?
-                       ORDER BY w.code''',
-                    (part_id,)
-                ).fetchall()
-                return [dict(stock) for stock in stocks]
-        finally:
-            conn.close()
-    
+        query = cls.query.filter_by(part_id=part_id)
+        if warehouse_id:
+            return query.filter_by(warehouse_id=warehouse_id).first()
+        return query.all()
+
     @classmethod
     def get_all_inventory(cls, warehouse_id=None):
-        """取得所有庫存清單"""
-        conn = cls.get_connection()
-        try:
-            where_clause = 'WHERE ci.warehouse_id = ?' if warehouse_id else ''
-            params = (warehouse_id,) if warehouse_id else ()
-            
-            inventories = conn.execute(f'''
-                SELECT ci.*, p.part_number, p.name as part_name, p.unit, p.safety_stock, p.reorder_point,
-                       w.name as warehouse_name, w.code as warehouse_code
-                FROM current_inventory ci
-                JOIN parts p ON ci.part_id = p.id
-                JOIN warehouses w ON ci.warehouse_id = w.id
-                {where_clause}
-                ORDER BY w.code, p.part_number
-            ''', params).fetchall()
-            return [dict(inventory) for inventory in inventories]
-        finally:
-            conn.close()
-    
+        query = cls.query.join(Part).join(Warehouse)
+        if warehouse_id:
+            query = query.filter(cls.warehouse_id == warehouse_id)
+        return query.order_by(Warehouse.code, Part.part_number).all()
+
     @classmethod
     def get_low_stock_items(cls, warehouse_id=None):
-        """取得低庫存項目"""
-        conn = cls.get_connection()
-        try:
-            where_clause = 'AND ci.warehouse_id = ?' if warehouse_id else ''
-            params = (warehouse_id,) if warehouse_id else ()
-            
-            low_stock = conn.execute(f'''
-                SELECT ci.*, p.part_number, p.name as part_name, p.unit, p.safety_stock, p.reorder_point,
-                       w.name as warehouse_name
-                FROM current_inventory ci
-                JOIN parts p ON ci.part_id = p.id
-                JOIN warehouses w ON ci.warehouse_id = w.id
-                WHERE ci.available_quantity <= p.reorder_point {where_clause}
-                ORDER BY (ci.available_quantity - p.reorder_point)
-            ''', params).fetchall()
-            return [dict(item) for item in low_stock]
-        finally:
-            conn.close()
-    
+        query = cls.query.join(Part).join(Warehouse)
+        if warehouse_id:
+            query = query.filter(cls.warehouse_id == warehouse_id)
+        query = query.filter(cls.available_quantity <= Part.reorder_point)
+        return query.order_by(cls.available_quantity - Part.reorder_point).all()
+
     @classmethod
     def update_stock(cls, part_id, warehouse_id, quantity_change, transaction_type, reference_type=None, reference_id=None, notes=None):
-        """更新庫存並記錄交易"""
-        conn = cls.get_connection()
-        try:
-            # 取得當前庫存
-            current = conn.execute(
-                'SELECT quantity_on_hand FROM current_inventory WHERE part_id = ? AND warehouse_id = ?',
-                (part_id, warehouse_id)
-            ).fetchone()
-            
-            if not current:
-                # 如果庫存記錄不存在，創建新記錄
-                conn.execute(
-                    '''INSERT INTO current_inventory (part_id, warehouse_id, quantity_on_hand, available_quantity)
-                       VALUES (?, ?, ?, ?)''',
-                    (part_id, warehouse_id, max(0, quantity_change), max(0, quantity_change))
-                )
-            else:
-                # 更新現有庫存
-                new_quantity = current[0] + quantity_change
-                new_available = new_quantity  # 簡化版本，不考慮預留
-                
-                conn.execute(
-                    '''UPDATE current_inventory 
-                       SET quantity_on_hand = ?, available_quantity = ?, last_updated = CURRENT_TIMESTAMP
-                       WHERE part_id = ? AND warehouse_id = ?''',
-                    (max(0, new_quantity), max(0, new_available), part_id, warehouse_id)
-                )
-            
-            # 記錄交易
-            transaction_date = cls.get_taipei_time()
-            conn.execute(
-                '''INSERT INTO inventory_transactions 
-                   (part_id, warehouse_id, transaction_type, quantity, reference_type, reference_id, notes, transaction_date)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-                (part_id, warehouse_id, transaction_type, quantity_change, reference_type, reference_id, notes, transaction_date)
+        current_stock = cls.query.filter_by(part_id=part_id, warehouse_id=warehouse_id).first()
+        
+        if not current_stock:
+            # If inventory record doesn't exist, create a new one
+            new_quantity = max(0, quantity_change)
+            new_available = new_quantity
+            current_stock = cls(
+                part_id=part_id,
+                warehouse_id=warehouse_id,
+                quantity_on_hand=new_quantity,
+                available_quantity=new_available
             )
-            
-            conn.commit()
+            db.session.add(current_stock)
+        else:
+            # Update existing inventory
+            current_stock.quantity_on_hand += quantity_change
+            current_stock.available_quantity = current_stock.quantity_on_hand # Simplified, not considering reserved
+            current_stock.quantity_on_hand = max(0, current_stock.quantity_on_hand)
+            current_stock.available_quantity = max(0, current_stock.available_quantity)
+        
+        # Record transaction
+        transaction = InventoryTransaction(
+            part_id=part_id,
+            warehouse_id=warehouse_id,
+            transaction_type=transaction_type,
+            quantity=quantity_change,
+            reference_type=reference_type,
+            reference_id=reference_id,
+            notes=notes,
+            transaction_date=get_taipei_time()
+        )
+        db.session.add(transaction)
+        
+        try:
+            db.session.commit()
             return True
         except Exception as e:
+            db.session.rollback()
             print(f"更新庫存失敗: {e}")
             return False
-        finally:
-            conn.close()
 
+class InventoryTransaction(db.Model):
+    __tablename__ = 'inventory_transactions'
+    id = db.Column(db.Integer, primary_key=True)
+    part_id = db.Column(db.Integer, db.ForeignKey('parts.id'), nullable=False)
+    warehouse_id = db.Column(db.Integer, db.ForeignKey('warehouses.id'), nullable=False)
+    transaction_type = db.Column(db.String(50), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    unit_cost = db.Column(db.Numeric(10, 2), default=0)
+    reference_type = db.Column(db.String(50))
+    reference_id = db.Column(db.Integer)
+    notes = db.Column(db.Text)
+    transaction_date = db.Column(db.DateTime, nullable=False)
+    created_by = db.Column(db.String(100), default='system')
+    created_at = db.Column(db.DateTime, default=get_taipei_time)
 
-class Transaction(BaseModel):
-    """交易記錄模型"""
-    
+    # Relationships
+    part = relationship("Part", backref="transactions")
+    warehouse = relationship("Warehouse", backref="transactions")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'part_id': self.part_id,
+            'warehouse_id': self.warehouse_id,
+            'transaction_type': self.transaction_type,
+            'quantity': self.quantity,
+            'unit_cost': float(self.unit_cost),
+            'reference_type': self.reference_type,
+            'reference_id': self.reference_id,
+            'notes': self.notes,
+            'transaction_date': self.transaction_date.isoformat() if self.transaction_date else None,
+            'created_by': self.created_by,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'part_number': self.part.part_number if self.part else None,
+            'part_name': self.part.name if self.part else None,
+            'warehouse_name': self.warehouse.name if self.warehouse else None,
+        }
+
     @classmethod
     def get_transactions(cls, part_id=None, warehouse_id=None, limit=100):
-        """取得交易記錄"""
-        conn = cls.get_connection()
-        try:
-            where_conditions = []
-            params = []
-            
-            if part_id:
-                where_conditions.append('it.part_id = ?')
-                params.append(part_id)
-            
-            if warehouse_id:
-                where_conditions.append('it.warehouse_id = ?')
-                params.append(warehouse_id)
-            
-            where_clause = 'WHERE ' + ' AND '.join(where_conditions) if where_conditions else ''
-            params.append(limit)
-            
-            transactions = conn.execute(f'''
-                SELECT it.*, p.part_number, p.name as part_name, w.name as warehouse_name
-                FROM inventory_transactions it
-                JOIN parts p ON it.part_id = p.id
-                JOIN warehouses w ON it.warehouse_id = w.id
-                {where_clause}
-                ORDER BY it.transaction_date DESC, it.id DESC
-                LIMIT ?
-            ''', params).fetchall()
-            return [dict(transaction) for transaction in transactions]
-        finally:
-            conn.close()
-    
+        query = cls.query.join(Part).join(Warehouse)
+        if part_id:
+            query = query.filter(cls.part_id == part_id)
+        if warehouse_id:
+            query = query.filter(cls.warehouse_id == warehouse_id)
+        return query.order_by(db.desc(cls.transaction_date), db.desc(cls.id)).limit(limit).all()
+
     @classmethod
     def get_transaction_summary(cls, part_id, warehouse_id=None, days=30):
-        """取得交易摘要"""
-        conn = cls.get_connection()
-        try:
-            where_clause = 'WHERE it.part_id = ?'
-            params = [part_id]
-            
-            if warehouse_id:
-                where_clause += ' AND it.warehouse_id = ?'
-                params.append(warehouse_id)
-            
-            where_clause += " AND it.transaction_date >= datetime('now', '-{} days')".format(days)
-            
-            summary = conn.execute(f'''
-                SELECT 
-                    SUM(CASE WHEN quantity > 0 THEN quantity ELSE 0 END) as total_in,
-                    SUM(CASE WHEN quantity < 0 THEN ABS(quantity) ELSE 0 END) as total_out,
-                    COUNT(*) as transaction_count
-                FROM inventory_transactions it
-                {where_clause}
-            ''', params).fetchone()
-            
-            return dict(summary) if summary else {'total_in': 0, 'total_out': 0, 'transaction_count': 0}
-        finally:
-            conn.close()
+        from sqlalchemy import func, case
+        query = db.session.query(
+            func.sum(case((cls.quantity > 0, cls.quantity), else_=0)).label('total_in'),
+            func.sum(case((cls.quantity < 0, db.func.abs(cls.quantity)), else_=0)).label('total_out'),
+            func.count(cls.id).label('transaction_count')
+        ).filter(cls.part_id == part_id)
 
+        if warehouse_id:
+            query = query.filter(cls.warehouse_id == warehouse_id)
+        
+        # Filter by date
+        thirty_days_ago = get_taipei_time() - timedelta(days=days)
+        query = query.filter(cls.transaction_date >= thirty_days_ago)
 
-class StockCount(BaseModel):
-    """盤點管理模型"""
-    
+        summary = query.first()
+        return {
+            'total_in': summary.total_in or 0,
+            'total_out': summary.total_out or 0,
+            'transaction_count': summary.transaction_count or 0
+        }
+
+class StockCount(db.Model):
+    __tablename__ = 'stock_counts'
+    id = db.Column(db.Integer, primary_key=True)
+    count_number = db.Column(db.String(100), unique=True, nullable=False)
+    warehouse_id = db.Column(db.Integer, db.ForeignKey('warehouses.id'), nullable=False)
+    count_date = db.Column(db.DateTime, nullable=False)
+    status = db.Column(db.String(50), nullable=False, default='planning')
+    count_type = db.Column(db.String(50), nullable=False, default='full')
+    description = db.Column(db.Text)
+    counted_by = db.Column(db.String(100))
+    verified_by = db.Column(db.String(100))
+    total_items = db.Column(db.Integer, default=0)
+    variance_items = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=get_taipei_time)
+    completed_at = db.Column(db.DateTime)
+
+    # Relationships
+    warehouse = relationship("Warehouse", backref="stock_counts")
+    details = relationship("StockCountDetail", back_populates="stock_count", cascade="all, delete-orphan")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'count_number': self.count_number,
+            'warehouse_id': self.warehouse_id,
+            'warehouse_name': self.warehouse.name if self.warehouse else None,
+            'count_date': self.count_date.isoformat() if self.count_date else None,
+            'status': self.status,
+            'count_type': self.count_type,
+            'description': self.description,
+            'counted_by': self.counted_by,
+            'verified_by': self.verified_by,
+            'total_items': self.total_items,
+            'variance_items': self.variance_items,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+        }
+
     @classmethod
     def get_all_counts(cls):
-        """取得所有盤點記錄"""
-        conn = cls.get_connection()
-        try:
-            counts = conn.execute('''
-                SELECT sc.*, w.name as warehouse_name
-                FROM stock_counts sc
-                JOIN warehouses w ON sc.warehouse_id = w.id
-                ORDER BY sc.created_at DESC
-            ''').fetchall()
-            return [dict(count) for count in counts]
-        finally:
-            conn.close()
-    
+        return cls.query.order_by(db.desc(cls.created_at)).all()
+
     @classmethod
     def get_count_by_id(cls, count_id):
-        """根據ID取得盤點記錄"""
-        conn = cls.get_connection()
-        try:
-            count = conn.execute('''
-                SELECT sc.*, w.name as warehouse_name
-                FROM stock_counts sc
-                JOIN warehouses w ON sc.warehouse_id = w.id
-                WHERE sc.id = ?
-            ''', (count_id,)).fetchone()
-            return dict(count) if count else None
-        finally:
-            conn.close()
-    
+        return cls.query.get(count_id)
+
     @classmethod
     def create_count(cls, warehouse_id, count_type='full', description='', counted_by=''):
-        """建立新的盤點"""
-        conn = cls.get_connection()
-        try:
-            # 生成盤點編號
-            current_date = cls.get_taipei_time()[:10].replace('-', '')
-            count_number = f"SC-{current_date}-{random.randint(1000, 9999)}"
-            
-            cursor = conn.execute('''
-                INSERT INTO stock_counts (count_number, warehouse_id, count_date, count_type, description, counted_by)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (count_number, warehouse_id, cls.get_taipei_time(), count_type, description, counted_by))
-            
-            count_id = cursor.lastrowid
-            
-            # 自動新增盤點明細（當前庫存中的所有項目）
-            conn.execute('''
-                INSERT INTO stock_count_details (stock_count_id, part_id, system_quantity)
-                SELECT ?, ci.part_id, ci.quantity_on_hand
-                FROM current_inventory ci
-                WHERE ci.warehouse_id = ? AND ci.quantity_on_hand > 0
-            ''', (count_id, warehouse_id))
-            
-            conn.commit()
-            return count_id
-        except Exception as e:
-            print(f"建立盤點失敗: {e}")
-            return None
-        finally:
-            conn.close()
-    
+        count_number = f"SC-{get_taipei_time().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+        
+        new_count = cls(
+            count_number=count_number,
+            warehouse_id=warehouse_id,
+            count_date=get_taipei_time(),
+            count_type=count_type,
+            description=description,
+            counted_by=counted_by
+        )
+        db.session.add(new_count)
+        db.session.flush() # Flush to get new_count.id
+
+        # Auto-add stock count details (all items in current inventory for that warehouse)
+        inventory_items = CurrentInventory.query.filter_by(warehouse_id=warehouse_id).filter(CurrentInventory.quantity_on_hand > 0).all()
+        for item in inventory_items:
+            detail = StockCountDetail(
+                stock_count_id=new_count.id,
+                part_id=item.part_id,
+                system_quantity=item.quantity_on_hand
+            )
+            db.session.add(detail)
+        
+        db.session.commit()
+        return new_count.id
+
     @classmethod
     def start_count(cls, count_id):
-        """開始盤點"""
-        conn = cls.get_connection()
-        try:
-            conn.execute('''
-                UPDATE stock_counts 
-                SET status = 'counting'
-                WHERE id = ? AND status = 'planning'
-            ''', (count_id,))
-            
-            conn.commit()
-            return conn.total_changes > 0
-        except Exception as e:
-            print(f"開始盤點失敗: {e}")
-            return False
-        finally:
-            conn.close()
-    
+        count = cls.query.get(count_id)
+        if count and count.status == 'planning':
+            count.status = 'counting'
+            db.session.commit()
+            return True
+        return False
+
     @classmethod
     def add_count_item(cls, count_id, part_id, actual_quantity, notes=''):
-        """新增盤點項目"""
-        conn = cls.get_connection()
-        try:
-            # 檢查是否已存在
-            existing = conn.execute('''
-                SELECT id FROM stock_count_details 
-                WHERE stock_count_id = ? AND part_id = ?
-            ''', (count_id, part_id)).fetchone()
-            
-            if existing:
-                # 更新現有項目
-                return cls.update_count_item(count_id, part_id, actual_quantity, notes)
-            
-            # 取得系統庫存數量
-            count_info = conn.execute('''
-                SELECT warehouse_id FROM stock_counts WHERE id = ?
-            ''', (count_id,)).fetchone()
-            
-            if not count_info:
-                return False
-            
-            warehouse_id = count_info[0]
-            
-            system_qty = conn.execute('''
-                SELECT quantity_on_hand FROM current_inventory 
-                WHERE part_id = ? AND warehouse_id = ?
-            ''', (part_id, warehouse_id)).fetchone()
-            
-            system_quantity = system_qty[0] if system_qty else 0
-            variance = actual_quantity - system_quantity
-            
-            # 新增盤點項目
-            conn.execute('''
-                INSERT INTO stock_count_details 
-                (stock_count_id, part_id, system_quantity, counted_quantity, variance_quantity, notes, counted_at)
-                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ''', (count_id, part_id, system_quantity, actual_quantity, variance, notes))
-            
-            conn.commit()
-            return True
-        except Exception as e:
-            print(f"新增盤點項目失敗: {e}")
+        detail = StockCountDetail.query.filter_by(stock_count_id=count_id, part_id=part_id).first()
+        
+        if detail:
+            return cls.update_count_item(count_id, part_id, actual_quantity, notes)
+        
+        # Get system quantity
+        stock_count = cls.query.get(count_id)
+        if not stock_count:
             return False
-        finally:
-            conn.close()
-    
+        
+        current_inventory = CurrentInventory.query.filter_by(
+            part_id=part_id, warehouse_id=stock_count.warehouse_id
+        ).first()
+        system_quantity = current_inventory.quantity_on_hand if current_inventory else 0
+        variance = actual_quantity - system_quantity
+
+        new_detail = StockCountDetail(
+            stock_count_id=count_id,
+            part_id=part_id,
+            system_quantity=system_quantity,
+            counted_quantity=actual_quantity,
+            variance_quantity=variance,
+            notes=notes,
+            counted_at=get_taipei_time()
+        )
+        db.session.add(new_detail)
+        db.session.commit()
+        return True
+
     @classmethod
     def update_count_item(cls, count_id, part_id, actual_quantity, notes=''):
-        """更新盤點項目"""
-        conn = cls.get_connection()
-        try:
-            # 取得系統數量
-            detail = conn.execute('''
-                SELECT id, system_quantity FROM stock_count_details 
-                WHERE stock_count_id = ? AND part_id = ?
-            ''', (count_id, part_id)).fetchone()
-            
-            if not detail:
-                return False
-            
-            detail_id, system_qty = detail
-            variance = actual_quantity - system_qty
-            
-            conn.execute('''
-                UPDATE stock_count_details 
-                SET counted_quantity = ?, variance_quantity = ?, notes = ?, counted_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            ''', (actual_quantity, variance, notes, detail_id))
-            
-            conn.commit()
+        detail = StockCountDetail.query.filter_by(stock_count_id=count_id, part_id=part_id).first()
+        if detail:
+            detail.counted_quantity = actual_quantity
+            detail.variance_quantity = actual_quantity - detail.system_quantity
+            detail.notes = notes
+            detail.counted_at = get_taipei_time()
+            db.session.commit()
             return True
-        except Exception as e:
-            print(f"更新盤點項目失敗: {e}")
-            return False
-        finally:
-            conn.close()
-    
+        return False
+
     @classmethod
     def get_count_details(cls, count_id):
-        """取得盤點明細"""
-        conn = cls.get_connection()
-        try:
-            details = conn.execute('''
-                SELECT scd.*, p.part_number, p.name as part_name, p.unit
-                FROM stock_count_details scd
-                JOIN parts p ON scd.part_id = p.id
-                WHERE scd.stock_count_id = ?
-                ORDER BY p.part_number
-            ''', (count_id,)).fetchall()
-            return [dict(detail) for detail in details]
-        finally:
-            conn.close()
-    
+        return StockCountDetail.query.filter_by(stock_count_id=count_id).order_by(Part.part_number).all()
+
     @classmethod
     def update_count_detail(cls, detail_id, counted_quantity, notes=''):
-        """更新盤點明細"""
-        conn = cls.get_connection()
-        try:
-            # 取得系統數量
-            detail = conn.execute(
-                'SELECT system_quantity FROM stock_count_details WHERE id = ?',
-                (detail_id,)
-            ).fetchone()
-            
-            if detail:
-                system_qty = detail[0]
-                variance = counted_quantity - system_qty
-                
-                conn.execute('''
-                    UPDATE stock_count_details 
-                    SET counted_quantity = ?, variance_quantity = ?, notes = ?, counted_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                ''', (counted_quantity, variance, notes, detail_id))
-                
-                conn.commit()
-                return True
-            return False
-        except Exception as e:
-            print(f"更新盤點明細失敗: {e}")
-            return False
-        finally:
-            conn.close()
-    
+        detail = StockCountDetail.query.get(detail_id)
+        if detail:
+            detail.counted_quantity = counted_quantity
+            detail.variance_quantity = counted_quantity - detail.system_quantity
+            detail.notes = notes
+            detail.counted_at = get_taipei_time()
+            db.session.commit()
+            return True
+        return False
+
     @classmethod
     def complete_count(cls, count_id, verified_by='', apply_adjustments=False):
-        """完成盤點"""
-        conn = cls.get_connection()
-        try:
-            # 更新盤點狀態
-            conn.execute('''
-                UPDATE stock_counts 
-                SET status = 'completed', verified_by = ?, completed_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            ''', (verified_by, count_id))
-            
-            if apply_adjustments:
-                # 應用盤點差異調整
-                variances = conn.execute('''
-                    SELECT scd.part_id, sc.warehouse_id, scd.variance_quantity
-                    FROM stock_count_details scd
-                    JOIN stock_counts sc ON scd.stock_count_id = sc.id
-                    WHERE sc.id = ? AND scd.variance_quantity != 0
-                ''', (count_id,)).fetchall()
-                
-                for part_id, warehouse_id, variance in variances:
-                    if variance != 0:
-                        # 記錄調整交易
-                        Inventory.update_stock(
-                            part_id, warehouse_id, variance, 'ADJUST',
-                            'COUNT', count_id, f'盤點調整 (差異: {variance})'
-                        )
-            
-            conn.commit()
-            return True
-        except Exception as e:
-            print(f"完成盤點失敗: {e}")
+        count = cls.query.get(count_id)
+        if not count:
             return False
-        finally:
-            conn.close()
-    
+        
+        count.status = 'completed'
+        count.verified_by = verified_by
+        count.completed_at = get_taipei_time()
+        
+        if apply_adjustments:
+            for detail in count.details:
+                if detail.variance_quantity != 0:
+                    CurrentInventory.update_stock(
+                        detail.part_id, count.warehouse_id, detail.variance_quantity, 'ADJUST',
+                        'COUNT', count.id, f'盤點調整 (差異: {detail.variance_quantity})'
+                    )
+        
+        db.session.commit()
+        return True
+
     @classmethod
     def import_count_data(cls, count_id, count_data):
-        """批量匯入盤點資料"""
-        conn = cls.get_connection()
-        try:
-            success_count = 0
-            error_list = []
-            
-            for row_num, row_data in enumerate(count_data, 1):
+        success_count = 0
+        error_list = []
+        
+        for row_num, row_data in enumerate(count_data, 1):
+            try:
+                part_number = row_data.get('part_number', '').strip()
+                counted_qty = row_data.get('counted_quantity', 0)
+                notes = row_data.get('notes', '').strip()
+                
+                if not part_number:
+                    error_list.append(f"第{row_num}行: 零件編號不能為空")
+                    continue
+                
+                part = Part.query.filter_by(part_number=part_number).first()
+                if not part:
+                    error_list.append(f"第{row_num}行: 找不到零件編號 {part_number}")
+                    continue
+                
+                detail = StockCountDetail.query.filter_by(stock_count_id=count_id, part_id=part.id).first()
+                if not detail:
+                    error_list.append(f"第{row_num}行: 在盤點中找不到零件 {part_number}")
+                    continue
+                
                 try:
-                    part_number = row_data.get('part_number', '').strip()
-                    counted_qty = row_data.get('counted_quantity', 0)
-                    notes = row_data.get('notes', '').strip()
-                    
-                    if not part_number:
-                        error_list.append(f"第{row_num}行: 零件編號不能為空")
-                        continue
-                    
-                    # 查找零件ID
-                    part = conn.execute(
-                        'SELECT id FROM parts WHERE part_number = ?',
-                        (part_number,)
-                    ).fetchone()
-                    
-                    if not part:
-                        error_list.append(f"第{row_num}行: 找不到零件編號 {part_number}")
-                        continue
-                    
-                    part_id = part[0]
-                    
-                    # 查找盤點明細
-                    detail = conn.execute(
-                        'SELECT id, system_quantity FROM stock_count_details WHERE stock_count_id = ? AND part_id = ?',
-                        (count_id, part_id)
-                    ).fetchone()
-                    
-                    if not detail:
-                        error_list.append(f"第{row_num}行: 在盤點中找不到零件 {part_number}")
-                        continue
-                    
-                    detail_id, system_qty = detail
-                    
-                    try:
-                        counted_qty = int(counted_qty)
-                    except (ValueError, TypeError):
-                        error_list.append(f"第{row_num}行: 盤點數量必須是數字")
-                        continue
-                    
-                    # 更新盤點明細
-                    variance = counted_qty - system_qty
-                    conn.execute('''
-                        UPDATE stock_count_details 
-                        SET counted_quantity = ?, variance_quantity = ?, notes = ?, counted_at = CURRENT_TIMESTAMP
-                        WHERE id = ?
-                    ''', (counted_qty, variance, notes, detail_id))
-                    
-                    success_count += 1
-                    
-                except Exception as e:
-                    error_list.append(f"第{row_num}行: 處理錯誤 - {str(e)}")
-            
-            conn.commit()
-            return success_count, error_list
-            
-        except Exception as e:
-            return 0, [f"匯入失敗: {str(e)}"]
-        finally:
-            conn.close()
+                    counted_qty = int(counted_qty)
+                except (ValueError, TypeError):
+                    error_list.append(f"第{row_num}行: 盤點數量必須是數字")
+                    continue
+                
+                detail.counted_quantity = counted_qty
+                detail.variance_quantity = counted_qty - detail.system_quantity
+                detail.notes = notes
+                detail.counted_at = get_taipei_time()
+                
+                success_count += 1
+                
+            except Exception as e:
+                error_list.append(f"第{row_num}行: 處理錯誤 - {str(e)}")
+        
+        db.session.commit()
+        return success_count, error_list
+
+class StockCountDetail(db.Model):
+    __tablename__ = 'stock_count_details'
+    id = db.Column(db.Integer, primary_key=True)
+    stock_count_id = db.Column(db.Integer, db.ForeignKey('stock_counts.id'), nullable=False)
+    part_id = db.Column(db.Integer, db.ForeignKey('parts.id'), nullable=False)
+    system_quantity = db.Column(db.Integer, nullable=False)
+    counted_quantity = db.Column(db.Integer)
+    variance_quantity = db.Column(db.Integer, default=0)
+    notes = db.Column(db.Text)
+    counted_at = db.Column(db.DateTime)
+
+    # Relationships
+    stock_count = relationship("StockCount", back_populates="details")
+    part = relationship("Part", backref="stock_count_details")
+
+    __table_args__ = (db.UniqueConstraint('stock_count_id', 'part_id', name='_stock_count_part_uc'),)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'stock_count_id': self.stock_count_id,
+            'part_id': self.part_id,
+            'part_number': self.part.part_number if self.part else None,
+            'part_name': self.part.name if self.part else None,
+            'part_unit': self.part.unit if self.part else None,
+            'system_quantity': self.system_quantity,
+            'counted_quantity': self.counted_quantity,
+            'variance_quantity': self.variance_quantity,
+            'notes': self.notes,
+            'counted_at': self.counted_at.isoformat() if self.counted_at else None,
+        }

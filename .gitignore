@@ -55,3 +55,7 @@ desktop.ini
 # Environment variables
 .env
 .env.local
+
+# Ignored by user
+import_parts_from_excel.py
+part.xlsx
