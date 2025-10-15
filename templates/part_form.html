@@ -28,14 +28,24 @@
                 <h5 class="mb-0">零件資料</h5>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('web.new_part') }}">
+                <form method="POST" action="{% if edit_mode %}{{ url_for('web.edit_part', part_id=part.id) }}{% else %}{{ url_for('web.new_part') }}{% endif %}">
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="part_number" class="form-label">零件編號 <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="part_number" name="part_number" 
-                                       value="{{ part.part_number or '' }}" required>
-                                <div class="form-text">唯一的零件識別編號</div>
+                                {% if edit_mode %}
+                                    <!-- 編輯模式：顯示但不可修改 -->
+                                    <input type="text" class="form-control" id="part_number_display" 
+                                           value="{{ part.part_number }}" disabled>
+                                    <!-- 使用隱藏欄位傳遞真實值 -->
+                                    <input type="hidden" name="part_number" value="{{ part.part_number }}">
+                                    <div class="form-text">零件編號不可修改</div>
+                                {% else %}
+                                    <!-- 新增模式：可以輸入 -->
+                                    <input type="text" class="form-control" id="part_number" name="part_number" 
+                                           value="{{ part.part_number or '' }}" required>
+                                    <div class="form-text">唯一的零件識別編號</div>
+                                {% endif %}
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -48,8 +58,8 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label for="description" class="form-label">描述 <span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="description" name="description" rows="3" required>{{ part.description or '' }}</textarea>
+                        <label for="description" class="form-label">描述</label>
+                        <textarea class="form-control" id="description" name="description" rows="3">{{ part.description or '' }}</textarea>
                         <div class="form-text">詳細的零件描述和規格</div>
                     </div>
                     
@@ -81,16 +91,16 @@
                             <div class="mb-3">
                                 <label for="locations" class="form-label">儲存位置 <span class="text-danger">*</span></label>
                                 <div id="location-inputs">
-                                    {% if part and part.locations %}
-                                        {% for location in part.locations %}
+                                    {% if part and part.location_associations %}
+                                        {% for assoc in part.location_associations %}
                                             <div class="input-group mb-2 location-input-group">
                                                 <select class="form-select location-warehouse-select" name="location_warehouse_id[]" required>
                                                     <option value="">選擇倉庫</option>
                                                     {% for warehouse in warehouses %}
-                                                        <option value="{{ warehouse.id }}" {{ 'selected' if location.warehouse_id == warehouse.id else '' }}>{{ warehouse.name }}</option>
+                                                        <option value="{{ warehouse['id'] }}" {{ 'selected' if assoc.warehouse_location.warehouse_id == warehouse['id'] else '' }}>{{ warehouse['name'] }}</option>
                                                     {% endfor %}
                                                 </select>
-                                                <input type="text" class="form-control location-code-input" name="location_code[]" value="{{ location.location_code }}" placeholder="位置代碼" required>
+                                                <input type="text" class="form-control location-code-input" name="location_code[]" value="{{ assoc.warehouse_location.location_code }}" placeholder="位置代碼" required>
                                                 <button type="button" class="btn btn-outline-danger remove-location-btn"><i class="fas fa-times"></i></button>
                                             </div>
                                         {% endfor %}
@@ -99,7 +109,7 @@
                                             <select class="form-select location-warehouse-select" name="location_warehouse_id[]" required>
                                                 <option value="">選擇倉庫</option>
                                                 {% for warehouse in warehouses %}
-                                                    <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
+                                                    <option value="{{ warehouse['id'] }}">{{ warehouse['name'] }}</option>
                                                 {% endfor %}
                                             </select>
                                             <input type="text" class="form-control location-code-input" name="location_code[]" placeholder="位置代碼" required>
@@ -159,7 +169,7 @@
         const addLocationBtn = document.getElementById('add-location-btn');
         const warehouseOptions = `
             {% for warehouse in warehouses %}
-                <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
+                <option value="{{ warehouse['id'] }}">{{ warehouse['name'] }}</option>
             {% endfor %}
         `;
 

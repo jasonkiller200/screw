@@ -1,7 +1,8 @@
-from app import db
+from extensions import db
 from sqlalchemy.orm import relationship
 from datetime import datetime, timedelta
 from .part import Part, Warehouse # Import Part and Warehouse models
+import random
 
 # Helper function to get current time in UTC+8
 def get_taipei_time():
@@ -47,15 +48,18 @@ class CurrentInventory(db.Model):
     def get_current_stock(cls, part_id, warehouse_id=None):
         query = cls.query.filter_by(part_id=part_id)
         if warehouse_id:
-            return query.filter_by(warehouse_id=warehouse_id).first()
-        return query.all()
+            stock = query.filter_by(warehouse_id=warehouse_id).first()
+            return stock.to_dict() if stock else None
+        stocks = query.all()
+        return [stock.to_dict() for stock in stocks]
 
     @classmethod
     def get_all_inventory(cls, warehouse_id=None):
         query = cls.query.join(Part).join(Warehouse)
         if warehouse_id:
             query = query.filter(cls.warehouse_id == warehouse_id)
-        return query.order_by(Warehouse.code, Part.part_number).all()
+        inventories = query.order_by(Warehouse.code, Part.part_number).all()
+        return [inv.to_dict() for inv in inventories]
 
     @classmethod
     def get_low_stock_items(cls, warehouse_id=None):
@@ -63,7 +67,8 @@ class CurrentInventory(db.Model):
         if warehouse_id:
             query = query.filter(cls.warehouse_id == warehouse_id)
         query = query.filter(cls.available_quantity <= Part.reorder_point)
-        return query.order_by(cls.available_quantity - Part.reorder_point).all()
+        items = query.order_by(cls.available_quantity - Part.reorder_point).all()
+        return [item.to_dict() for item in items]
 
     @classmethod
     def update_stock(cls, part_id, warehouse_id, quantity_change, transaction_type, reference_type=None, reference_id=None, notes=None):
@@ -218,11 +223,13 @@ class StockCount(db.Model):
 
     @classmethod
     def get_all_counts(cls):
-        return cls.query.order_by(db.desc(cls.created_at)).all()
+        counts = cls.query.order_by(db.desc(cls.created_at)).all()
+        return [count.to_dict() for count in counts]
 
     @classmethod
     def get_count_by_id(cls, count_id):
-        return cls.query.get(count_id)
+        count = cls.query.get(count_id)
+        return count.to_dict() if count else None
 
     @classmethod
     def create_count(cls, warehouse_id, count_type='full', description='', counted_by=''):
@@ -306,7 +313,10 @@ class StockCount(db.Model):
 
     @classmethod
     def get_count_details(cls, count_id):
-        return StockCountDetail.query.filter_by(stock_count_id=count_id).order_by(Part.part_number).all()
+        details = StockCountDetail.query.join(Part).filter(
+            StockCountDetail.stock_count_id == count_id
+        ).order_by(Part.part_number).all()
+        return [detail.to_dict() for detail in details]
 
     @classmethod
     def update_count_detail(cls, detail_id, counted_quantity, notes=''):
@@ -409,7 +419,7 @@ class StockCountDetail(db.Model):
             'part_id': self.part_id,
             'part_number': self.part.part_number if self.part else None,
             'part_name': self.part.name if self.part else None,
-            'part_unit': self.part.unit if self.part else None,
+            'unit': self.part.unit if self.part else None,  # 使用 unit 而不是 part_unit
             'system_quantity': self.system_quantity,
             'counted_quantity': self.counted_quantity,
             'variance_quantity': self.variance_quantity,

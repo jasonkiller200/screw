@@ -44,7 +44,7 @@
                                 <select class="form-select" id="warehouse_id" name="warehouse_id" required>
                                     <option value="">選擇倉庫</option>
                                     {% for warehouse in warehouses %}
-                                    <option value="{{ warehouse.id }}">{{ warehouse.code }} - {{ warehouse.name }}</option>
+                                    <option value="{{ warehouse['id'] }}">{{ warehouse['code'] }} - {{ warehouse['name'] }}</option>
                                     {% endfor %}
                                 </select>
                             </div>

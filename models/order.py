@@ -15,6 +15,7 @@ class Order(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     part_id = db.Column(db.Integer, db.ForeignKey('parts.id'), nullable=False)
     warehouse_id = db.Column(db.Integer, db.ForeignKey('warehouses.id'), default=1) # Assuming default warehouse_id 1
+    location_code = db.Column(db.String(100), nullable=True) # 儲位代碼
     order_date = db.Column(db.DateTime, default=get_taipei_time, nullable=False)
     quantity_ordered = db.Column(db.Integer, nullable=False)
     quantity_received = db.Column(db.Integer, default=0)
@@ -38,6 +39,7 @@ class Order(db.Model):
             'part_name': self.part.name if self.part else None,
             'warehouse_id': self.warehouse_id,
             'warehouse_name': self.warehouse.name if self.warehouse else None,
+            'location_code': self.location_code,
             'order_date': self.order_date.isoformat() if self.order_date else None,
             'quantity_ordered': self.quantity_ordered,
             'quantity_received': self.quantity_received,
@@ -51,7 +53,7 @@ class Order(db.Model):
         }
 
     @classmethod
-    def create(cls, part_number, quantity_ordered, status='pending', warehouse_id=1,
+    def create(cls, part_number, quantity_ordered, status='pending', warehouse_id=1, location_code=None,
                quantity_received=0, unit_cost=0, supplier=None, expected_date=None, received_date=None, notes=None):
         
         part = Part.query.filter_by(part_number=part_number).first()
@@ -61,6 +63,7 @@ class Order(db.Model):
         new_order = cls(
             part_id=part.id,
             warehouse_id=warehouse_id,
+            location_code=location_code,
             quantity_ordered=quantity_ordered,
             status=status,
             quantity_received=quantity_received,
@@ -84,11 +87,13 @@ class Order(db.Model):
     
     @classmethod
     def get_pending_orders(cls):
-        return cls.query.filter_by(status='pending').order_by(db.desc(cls.order_date)).all()
+        from sqlalchemy.orm import joinedload
+        return cls.query.options(joinedload(cls.part), joinedload(cls.warehouse)).filter_by(status='pending').order_by(db.desc(cls.order_date)).all()
     
     @classmethod
     def get_all_orders(cls):
-        return cls.query.order_by(db.desc(cls.order_date)).all()
+        from sqlalchemy.orm import joinedload
+        return cls.query.options(joinedload(cls.part), joinedload(cls.warehouse)).order_by(db.desc(cls.order_date)).all()
     
     @classmethod
     def confirm_orders(cls, order_ids):

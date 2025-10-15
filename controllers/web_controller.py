@@ -1,13 +1,18 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
-from models.part import Part
+from models.part import Part, Warehouse, WarehouseLocation, PartWarehouseLocation # Import PartWarehouseLocation for dummy object
 from models.order import Order
-from models.inventory import Warehouse, Inventory, Transaction, StockCount
+from models.inventory import CurrentInventory, InventoryTransaction, StockCount
 import os
 import pandas as pd
 from werkzeug.utils import secure_filename
 from io import BytesIO
 
 web_bp = Blueprint('web', __name__)
+
+# Helper class for re-rendering part form with unsaved locations
+class DummyPartWarehouseLocation:
+    def __init__(self, warehouse_location):
+        self.warehouse_location = warehouse_location
 
 @web_bp.route('/')
 def index():
@@ -45,7 +50,7 @@ def part_lookup():
 def new_part():
     """Create new part page."""
     part_data = {}
-    warehouses = Part.get_all_warehouses() # Get all warehouses for dropdown
+    warehouses = Warehouse.get_all() # Get all warehouses for dropdown
 
     if request.method == 'POST':
         part_number = request.form.get('part_number')
@@ -62,22 +67,42 @@ def new_part():
         for i in range(len(location_warehouse_ids)):
             wh_id = location_warehouse_ids[i]
             loc_code = location_codes[i]
+            # Only add if both warehouse_id and location_code are provided
             if wh_id and loc_code:
                 locations_data.append({'warehouse_id': int(wh_id), 'location_code': loc_code})
 
-        if not all([part_number, name, description, unit, quantity_per_box]) or not locations_data:
+        # Validate required fields and at least one storage location
+        # description is nullable, so it's not included in the all() check
+        # Explicitly check for None or empty strings for required fields
+        if not part_number or not name or not unit or not quantity_per_box or not locations_data:
             flash('所有欄位都是必填的，且至少需要一個儲存位置', 'error')
-            # If there's an error, re-render the form with the submitted data
             part_data = {
                 'part_number': part_number,
                 'name': name,
                 'description': description,
                 'unit': unit,
                 'quantity_per_box': quantity_per_box,
-                'locations': locations_data # Pass back the structured locations data
+                'locations': locations_data
             }
             return render_template('part_form.html', part=part_data, warehouses=warehouses)
         
+        # Validate for duplicate locations within the submitted data
+        seen_locations = set()
+        for loc_data in locations_data:
+            location_tuple = (loc_data['warehouse_id'], loc_data['location_code'].lower()) # Case-insensitive check for location code
+            if location_tuple in seen_locations:
+                flash(f"儲存位置重複：倉庫ID {loc_data['warehouse_id']} 的位置代碼 '{loc_data['location_code']}' 已存在於提交的列表中。", 'error')
+                part_data = {
+                    'part_number': part_number,
+                    'name': name,
+                    'description': description,
+                    'unit': unit,
+                    'quantity_per_box': quantity_per_box,
+                    'locations': locations_data
+                }
+                return render_template('part_form.html', part=part_data, warehouses=warehouses)
+            seen_locations.add(location_tuple)
+
         try:
             quantity_per_box = int(quantity_per_box)
         except ValueError:
@@ -92,13 +117,33 @@ def new_part():
             }
             return render_template('part_form.html', part=part_data, warehouses=warehouses)
         
-        success = Part.create(part_number, name, description, unit, quantity_per_box, locations_data)
+        # Corrected Part.create call: description is passed as a keyword argument
+        result = Part.create(
+            part_number=part_number, 
+            name=name, 
+            description=description, 
+            unit=unit, 
+            quantity_per_box=quantity_per_box, 
+            locations_data=locations_data
+        )
         
-        if success:
+        if result['success']:
             flash('零件新增成功', 'success')
             return redirect(url_for('web.parts'))
         else:
-            flash('零件編號已存在', 'error')
+            # 處理倉位衝突錯誤
+            if result.get('error') == 'location_conflict':
+                conflicts = result.get('conflicts', [])
+                error_msg = '倉位衝突！以下倉位已被其他零件使用：\n'
+                for conflict in conflicts:
+                    error_msg += f"\n• {conflict['warehouse']} - {conflict['location']}\n"
+                    error_msg += f"  使用中的零件: {', '.join(conflict['parts'][:3])}"
+                    if len(conflict['parts']) > 3:
+                        error_msg += f" 等 {len(conflict['parts'])} 個零件"
+                flash(error_msg, 'error')
+            else:
+                flash(str(result.get('error', '零件新增失敗')), 'error') # Ensure message is string
+            
             part_data = {
                 'part_number': part_number,
                 'name': name,
@@ -114,7 +159,7 @@ def new_part():
 @web_bp.route('/parts/<int:part_id>/edit', methods=['GET', 'POST'])
 def edit_part(part_id):
     """Edit part page."""
-    warehouses = Part.get_all_warehouses() # Get all warehouses for dropdown
+    warehouses = Warehouse.get_all() # Get all warehouses for dropdown
 
     if request.method == 'POST':
         part_number = request.form.get('part_number')
@@ -134,23 +179,89 @@ def edit_part(part_id):
             if wh_id and loc_code:
                 locations_data.append({'warehouse_id': int(wh_id), 'location_code': loc_code})
 
-        if not all([part_number, name, description, unit, quantity_per_box]) or not locations_data:
+        # Validate required fields and at least one storage location
+        # description is nullable, so it's not included in the all() check
+        # Explicitly check for None or empty strings for required fields
+        if not part_number or not name or not unit or not quantity_per_box or not locations_data:
             flash('所有欄位都是必填的，且至少需要一個儲存位置', 'error')
-            return redirect(url_for('web.edit_part', part_id=part_id))
+            # To re-render the form with submitted data, we need to fetch the part again
+            part = Part.get_by_id(part_id)
+            if part:
+                # Update part object attributes for re-rendering
+                part.name = name
+                part.description = description
+                part.unit = unit
+                part.quantity_per_box = quantity_per_box
+                # Manually set locations for re-rendering
+                part.location_associations = [] # Clear existing associations for re-rendering
+                for loc_data in locations_data:
+                    dummy_wh_loc = WarehouseLocation(loc_data['warehouse_id'], loc_data['location_code'])
+                    part.location_associations.append(DummyPartWarehouseLocation(dummy_wh_loc))
+            return render_template('part_form.html', part=part, edit_mode=True, warehouses=warehouses)
         
+        # Validate for duplicate locations within the submitted data
+        seen_locations = set()
+        for loc_data in locations_data:
+            location_tuple = (loc_data['warehouse_id'], loc_data['location_code'].lower()) # Case-insensitive check for location code
+            if location_tuple in seen_locations:
+                flash(f"儲存位置重複：倉庫ID {loc_data['warehouse_id']} 的位置代碼 '{loc_data['location_code']}' 已存在於提交的列表中。", 'error')
+                part = Part.get_by_id(part_id)
+                if part:
+                    part.name = name
+                    part.description = description
+                    part.unit = unit
+                    part.quantity_per_box = quantity_per_box
+                    part.location_associations = [] # Clear existing associations for re-rendering
+                    for loc_data_re_render in locations_data:
+                        dummy_wh_loc = WarehouseLocation(loc_data_re_render['warehouse_id'], loc_data_re_render['location_code'])
+                        part.location_associations.append(DummyPartWarehouseLocation(dummy_wh_loc))
+                return render_template('part_form.html', part=part, edit_mode=True, warehouses=warehouses)
+            seen_locations.add(location_tuple)
+
         try:
             quantity_per_box = int(quantity_per_box)
         except ValueError:
             flash('每盒數量必須是數字', 'error')
-            return redirect(url_for('web.edit_part', part_id=part_id))
+            part = Part.get_by_id(part_id)
+            if part:
+                part.part_number = part_number
+                part.name = name
+                part.description = description
+                part.unit = unit
+                part.quantity_per_box = quantity_per_box
+                part.location_associations = [] # Clear existing associations for re-rendering
+                for loc_data_re_render in locations_data:
+                    dummy_wh_loc = WarehouseLocation(loc_data_re_render['warehouse_id'], loc_data_re_render['location_code'])
+                    part.location_associations.append(DummyPartWarehouseLocation(dummy_wh_loc))
+            return render_template('part_form.html', part=part, edit_mode=True, warehouses=warehouses)
         
-        success = Part.update(part_id, part_number, name, description, unit, quantity_per_box, locations_data)
+        # Corrected Part.update call: description is passed as a keyword argument
+        result = Part.update(
+            part_id=part_id, 
+            part_number=part_number, 
+            name=name, 
+            description=description, 
+            unit=unit, 
+            quantity_per_box=quantity_per_box, 
+            locations_data=locations_data
+        )
         
-        if success:
+        if result['success']:
             flash('零件更新成功', 'success')
             return redirect(url_for('web.parts'))
         else:
-            flash('零件更新失敗', 'error')
+            # 處理倉位衝突錯誤
+            if result.get('error') == 'location_conflict':
+                conflicts = result.get('conflicts', [])
+                error_msg = '倉位衝突！以下倉位已被其他零件使用：\n'
+                for conflict in conflicts:
+                    error_msg += f"\n• {conflict['warehouse']} - {conflict['location']}\n"
+                    error_msg += f"  使用中的零件: {', '.join(conflict['parts'][:3])}"
+                    if len(conflict['parts']) > 3:
+                        error_msg += f" 等 {len(conflict['parts'])} 個零件"
+                flash(error_msg, 'error')
+            else:
+                flash(str(result.get('error', '零件更新失敗')), 'error') # Ensure message is string
     
     # Get existing part data for the form
     part = Part.get_by_id(part_id)
@@ -185,7 +296,7 @@ def import_parts():
         flash('沒有選擇檔案', 'error')
         return redirect(url_for('web.parts'))
 
-    if file and file.filename.endswith('.xlsx'):
+    if file and file.filename is not None and file.filename.endswith('.xlsx'):
         try:
             df = pd.read_excel(file)
             
@@ -299,8 +410,8 @@ def inventory():
     """庫存管理首頁"""
     warehouse_id = request.args.get('warehouse_id', type=int)
     warehouses = Warehouse.get_all()
-    inventories = Inventory.get_all_inventory(warehouse_id)
-    low_stock_items = Inventory.get_low_stock_items(warehouse_id)
+    inventories = CurrentInventory.get_all_inventory(warehouse_id)
+    low_stock_items = CurrentInventory.get_low_stock_items(warehouse_id)
     
     return render_template('inventory/index.html', 
                          warehouses=warehouses, 
@@ -315,7 +426,7 @@ def inventory_transactions():
     warehouse_id = request.args.get('warehouse_id', type=int)
     warehouses = Warehouse.get_all()
     parts = Part.get_all()
-    transactions = Transaction.get_transactions(part_id, warehouse_id, 200)
+    transactions = InventoryTransaction.get_transactions(part_id, warehouse_id, 200)
     
     return render_template('inventory/transactions.html',
                          warehouses=warehouses,
@@ -347,22 +458,28 @@ def stock_in():
         
         # 驗證數量
         try:
-            quantity = int(quantity)
-            warehouse_id = int(warehouse_id)
-            if quantity <= 0:
+            # Ensure warehouse_id and quantity are not None before converting to int
+            # Provide default empty string for .get() to avoid None
+            warehouse_id_str = request.form.get('warehouse_id', '')
+            quantity_str = request.form.get('quantity', '')
+
+            warehouse_id = int(warehouse_id_str) if warehouse_id_str else None
+            quantity = int(quantity_str) if quantity_str else None
+
+            if warehouse_id is None or quantity is None or quantity <= 0:
                 raise ValueError("數量必須大於0")
         except (ValueError, TypeError):
             flash('請輸入有效的數量', 'error')
             return redirect(url_for('web.stock_in'))
         
         # 執行入庫
-        success = Inventory.update_stock(
-            part['id'], warehouse_id, quantity, transaction_type,
+        success = CurrentInventory.update_stock(
+            part.id, warehouse_id, quantity, transaction_type,
             'MANUAL', None, notes
         )
         
         if success:
-            flash(f'{part_number} 入庫 {quantity} {part["unit"]} 成功', 'success')
+            flash(f'{part_number} 入庫 {quantity} {part.unit} 成功', 'success')
         else:
             flash('入庫作業失敗', 'error')
         
@@ -395,29 +512,36 @@ def stock_out():
         
         # 驗證數量
         try:
-            quantity = int(quantity)
-            warehouse_id = int(warehouse_id)
-            if quantity <= 0:
+            # Ensure warehouse_id and quantity are not None before converting to int
+            # Provide default empty string for .get() to avoid None
+            warehouse_id_str = request.form.get('warehouse_id', '')
+            quantity_str = request.form.get('quantity', '')
+
+            warehouse_id = int(warehouse_id_str) if warehouse_id_str else None
+            quantity = int(quantity_str) if quantity_str else None
+
+            if warehouse_id is None or quantity is None or quantity <= 0:
                 raise ValueError("數量必須大於0")
         except (ValueError, TypeError):
             flash('請輸入有效的數量', 'error')
             return redirect(url_for('web.stock_out'))
         
         # 檢查庫存
-        current_stock = Inventory.get_current_stock(part['id'], warehouse_id)
-        if not current_stock or current_stock['available_quantity'] < quantity:
-            available = current_stock['available_quantity'] if current_stock else 0
+        # current_stock is expected to be a dictionary or None when warehouse_id is provided
+        current_stock = CurrentInventory.get_current_stock(part.id, warehouse_id)
+        if not current_stock or current_stock.get('available_quantity', 0) < quantity: # Use .get with default
+            available = current_stock.get('available_quantity', 0) if current_stock else 0
             flash(f'庫存不足。可用數量: {available}', 'error')
             return redirect(url_for('web.stock_out'))
         
         # 執行出庫
-        success = Inventory.update_stock(
-            part['id'], warehouse_id, -quantity, transaction_type,
+        success = CurrentInventory.update_stock(
+            part.id, warehouse_id, -quantity, transaction_type,
             'MANUAL', None, notes
         )
         
         if success:
-            flash(f'{part_number} 出庫 {quantity} {part["unit']} 成功', 'success')
+            flash(f'{part_number} 出庫 {quantity} {part.unit} 成功', 'success')
         else:
             flash('出庫作業失敗', 'error')
         
@@ -475,3 +599,268 @@ def pwa_install():
 def camera_test():
     """相機和條碼掃描測試頁面"""
     return render_template('camera_test.html')
+
+# ==================== 倉位管理 ====================
+
+@web_bp.route('/warehouse-locations')
+def warehouse_locations():
+    """倉位管理頁面"""
+    from models.part import WarehouseLocation
+    from extensions import db
+    
+    warehouses = Warehouse.get_all()
+    
+    # 取得所有倉位，並附帶倉庫資訊
+    locations = db.session.query(WarehouseLocation, Warehouse)\
+        .join(Warehouse, WarehouseLocation.warehouse_id == Warehouse.id)\
+        .order_by(Warehouse.name, WarehouseLocation.location_code)\
+        .all()
+    
+    locations_data = []
+    for loc, wh in locations:
+        locations_data.append({
+            'id': loc.id,
+            'warehouse_id': loc.warehouse_id,
+            'warehouse_name': wh.name,
+            'warehouse_code': wh.code,
+            'location_code': loc.location_code,
+            'description': loc.description
+        })
+    
+    return render_template('warehouse_locations.html', 
+                         warehouses=warehouses, 
+                         locations=locations_data)
+
+@web_bp.route('/warehouse-locations/add', methods=['POST'])
+def add_warehouse_location():
+    """新增倉位"""
+    from models.part import WarehouseLocation
+    from extensions import db
+    
+    warehouse_id = request.form.get('warehouse_id')
+    location_code = request.form.get('location_code')
+    description = request.form.get('description', '')
+    
+    # Ensure warehouse_id and location_code are not None
+    # Provide default empty string for .get() to avoid None
+    warehouse_id_str = request.form.get('warehouse_id', '')
+    location_code = request.form.get('location_code', '')
+    description = request.form.get('description', '')
+    
+    if not warehouse_id_str or not location_code:
+        flash('倉庫和位置代碼為必填項目', 'error')
+        return redirect(url_for('web.warehouse_locations'))
+    
+    try:
+        # Ensure warehouse_id is an integer
+        warehouse_id_int = int(warehouse_id_str)
+        
+        # 檢查是否已存在相同的倉位
+        existing = WarehouseLocation.query.filter_by(
+            warehouse_id=warehouse_id_int,
+            location_code=location_code
+        ).first()
+        
+        if existing:
+            flash('該倉位已存在', 'error')
+            return redirect(url_for('web.warehouse_locations'))
+        
+        # 建立新倉位
+        new_location = WarehouseLocation(
+            warehouse_id_int, # Positional argument
+            location_code,    # Positional argument
+            description=description
+        )
+        db.session.add(new_location)
+        db.session.commit()
+        
+        flash('倉位新增成功', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'倉位新增失敗: {str(e)}', 'error')
+    
+    return redirect(url_for('web.warehouse_locations'))
+
+@web_bp.route('/warehouse-locations/<int:location_id>/edit', methods=['POST'])
+def edit_warehouse_location(location_id):
+    """編輯倉位"""
+    from models.part import WarehouseLocation
+    from extensions import db
+    
+    location_code = request.form.get('location_code')
+    description = request.form.get('description', '')
+    
+    if not location_code:
+        flash('位置代碼為必填項目', 'error')
+        return redirect(url_for('web.warehouse_locations'))
+    
+    try:
+        location = WarehouseLocation.query.get(location_id)
+        if not location:
+            flash('找不到該倉位', 'error')
+            return redirect(url_for('web.warehouse_locations'))
+        
+        # 檢查是否有重複的倉位代碼（排除自己）
+        existing = WarehouseLocation.query.filter(
+            WarehouseLocation.warehouse_id == location.warehouse_id,
+            WarehouseLocation.location_code == location_code,
+            WarehouseLocation.id != location_id
+        ).first()
+        
+        if existing:
+            flash('該倉位代碼已存在於此倉庫', 'error')
+            return redirect(url_for('web.warehouse_locations'))
+        
+        location.location_code = location_code
+        location.description = description
+        db.session.commit()
+        
+        flash('倉位更新成功', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'倉位更新失敗: {str(e)}', 'error')
+    
+    return redirect(url_for('web.warehouse_locations'))
+
+@web_bp.route('/warehouse-locations/<int:location_id>/delete', methods=['POST'])
+def delete_warehouse_location(location_id):
+    """刪除倉位"""
+    from models.part import WarehouseLocation, PartWarehouseLocation, Part
+    from extensions import db
+    
+    try:
+        location = WarehouseLocation.query.get(location_id)
+        if not location:
+            flash('找不到該倉位', 'error')
+            return redirect(url_for('web.warehouse_locations'))
+        
+        # 檢查是否有零件使用此倉位
+        parts_using_assoc = PartWarehouseLocation.query.filter_by(
+            warehouse_location_id=location_id
+        ).all()
+        
+        if parts_using_assoc:
+            # 獲取使用此倉位的零件清單
+            part_list = []
+            for assoc in parts_using_assoc:
+                part = Part.query.get(assoc.part_id)
+                if part:
+                    part_list.append(f"{part.part_number} - {part.name}")
+            
+            # 限制顯示前5個零件
+            if len(part_list) <= 5:
+                parts_info = '、'.join(part_list)
+            else:
+                parts_info = '、'.join(part_list[:5]) + f' 等 {len(part_list)} 個零件'
+            
+            flash(f'無法刪除：此倉位被以下零件使用中：{parts_info}', 'error')
+            return redirect(url_for('web.warehouse_locations'))
+        
+        db.session.delete(location)
+        db.session.commit()
+        
+        flash('倉位刪除成功', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'倉位刪除失敗: {str(e)}', 'error')
+    
+    return redirect(url_for('web.warehouse_locations'))
+
+# ==================== 倉庫管理 ====================
+
+@web_bp.route('/warehouses/add', methods=['POST'])
+def add_warehouse():
+    """新增倉庫"""
+    from extensions import db
+    
+    # Provide default empty string for .get() to avoid None
+    code = request.form.get('code', '')
+    name = request.form.get('name', '')
+    description = request.form.get('description', '')
+    
+    if not code or not name:
+        flash('倉庫編號和名稱為必填項目', 'error')
+        return redirect(url_for('web.warehouse_locations'))
+    
+    try:
+        # 檢查倉庫編號是否已存在
+        existing = Warehouse.query.filter_by(code=code).first()
+        if existing:
+            flash('倉庫編號已存在', 'error')
+            return redirect(url_for('web.warehouse_locations'))
+        
+        new_warehouse = Warehouse(
+            code, # Positional argument
+            name, # Positional argument
+            description=description,
+            is_active=True
+        )
+        db.session.add(new_warehouse)
+        db.session.commit()
+        
+        flash('倉庫新增成功', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'倉庫新增失敗: {str(e)}', 'error')
+    
+    return redirect(url_for('web.warehouse_locations'))
+
+@web_bp.route('/warehouses/<int:warehouse_id>/edit', methods=['POST'])
+def edit_warehouse(warehouse_id):
+    """編輯倉庫"""
+    from extensions import db
+    
+    name = request.form.get('name')
+    description = request.form.get('description', '')
+    
+    if not name:
+        flash('倉庫名稱為必填項目', 'error')
+        return redirect(url_for('web.warehouse_locations'))
+    
+    try:
+        warehouse = Warehouse.query.get(warehouse_id)
+        if not warehouse:
+            flash('找不到該倉庫', 'error')
+            return redirect(url_for('web.warehouse_locations'))
+        
+        warehouse.name = name
+        warehouse.description = description
+        db.session.commit()
+        
+        flash('倉庫更新成功', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'倉庫更新失敗: {str(e)}', 'error')
+    
+    return redirect(url_for('web.warehouse_locations'))
+
+@web_bp.route('/warehouses/<int:warehouse_id>/delete', methods=['POST'])
+def delete_warehouse(warehouse_id):
+    """刪除倉庫"""
+    from extensions import db
+    from models.part import WarehouseLocation
+    
+    try:
+        warehouse = Warehouse.query.get(warehouse_id)
+        if not warehouse:
+            flash('找不到該倉庫', 'error')
+            return redirect(url_for('web.warehouse_locations'))
+        
+        # 檢查是否有倉位使用此倉庫
+        locations_count = WarehouseLocation.query.filter_by(
+            warehouse_id=warehouse_id
+        ).count()
+        
+        if locations_count > 0:
+            flash(f'無法刪除：此倉庫有 {locations_count} 個倉位，請先刪除所有倉位', 'error')
+            return redirect(url_for('web.warehouse_locations'))
+        
+        db.session.delete(warehouse)
+        db.session.commit()
+        
+        flash('倉庫刪除成功', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'倉庫刪除失敗: {str(e)}', 'error')
+    
+    return redirect(url_for('web.warehouse_locations'))

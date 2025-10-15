@@ -278,6 +278,13 @@
                         <input type="number" class="form-control" id="orderQuantity" min="1" required>
                     </div>
                     <div class="mb-3">
+                        <label for="orderLocation" class="form-label">目標儲位</label>
+                        <select class="form-select" id="orderLocation" required>
+                            <option value="">請選擇儲位</option>
+                        </select>
+                        <small class="text-muted">選擇零件應補貨的儲位</small>
+                    </div>
+                    <div class="mb-3">
                         <small class="text-muted">
                             零件：<span id="orderPartName"></span><br>
                             單位：<span id="orderPartUnit"></span>
@@ -297,13 +304,52 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
 <script>
-document.addEventListener('load', function () {
+// 將 openOrderModal 定義為全域函數，讓 inline HTML 可以調用
+let currentPartLocations = []; // 保存當前零件的儲位資訊
+
+function openOrderModal(partNumber, partName, unit) {
+    document.getElementById('orderPartNumber').value = partNumber;
+    document.getElementById('orderPartName').textContent = partName;
+    document.getElementById('orderPartUnit').textContent = unit;
+    document.getElementById('orderQuantity').value = 1;
+    
+    // 填充儲位選項
+    const locationSelect = document.getElementById('orderLocation');
+    locationSelect.innerHTML = '<option value="">請選擇儲位</option>';
+    
+    if (currentPartLocations && currentPartLocations.length > 0) {
+        currentPartLocations.forEach(loc => {
+            const option = document.createElement('option');
+            option.value = loc.location_code;
+            option.textContent = `${loc.warehouse_name} - ${loc.location_code}`;
+            locationSelect.appendChild(option);
+        });
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('orderModal'));
+    modal.show();
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    console.log('🚀 零件查詢頁面已載入');
+    
     // 搜尋功能
-    document.getElementById('searchForm').addEventListener('submit', function(e) {
+    const searchForm = document.getElementById('searchForm');
+    if (!searchForm) {
+        console.error('❌ 找不到 searchForm 元素');
+        return;
+    }
+    
+    console.log('✅ 找到 searchForm，綁定事件監聽器');
+    searchForm.addEventListener('submit', function(e) {
         e.preventDefault();
+        console.log('📝 表單提交事件觸發');
         const partNumber = document.getElementById('partNumber').value.trim();
+        console.log('🔍 查詢零件編號:', partNumber);
         if (partNumber) {
             searchPart(partNumber);
+        } else {
+            console.warn('⚠️ 零件編號為空');
         }
     });
 
@@ -400,8 +446,9 @@ document.addEventListener('load', function () {
         }
     }
 
-    // 搜尋零件 (保持不變)
+    // 搜尋零件
     function searchPart(partNumber) {
+        console.log('🔍 開始搜尋零件:', partNumber);
         const loading = document.getElementById('loading');
         const results = document.getElementById('results');
         const error = document.getElementById('error');
@@ -410,9 +457,16 @@ document.addEventListener('load', function () {
         error.style.display = 'none';
         loading.style.display = 'block';
         
-        fetch(`/api/part/${encodeURIComponent(partNumber)}`)
-            .then(response => response.json())
+        const apiUrl = `/api/part/${encodeURIComponent(partNumber)}`;
+        console.log('📡 API 請求 URL:', apiUrl);
+        
+        fetch(apiUrl)
+            .then(response => {
+                console.log('📥 收到回應，狀態碼:', response.status);
+                return response.json();
+            })
             .then(data => {
+                console.log('✅ API 回應資料:', data);
                 loading.style.display = 'none';
                 if (data.error) {
                     showError(data.error);
@@ -421,6 +475,7 @@ document.addEventListener('load', function () {
                 }
             })
             .catch(err => {
+                console.error('❌ API 請求錯誤:', err);
                 loading.style.display = 'none';
                 showError('網路錯誤：' + err.message);
             });
@@ -430,6 +485,10 @@ document.addEventListener('load', function () {
         const results = document.getElementById('results');
         const part = data.part_info;
         const history = data.order_history;
+        const inventories = data.inventories || [];
+        
+        // 保存當前零件的儲位資訊
+        currentPartLocations = part.locations || [];
         
         let historyHtml = '';
         if (history.length > 0) {
@@ -448,8 +507,33 @@ document.addEventListener('load', function () {
             historyHtml = '<tr><td colspan="3" class="text-center text-muted">暫無訂購記錄</td></tr>';
         }
         
+        // 顯示各倉庫庫存（包含倉位信息）
+        let inventoryHtml = '';
+        if (inventories.length > 0) {
+            inventoryHtml = inventories.map(inv => {
+                // 找出該倉庫的倉位
+                const warehouseLocations = part.locations ? 
+                    part.locations.filter(loc => loc.warehouse_id === inv.warehouse_id) : [];
+                const locationStr = warehouseLocations.length > 0 ? 
+                    warehouseLocations.map(loc => loc.location_code).join(', ') : 
+                    '<span class="text-muted">未設定</span>';
+                
+                return `
+                    <tr>
+                        <td>${inv.warehouse_name} (${inv.warehouse_code})</td>
+                        <td>${locationStr}</td>
+                        <td>${inv.quantity_on_hand || 0}</td>
+                        <td>${inv.reserved_quantity || 0}</td>
+                        <td><strong>${inv.available_quantity || 0}</strong></td>
+                    </tr>
+                `;
+            }).join('');
+        } else {
+            inventoryHtml = '<tr><td colspan="5" class="text-center text-muted">暫無庫存資訊</td></tr>';
+        }
+        
         results.innerHTML = `
-            <div class="card">
+            <div class="card mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">零件資訊</h5>
                     <button class="btn btn-primary btn-sm" onclick="openOrderModal('${part.part_number}', '${part.name}', '${part.unit}')">
@@ -459,13 +543,35 @@ document.addEventListener('load', function () {
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
-                            <div class="part-info p-3 rounded">
+                            <div class="part-info p-3 rounded mb-3">
                                 <h6><strong>零件編號：</strong>${part.part_number}</h6>
-                                <p><strong>名稱：</strong>${part.name}</p>
-                                <p><strong>描述：</strong>${part.description}</p>
-                                <p><strong>單位：</strong>${part.unit}</p>
-                                <p><strong>每盒數量：</strong>${part.quantity_per_box}</p>
-                                <p><strong>儲存位置：</strong>${part.storage_location}</p>
+                                <p class="mb-2"><strong>名稱：</strong>${part.name}</p>
+                                <p class="mb-2"><strong>描述：</strong>${part.description || '無'}</p>
+                                <p class="mb-2"><strong>單位：</strong>${part.unit}</p>
+                                <p class="mb-2"><strong>每盒數量：</strong>${part.quantity_per_box}</p>
+                                <p class="mb-0"><strong>儲存位置：</strong>
+                                    ${part.locations && part.locations.length > 0 ? 
+                                        part.locations.map(loc => `${loc.warehouse_name}:${loc.location_code}`).join(', ') : 
+                                        '無'}
+                                </p>
+                            </div>
+                            
+                            <h6>各倉庫庫存</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>倉庫</th>
+                                            <th>倉位</th>
+                                            <th>在庫數量</th>
+                                            <th>預留數量</th>
+                                            <th>可用數量</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${inventoryHtml}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -499,23 +605,19 @@ document.addEventListener('load', function () {
         error.style.display = 'block';
     }
 
-    // 訂單模態框功能
-    function openOrderModal(partNumber, partName, unit) {
-        document.getElementById('orderPartNumber').value = partNumber;
-        document.getElementById('orderPartName').textContent = partName;
-        document.getElementById('orderPartUnit').textContent = unit;
-        document.getElementById('orderQuantity').value = 1;
-        
-        const modal = new bootstrap.Modal(document.getElementById('orderModal'));
-        modal.show();
-    }
-
+    // 訂單模態框功能 - submitOrder 按鈕事件
     document.getElementById('submitOrder').addEventListener('click', function() {
         const partNumber = document.getElementById('orderPartNumber').value;
         const quantity = document.getElementById('orderQuantity').value;
+        const locationCode = document.getElementById('orderLocation').value;
         
         if (!quantity || quantity < 1) {
             alert('請輸入有效的數量');
+            return;
+        }
+        
+        if (!locationCode) {
+            alert('請選擇目標儲位');
             return;
         }
         
@@ -526,7 +628,8 @@ document.addEventListener('load', function () {
             },
             body: JSON.stringify({
                 part_number: partNumber,
-                quantity_ordered: parseInt(quantity)
+                quantity_ordered: parseInt(quantity),
+                location_code: locationCode
             })
         })
         .then(response => response.json())

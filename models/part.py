@@ -19,6 +19,10 @@ class PartWarehouseLocation(db.Model):
     warehouse_location = relationship("WarehouseLocation", back_populates="part_associations")
     part = relationship("Part", back_populates="location_associations")
 
+    def __init__(self, part_id, warehouse_location_id):
+        self.part_id = part_id
+        self.warehouse_location_id = warehouse_location_id
+
 class Warehouse(db.Model):
     __tablename__ = 'warehouses'
     id = db.Column(db.Integer, primary_key=True)
@@ -31,6 +35,13 @@ class Warehouse(db.Model):
     # Relationship to WarehouseLocation
     locations = relationship("WarehouseLocation", back_populates="warehouse")
 
+    def __init__(self, code, name, description=None, is_active=True, created_at=None):
+        self.code = code
+        self.name = name
+        self.description = description
+        self.is_active = is_active
+        self.created_at = created_at if created_at is not None else get_taipei_time()
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -40,6 +51,17 @@ class Warehouse(db.Model):
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+    
+    @classmethod
+    def get_all(cls):
+        """取得所有倉庫"""
+        warehouses = cls.query.filter_by(is_active=True).all()
+        return [warehouse.to_dict() for warehouse in warehouses]
+    
+    @classmethod
+    def get_by_id(cls, warehouse_id):
+        """根據ID取得倉庫"""
+        return cls.query.get(warehouse_id)
 
 class WarehouseLocation(db.Model):
     __tablename__ = 'warehouse_locations'
@@ -54,6 +76,11 @@ class WarehouseLocation(db.Model):
     # Relationships
     warehouse = relationship("Warehouse", back_populates="locations")
     part_associations = relationship("PartWarehouseLocation", back_populates="warehouse_location")
+
+    def __init__(self, warehouse_id, location_code, description=None):
+        self.warehouse_id = warehouse_id
+        self.location_code = location_code
+        self.description = description
 
     def to_dict(self):
         return {
@@ -70,7 +97,7 @@ class Part(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     part_number = db.Column(db.String(100), unique=True, nullable=False)
     name = db.Column(db.String(255), nullable=False)
-    description = db.Column(db.Text, nullable=False)
+    description = db.Column(db.Text, nullable=True)
     unit = db.Column(db.String(50), nullable=False, default='個')
     quantity_per_box = db.Column(db.Integer, nullable=False)
     safety_stock = db.Column(db.Integer, default=0)
@@ -81,6 +108,19 @@ class Part(db.Model):
 
     # Relationship to PartWarehouseLocation
     location_associations = relationship("PartWarehouseLocation", back_populates="part", cascade="all, delete-orphan")
+
+    def __init__(self, part_number, name, description=None, unit='個', quantity_per_box=1,
+                 safety_stock=0, reorder_point=0, standard_cost=0, is_active=True, created_at=None):
+        self.part_number = part_number
+        self.name = name
+        self.description = description
+        self.unit = unit
+        self.quantity_per_box = quantity_per_box
+        self.safety_stock = safety_stock
+        self.reorder_point = reorder_point
+        self.standard_cost = standard_cost
+        self.is_active = is_active
+        self.created_at = created_at if created_at is not None else get_taipei_time()
 
     def to_dict(self, include_locations=False):
         data = {
@@ -133,7 +173,50 @@ class Part(db.Model):
                safety_stock=0, reorder_point=0, standard_cost=0, is_active=True):
         
         if cls.query.filter_by(part_number=part_number).first():
-            return False # Part number already exists
+            return {'success': False, 'error': '零件編號已存在'}
+        
+        # 檢查倉位衝突
+        location_conflicts = []
+        if locations_data:
+            for loc_data in locations_data:
+                warehouse_id = loc_data.get('warehouse_id')
+                location_code = loc_data.get('location_code')
+                if warehouse_id and location_code:
+                    # 查找倉位
+                    wh_loc = WarehouseLocation.query.filter_by(
+                        warehouse_id=warehouse_id, location_code=location_code
+                    ).first()
+                    
+                    if wh_loc:
+                        # 檢查是否有其他零件使用此倉位
+                        other_parts = PartWarehouseLocation.query.filter_by(
+                            warehouse_location_id=wh_loc.id
+                        ).all()
+                        
+                        if other_parts:
+                            # 獲取使用此倉位的零件資訊
+                            conflict_parts = []
+                            for assoc in other_parts:
+                                part = cls.query.get(assoc.part_id)
+                                if part:
+                                    conflict_parts.append(f"{part.part_number} - {part.name}")
+                            
+                            warehouse = Warehouse.query.get(warehouse_id)
+                            warehouse_name = warehouse.name if warehouse else f"倉庫ID:{warehouse_id}"
+                            
+                            location_conflicts.append({
+                                'warehouse': warehouse_name,
+                                'location': location_code,
+                                'parts': conflict_parts
+                            })
+        
+        # 如果有衝突，返回錯誤信息
+        if location_conflicts:
+            return {
+                'success': False, 
+                'error': 'location_conflict',
+                'conflicts': location_conflicts
+            }
 
         new_part = cls(
             part_number=part_number,
@@ -167,11 +250,11 @@ class Part(db.Model):
                         part_id=new_part.id, warehouse_location_id=wh_loc.id
                     ).first()
                     if not existing_assoc:
-                        assoc = PartWarehouseLocation(part=new_part, warehouse_location=wh_loc)
+                        assoc = PartWarehouseLocation(new_part.id, wh_loc.id) # Use positional arguments for __init__
                         db.session.add(assoc)
         
         db.session.commit()
-        return True
+        return {'success': True}
 
     @classmethod
     def update(cls, part_id, part_number, name, description, unit, quantity_per_box, locations_data,
@@ -179,11 +262,55 @@ class Part(db.Model):
         
         part = cls.query.get(part_id)
         if not part:
-            return False
+            return {'success': False, 'error': '找不到零件'}
 
         # Check for duplicate part number if changed
         if part.part_number != part_number and cls.query.filter_by(part_number=part_number).first():
-            return False # Part number already exists
+            return {'success': False, 'error': '零件編號已存在'}
+        
+        # 檢查倉位衝突（排除自己目前使用的倉位）
+        location_conflicts = []
+        if locations_data:
+            for loc_data in locations_data:
+                warehouse_id = loc_data.get('warehouse_id')
+                location_code = loc_data.get('location_code')
+                if warehouse_id and location_code:
+                    # 查找倉位
+                    wh_loc = WarehouseLocation.query.filter_by(
+                        warehouse_id=warehouse_id, location_code=location_code
+                    ).first()
+                    
+                    if wh_loc:
+                        # 檢查是否有其他零件使用此倉位（排除當前零件）
+                        other_parts = PartWarehouseLocation.query.filter(
+                            PartWarehouseLocation.warehouse_location_id == wh_loc.id,
+                            PartWarehouseLocation.part_id != part_id
+                        ).all()
+                        
+                        if other_parts:
+                            # 獲取使用此倉位的零件資訊
+                            conflict_parts = []
+                            for assoc in other_parts:
+                                conflict_part = cls.query.get(assoc.part_id)
+                                if conflict_part:
+                                    conflict_parts.append(f"{conflict_part.part_number} - {conflict_part.name}")
+                            
+                            warehouse = Warehouse.query.get(warehouse_id)
+                            warehouse_name = warehouse.name if warehouse else f"倉庫ID:{warehouse_id}"
+                            
+                            location_conflicts.append({
+                                'warehouse': warehouse_name,
+                                'location': location_code,
+                                'parts': conflict_parts
+                            })
+        
+        # 如果有衝突，返回錯誤信息
+        if location_conflicts:
+            return {
+                'success': False, 
+                'error': 'location_conflict',
+                'conflicts': location_conflicts
+            }
 
         part.part_number = part_number
         part.name = name
@@ -218,11 +345,11 @@ class Part(db.Model):
                         part_id=part.id, warehouse_location_id=wh_loc.id
                     ).first()
                     if not existing_assoc:
-                        assoc = PartWarehouseLocation(part=part, warehouse_location=wh_loc)
+                        assoc = PartWarehouseLocation(part.id, wh_loc.id) # Use positional arguments for __init__
                         db.session.add(assoc)
         
         db.session.commit()
-        return True
+        return {'success': True}
 
     @classmethod
     def delete(cls, part_id):

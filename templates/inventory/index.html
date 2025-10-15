@@ -23,8 +23,8 @@
                         <select class="form-select" name="warehouse_id" onchange="this.form.submit()">
                             <option value="">所有倉庫</option>
                             {% for warehouse in warehouses %}
-                            <option value="{{ warehouse.id }}" {{ 'selected' if warehouse.id == selected_warehouse_id else '' }}>
-                                {{ warehouse.code }} - {{ warehouse.name }}
+                            <option value="{{ warehouse['id'] }}" {{ 'selected' if warehouse['id'] == selected_warehouse_id else '' }}>
+                                {{ warehouse['code'] }} - {{ warehouse['name'] }}
                             </option>
                             {% endfor %}
                         </select>

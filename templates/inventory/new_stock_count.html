@@ -28,7 +28,7 @@
                             <select class="form-select" id="warehouse_id" name="warehouse_id" required>
                                 <option value="">請選擇倉庫</option>
                                 {% for warehouse in warehouses %}
-                                <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
+                                <option value="{{ warehouse['id'] }}">{{ warehouse['name'] }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -138,7 +138,7 @@
                         <select class="form-select" id="importWarehouse" required>
                             <option value="">請選擇倉庫</option>
                             {% for warehouse in warehouses %}
-                            <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
+                            <option value="{{ warehouse['id'] }}">{{ warehouse['name'] }}</option>
                             {% endfor %}
                         </select>
                     </div>

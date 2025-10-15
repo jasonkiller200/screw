@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+
+{% block title %}倉位管理 - 五金零件庫存管理系統{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2>
+            <i class="fas fa-warehouse me-2"></i>倉位管理
+        </h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('web.index') }}">首頁</a></li>
+                <li class="breadcrumb-item active">倉位管理</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<!-- 倉庫摘要卡片 -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-building me-1"></i>現有倉庫</h6>
+            </div>
+            <div class="card-body">
+                {% if warehouses %}
+                <div class="row">
+                    {% for warehouse in warehouses %}
+                    <div class="col-md-3 mb-2">
+                        <div class="card bg-light">
+                            <div class="card-body py-2">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div class="flex-grow-1">
+                                        <h6 class="mb-0">{{ warehouse['name'] }}</h6>
+                                        <small class="text-muted">{{ warehouse['code'] }}</small>
+                                        {% if warehouse['description'] %}
+                                        <p class="mb-0 small text-muted">{{ warehouse['description'] }}</p>
+                                        {% endif %}
+                                    </div>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button class="btn btn-outline-primary btn-sm" 
+                                                onclick="editWarehouse({{ warehouse['id'] }}, '{{ warehouse['name'] }}', '{{ warehouse['code'] }}', '{{ warehouse['description'] or '' }}')"
+                                                title="編輯">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger btn-sm" 
+                                                onclick="deleteWarehouse({{ warehouse['id'] }}, '{{ warehouse['name'] }}', '{{ warehouse['code'] }}')"
+                                                title="刪除">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <p class="mb-0 mt-2 text-muted small">
+                    <i class="fas fa-info-circle me-1"></i>
+                    總計 <strong>{{ warehouses|length }}</strong> 個倉庫
+                </p>
+                {% else %}
+                <div class="alert alert-warning mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    尚未建立任何倉庫，請先新增倉庫。
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addWarehouseModal">
+                <i class="fas fa-plus me-1"></i>新增倉庫
+            </button>
+            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addLocationModal">
+                <i class="fas fa-plus me-1"></i>新增倉位
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">倉位列表</h5>
+            </div>
+            <div class="card-body">
+                {% if locations %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th style="width: 5%;">#</th>
+                                <th style="width: 15%;">倉庫</th>
+                                <th style="width: 15%;">倉庫編號</th>
+                                <th style="width: 20%;">位置代碼</th>
+                                <th style="width: 30%;">描述</th>
+                                <th style="width: 15%;" class="text-end">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for location in locations %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td><span class="badge bg-info">{{ location.warehouse_name }}</span></td>
+                                <td>{{ location.warehouse_code }}</td>
+                                <td><strong>{{ location.location_code }}</strong></td>
+                                <td>{{ location.description or '-' }}</td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-primary" 
+                                            onclick="editLocation({{ location.id }}, '{{ location.location_code }}', '{{ location.description or '' }}')">
+                                        <i class="fas fa-edit"></i> 編輯
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" 
+                                            onclick="deleteLocation({{ location.id }}, '{{ location.warehouse_name }}', '{{ location.location_code }}')">
+                                        <i class="fas fa-trash"></i> 刪除
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-3">
+                    <p class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        總計 <strong>{{ locations|length }}</strong> 個倉位
+                    </p>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    目前沒有任何倉位資料，請先新增倉庫和倉位。
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 新增倉庫 Modal -->
+<div class="modal fade" id="addWarehouseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">新增倉庫</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('web.add_warehouse') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="warehouse_code" class="form-label">倉庫編號 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="warehouse_code" name="code" required>
+                        <div class="form-text">唯一的倉庫識別編號</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="warehouse_name" class="form-label">倉庫名稱 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="warehouse_name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="warehouse_description" class="form-label">描述</label>
+                        <textarea class="form-control" id="warehouse_description" name="description" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">新增倉庫</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 新增倉位 Modal -->
+<div class="modal fade" id="addLocationModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">新增倉位</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('web.add_warehouse_location') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="add_warehouse_id" class="form-label">倉庫 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="add_warehouse_id" name="warehouse_id" required>
+                            <option value="">選擇倉庫</option>
+                            {% for warehouse in warehouses %}
+                            <option value="{{ warehouse['id'] }}">{{ warehouse['name'] }} ({{ warehouse['code'] }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="add_location_code" class="form-label">位置代碼 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="add_location_code" name="location_code" required>
+                        <div class="form-text">例如：A區-1層-3排</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="add_location_description" class="form-label">描述</label>
+                        <textarea class="form-control" id="add_location_description" name="description" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-success">新增倉位</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 編輯倉位 Modal -->
+<div class="modal fade" id="editLocationModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">編輯倉位</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="editLocationForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_location_code" class="form-label">位置代碼 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="edit_location_code" name="location_code" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_location_description" class="form-label">描述</label>
+                        <textarea class="form-control" id="edit_location_description" name="description" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">更新倉位</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 刪除倉位 Modal -->
+<div class="modal fade" id="deleteLocationModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">確認刪除</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="deleteLocationForm">
+                <div class="modal-body">
+                    <p class="mb-0">確定要刪除以下倉位嗎？</p>
+                    <div class="alert alert-warning mt-3">
+                        <strong>倉庫：</strong><span id="delete_warehouse_name"></span><br>
+                        <strong>位置：</strong><span id="delete_location_code"></span>
+                    </div>
+                    <p class="text-danger mb-0">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        <strong>注意：</strong>如果有零件使用此倉位，將無法刪除。
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-danger">確認刪除</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 編輯倉庫 Modal -->
+<div class="modal fade" id="editWarehouseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">編輯倉庫</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="editWarehouseForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_warehouse_code" class="form-label">倉庫編號</label>
+                        <input type="text" class="form-control" id="edit_warehouse_code" disabled>
+                        <div class="form-text">倉庫編號無法修改</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_warehouse_name" class="form-label">倉庫名稱 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="edit_warehouse_name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_warehouse_description" class="form-label">描述</label>
+                        <textarea class="form-control" id="edit_warehouse_description" name="description" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">更新倉庫</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 刪除倉庫 Modal -->
+<div class="modal fade" id="deleteWarehouseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">確認刪除倉庫</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="deleteWarehouseForm">
+                <div class="modal-body">
+                    <p class="mb-0">確定要刪除以下倉庫嗎？</p>
+                    <div class="alert alert-warning mt-3">
+                        <strong>倉庫編號：</strong><span id="delete_wh_code"></span><br>
+                        <strong>倉庫名稱：</strong><span id="delete_wh_name"></span>
+                    </div>
+                    <p class="text-danger mb-0">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        <strong>注意：</strong>如果倉庫下有倉位，將無法刪除。請先刪除所有倉位。
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-danger">確認刪除</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function editWarehouse(id, name, code, description) {
+    document.getElementById('editWarehouseForm').action = '{{ url_for("web.edit_warehouse", warehouse_id=0) }}'.replace('0', id);
+    document.getElementById('edit_warehouse_code').value = code;
+    document.getElementById('edit_warehouse_name').value = name;
+    document.getElementById('edit_warehouse_description').value = description;
+    new bootstrap.Modal(document.getElementById('editWarehouseModal')).show();
+}
+
+function deleteWarehouse(id, name, code) {
+    document.getElementById('deleteWarehouseForm').action = '{{ url_for("web.delete_warehouse", warehouse_id=0) }}'.replace('0', id);
+    document.getElementById('delete_wh_code').textContent = code;
+    document.getElementById('delete_wh_name').textContent = name;
+    new bootstrap.Modal(document.getElementById('deleteWarehouseModal')).show();
+}
+
+function editLocation(id, locationCode, description) {
+    document.getElementById('editLocationForm').action = '{{ url_for("web.edit_warehouse_location", location_id=0) }}'.replace('0', id);
+    document.getElementById('edit_location_code').value = locationCode;
+    document.getElementById('edit_location_description').value = description;
+    new bootstrap.Modal(document.getElementById('editLocationModal')).show();
+}
+
+function deleteLocation(id, warehouseName, locationCode) {
+    document.getElementById('deleteLocationForm').action = '{{ url_for("web.delete_warehouse_location", location_id=0) }}'.replace('0', id);
+    document.getElementById('delete_warehouse_name').textContent = warehouseName;
+    document.getElementById('delete_location_code').textContent = locationCode;
+    new bootstrap.Modal(document.getElementById('deleteLocationModal')).show();
+}
+</script>
+{% endblock %}

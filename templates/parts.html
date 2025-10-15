@@ -63,11 +63,13 @@
                                 <td>{{ part.unit }}</td>
                                 <td>{{ part.quantity_per_box }}</td>
                                 <td>
-                                    {% for location in part.locations %}
-                                        {{ location.warehouse_name }} - {{ location.location_code }}{% if not loop.last %}<br>{% endif %}
+                                    {% if part.location_associations %}
+                                        {% for assoc in part.location_associations %}
+                                            {{ assoc.warehouse_location.warehouse.name }} - {{ assoc.warehouse_location.location_code }}{% if not loop.last %}<br>{% endif %}
+                                        {% endfor %}
                                     {% else %}
-                                        無儲存位置
-                                    {% endfor %}
+                                        <span class="text-muted">無儲存位置</span>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm" role="group">

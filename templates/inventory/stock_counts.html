@@ -75,6 +75,14 @@
                                                 onclick="startCount({{ count.id }})" title="開始盤點">
                                             <i class="fas fa-play"></i>
                                         </button>
+                                        <button class="btn btn-outline-info" 
+                                                onclick="editCount({{ count.id }})" title="編輯">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger" 
+                                                onclick="deleteCount({{ count.id }}, '{{ count.count_number }}')" title="刪除">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
                                         {% endif %}
                                         {% if count.status == 'counting' %}
                                         <button class="btn btn-outline-warning" 
@@ -136,6 +144,34 @@
         </div>
     </div>
 </div>
+
+<!-- 刪除確認模態框 -->
+<div class="modal fade" id="deleteCountModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">確認刪除盤點</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="deleteCountForm">
+                <div class="modal-body">
+                    <p class="mb-0">確定要刪除以下盤點嗎？</p>
+                    <div class="alert alert-warning mt-3">
+                        <strong>盤點編號：</strong><span id="delete_count_number"></span>
+                    </div>
+                    <p class="text-danger mb-0">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        <strong>注意：</strong>此操作無法復原。
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-danger">確認刪除</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -170,9 +206,25 @@ document.getElementById('submitCountAction').addEventListener('click', function(
     const title = document.getElementById('countActionTitle').textContent;
     
     if (title === '開始盤點') {
-        // 簡單的狀態更新（這裡可以調用API）
-        alert('盤點已開始！請前往盤點詳細頁面進行盤點作業。');
-        location.reload();
+        // 調用開始盤點 API
+        fetch(`/api/inventory/stock-counts/${countId}/start`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('盤點已開始！請前往盤點詳細頁面進行盤點作業。');
+                location.reload();
+            } else {
+                alert('操作失敗：' + (data.error || '未知錯誤'));
+            }
+        })
+        .catch(err => {
+            alert('網路錯誤：' + err.message);
+        });
     } else if (title === '完成盤點') {
         const verifiedBy = document.getElementById('verified_by').value;
         const applyAdjustments = document.getElementById('apply_adjustments').checked;
@@ -196,10 +248,10 @@ document.getElementById('submitCountAction').addEventListener('click', function(
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert(data.message);
+                alert(data.message || '盤點已完成！');
                 location.reload();
             } else {
-                alert('操作失敗：' + data.error);
+                alert('操作失敗：' + (data.error || '未知錯誤'));
             }
         })
         .catch(err => {
@@ -209,5 +261,50 @@ document.getElementById('submitCountAction').addEventListener('click', function(
     
     bootstrap.Modal.getInstance(document.getElementById('countActionModal')).hide();
 });
+
+// 編輯盤點
+function editCount(countId) {
+    // 跳轉到編輯頁面（如果有的話）或顯示編輯表單
+    alert('編輯功能開發中。目前建議刪除後重新建立。');
+    // window.location.href = `/inventory/stock-counts/${countId}/edit`;
+}
+
+// 刪除盤點
+function deleteCount(countId, countNumber) {
+    document.getElementById('delete_count_number').textContent = countNumber;
+    document.getElementById('deleteCountForm').action = `/api/inventory/stock-counts/${countId}/delete`;
+    
+    const modal = new bootstrap.Modal(document.getElementById('deleteCountModal'));
+    modal.show();
+}
+
+// 刪除表單提交
+document.getElementById('deleteCountForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const form = this;
+    const url = form.action;
+    
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('盤點已刪除');
+            location.reload();
+        } else {
+            alert('刪除失敗：' + (data.error || '未知錯誤'));
+        }
+    })
+    .catch(err => {
+        alert('網路錯誤：' + err.message);
+    });
+    
+    bootstrap.Modal.getInstance(document.getElementById('deleteCountModal')).hide();
+});
+
 </script>
 {% endblock %}
