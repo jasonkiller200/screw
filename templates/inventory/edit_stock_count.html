@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}編輯盤點 - 五金零件庫存管理系統{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-edit me-2"></i>編輯盤點 #{{ count.count_number }}</h2>
+            <a href="{{ url_for('web.stock_count_detail', count_id=count.id) }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>返回盤點詳情
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">盤點基本資訊</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('web.edit_stock_count', count_id=count.id) }}">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="warehouse_id" class="form-label">倉庫</label>
+                            <select class="form-select" id="warehouse_id" name="warehouse_id" disabled>
+                                <option value="{{ count.warehouse.id }}">{{ count.warehouse.name }}</option>
+                            </select>
+                            <div class="form-text">盤點的倉庫不可修改。</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="count_type" class="form-label">盤點類型 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="count_type" name="count_type" required>
+                                <option value="full" {{ 'selected' if count.count_type == 'full' else '' }}>全盤點</option>
+                                <option value="cycle" {{ 'selected' if count.count_type == 'cycle' else '' }}>循環盤點</option>
+                                <option value="spot" {{ 'selected' if count.count_type == 'spot' else '' }}>抽點</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="count_date" class="form-label">盤點日期 <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="count_date" name="count_date" value="{{ count.count_date.strftime('%Y-%m-%d') }}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="counted_by" class="form-label">盤點人員</label>
+                            <input type="text" class="form-control" id="counted_by" name="counted_by" value="{{ count.counted_by or '' }}" 
+                                   placeholder="輸入盤點人員姓名">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">備註</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3" 
+                                  placeholder="輸入盤點相關說明或注意事項">{{ count.notes or '' }}</textarea>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('web.stock_count_detail', count_id=count.id) }}" class="btn btn-secondary">取消</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>更新盤點
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">盤點類型說明</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong class="text-primary">全盤點</strong>
+                    <p class="small text-muted mb-2">盤點所選倉庫內的所有零件庫存，適用於年度或季度盤點。</p>
+                </div>
+                
+                <div class="mb-3">
+                    <strong class="text-info">循環盤點</strong>
+                    <p class="small text-muted mb-2">按計劃定期盤點特定零件，適用於高價值或重要零件的定期檢查。</p>
+                </div>
+                
+                <div class="mb-3">
+                    <strong class="text-secondary">抽點</strong>
+                    <p class="small text-muted mb-2">隨機抽查部分零件庫存，適用於日常檢查或異常調查。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

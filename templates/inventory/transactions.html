@@ -184,53 +184,7 @@
 
 {% block extra_js %}
 <script>
-// 設定預設日期範圍（最近30天）
-const today = new Date();
-const thirtyDaysAgo = new Date(today);
-thirtyDaysAgo.setDate(today.getDate() - 30);
-
-document.getElementById('date_from').value = thirtyDaysAgo.toISOString().split('T')[0];
-document.getElementById('date_to').value = today.toISOString().split('T')[0];
-
-// 篩選表單提交
-document.getElementById('filterForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    loadTransactions();
-});
-
-// 載入異動記錄
-function loadTransactions(page = 1) {
-    const formData = new FormData(document.getElementById('filterForm'));
-    const params = new URLSearchParams();
-    
-    for (const [key, value] of formData.entries()) {
-        if (value) {
-            params.append(key, value);
-        }
-    }
-    params.append('page', page);
-    
-    // 重新載入頁面
-    window.location.href = '{{ url_for("web.inventory_transactions") }}?' + params.toString();
-}
-
-// 載入指定頁面
-function loadPage(page) {
-    loadTransactions(page);
-}
-
-// 匯出異動記錄
-function exportTransactions() {
-    const formData = new FormData(document.getElementById('filterForm'));
-    const params = new URLSearchParams();
-    
-    for (const [key, value] of formData.entries()) {
-        if (value) {
-            params.append(key, value);
-        }
-    }
-    
-    window.open('/api/inventory/transactions/export?' + params.toString(), '_blank');
-}
+    const TRANSACTIONS_URL = "{{ url_for('web.inventory_transactions') }}";
 </script>
+<script src="{{ url_for('static', filename='js/inventory/transactions.js') }}" defer></script>
 {% endblock %}

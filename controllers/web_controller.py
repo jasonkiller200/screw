@@ -21,18 +21,27 @@ def index():
 
 @web_bp.route('/parts')
 def parts():
-    """Parts management page."""
+    """Parts management page with pagination."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
     search_term = request.args.get('search', '')
     sort_by = request.args.get('sort_by', 'part_number')
     sort_order = request.args.get('sort_order', 'asc')
     
-    parts_list = Part.get_all(search_term=search_term, sort_by=sort_by, sort_order=sort_order)
+    pagination = Part.get_all(
+        search_term=search_term, 
+        sort_by=sort_by, 
+        sort_order=sort_order,
+        page=page,
+        per_page=per_page
+    )
     
     return render_template('parts.html', 
-                           parts=parts_list, 
+                           pagination=pagination,
                            search_term=search_term,
                            sort_by=sort_by,
-                           sort_order=sort_order)
+                           sort_order=sort_order,
+                           per_page=per_page)
 
 @web_bp.route('/orders')
 def orders():
@@ -486,8 +495,9 @@ def stock_in():
         return redirect(url_for('web.stock_in'))
     
     warehouses = Warehouse.get_all()
-    parts = Part.get_all()
-    return render_template('inventory/stock_in.html', warehouses=warehouses, parts=parts)
+    # Convert Part objects to dictionaries including locations for JavaScript
+    parts_list = [part.to_dict(include_locations=True) for part in Part.get_all()]
+    return render_template('inventory/stock_in.html', warehouses=warehouses, parts=parts_list)
 
 @web_bp.route('/inventory/stock-out', methods=['GET', 'POST'])
 def stock_out():
@@ -548,8 +558,9 @@ def stock_out():
         return redirect(url_for('web.stock_out'))
     
     warehouses = Warehouse.get_all()
-    parts = Part.get_all()
-    return render_template('inventory/stock_out.html', warehouses=warehouses, parts=parts)
+    # Convert Part objects to dictionaries including locations for JavaScript
+    parts_list = [part.to_dict(include_locations=True) for part in Part.get_all()]
+    return render_template('inventory/stock_out.html', warehouses=warehouses, parts=parts_list)
 
 @web_bp.route('/inventory/stock-counts')
 def stock_counts():
@@ -577,6 +588,57 @@ def stock_count_detail(count_id):
     return render_template('inventory/stock_count_detail.html', 
                          count_info=count_info, 
                          details=details)
+
+@web_bp.route('/inventory/stock-counts/<int:count_id>/edit', methods=['GET', 'POST'])
+def edit_stock_count(count_id):
+    """Edit an existing stock count."""
+    # Use .first() to get a single object or None
+    count = StockCount.query.get(count_id)
+    if not count:
+        flash('找不到盤點記錄', 'error')
+        return redirect(url_for('web.stock_counts'))
+
+    # A user can only edit a count if it is in the 'planning' status
+    if count.status != 'planning':
+        flash('只能編輯「規劃中」的盤點', 'error')
+        return redirect(url_for('web.stock_count_detail', count_id=count_id))
+
+    if request.method == 'POST':
+        count_type = request.form.get('count_type')
+        count_date_str = request.form.get('count_date')
+        counted_by = request.form.get('counted_by')
+        notes = request.form.get('notes')
+        
+        from datetime import datetime
+        try:
+            # The date from the form is a string, convert it to a date object
+            count_date = datetime.strptime(count_date_str, '%Y-%m-%d')
+        except (ValueError, TypeError):
+            flash('無效的日期格式', 'error')
+            # Get all warehouses for the dropdown
+            warehouses = Warehouse.get_all()
+            return render_template('inventory/edit_stock_count.html', count=count, warehouses=warehouses)
+
+        success = StockCount.update_count(
+            count_id=count_id,
+            count_type=count_type,
+            count_date=count_date,
+            counted_by=counted_by,
+            notes=notes
+        )
+        
+        if success:
+            flash('盤點更新成功', 'success')
+            return redirect(url_for('web.stock_count_detail', count_id=count_id))
+        else:
+            flash('盤點更新失敗', 'error')
+            # Re-render the edit page with the current (failed) data
+            warehouses = Warehouse.get_all()
+            return render_template('inventory/edit_stock_count.html', count=count, warehouses=warehouses)
+
+    # For GET request, also get all warehouses for the dropdown
+    warehouses = Warehouse.get_all()
+    return render_template('inventory/edit_stock_count.html', count=count, warehouses=warehouses)
 
 @web_bp.route('/sw.js')
 def service_worker():

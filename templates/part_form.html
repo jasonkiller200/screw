@@ -43,7 +43,7 @@
                                 {% else %}
                                     <!-- 新增模式：可以輸入 -->
                                     <input type="text" class="form-control" id="part_number" name="part_number" 
-                                           value="{{ part.part_number or '' }}" required>
+                                           value="{{ part.part_number if part else '' }}" required>
                                     <div class="form-text">唯一的零件識別編號</div>
                                 {% endif %}
                             </div>
@@ -52,14 +52,14 @@
                             <div class="mb-3">
                                 <label for="name" class="form-label">零件名稱 <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control" id="name" name="name" 
-                                       value="{{ part.name or '' }}" required>
+                                       value="{{ part.name if part else '' }}" required>
                             </div>
                         </div>
                     </div>
                     
                     <div class="mb-3">
                         <label for="description" class="form-label">描述</label>
-                        <textarea class="form-control" id="description" name="description" rows="3">{{ part.description or '' }}</textarea>
+                        <textarea class="form-control" id="description" name="description" rows="3">{{ part.description if part else '' }}</textarea>
                         <div class="form-text">詳細的零件描述和規格</div>
                     </div>
                     
@@ -83,7 +83,7 @@
                             <div class="mb-3">
                                 <label for="quantity_per_box" class="form-label">每盒數量 <span class="text-danger">*</span></label>
                                 <input type="number" class="form-control" id="quantity_per_box" name="quantity_per_box" 
-                                       value="{{ part.quantity_per_box or '' }}" min="1" required>
+                                       value="{{ part.quantity_per_box if part else '' }}" min="1" required>
                                 <div class="form-text">每盒/每包的數量</div>
                             </div>
                         </div>
@@ -95,10 +95,7 @@
                                         {% for assoc in part.location_associations %}
                                             <div class="input-group mb-2 location-input-group">
                                                 <select class="form-select location-warehouse-select" name="location_warehouse_id[]" required>
-                                                    <option value="">選擇倉庫</option>
-                                                    {% for warehouse in warehouses %}
-                                                        <option value="{{ warehouse['id'] }}" {{ 'selected' if assoc.warehouse_location.warehouse_id == warehouse['id'] else '' }}>{{ warehouse['name'] }}</option>
-                                                    {% endfor %}
+                                                    <option value="{{ assoc.warehouse_location.warehouse_id }}" selected>{{ assoc.warehouse_location.warehouse.name }}</option>
                                                 </select>
                                                 <input type="text" class="form-control location-code-input" name="location_code[]" value="{{ assoc.warehouse_location.location_code }}" placeholder="位置代碼" required>
                                                 <button type="button" class="btn btn-outline-danger remove-location-btn"><i class="fas fa-times"></i></button>
@@ -108,9 +105,6 @@
                                         <div class="input-group mb-2 location-input-group">
                                             <select class="form-select location-warehouse-select" name="location_warehouse_id[]" required>
                                                 <option value="">選擇倉庫</option>
-                                                {% for warehouse in warehouses %}
-                                                    <option value="{{ warehouse['id'] }}">{{ warehouse['name'] }}</option>
-                                                {% endfor %}
                                             </select>
                                             <input type="text" class="form-control location-code-input" name="location_code[]" placeholder="位置代碼" required>
                                             <button type="button" class="btn btn-outline-danger remove-location-btn" style="display:none;"><i class="fas fa-times"></i></button>
@@ -145,10 +139,10 @@
             <div class="card-body">
                 <ul class="list-unstyled">
                     <li><i class="fas fa-check text-success me-2"></i><strong>零件編號：</strong>系統唯一識別碼</li>
-                    <li><i class="fas fa-check text-success me-2"></i><strong>名稱：：</strong>簡短的零件名稱</li>
+                    <li><i class="fas fa-check text-success me-2"></i><strong>名稱：</strong>簡短的零件名稱</li>
                     <li><i class="fas fa-check text-success me-2"></i><strong>描述：</strong>詳細規格和用途</li>
                     <li><i class="fas fa-check text-success me-2"></i><strong>單位：</strong>庫存計量單位</li>
-                    <li><i class="fas fa-check text-success me-2"></i><strong>每盒數量：：</strong>包裝數量</li>
+                    <li><i class="fas fa-check text-success me-2"></i><strong>每盒數量：</strong>包裝數量</li>
                     <li><i class="fas fa-check text-success me-2"></i><strong>儲存位置：</strong>倉庫位置編碼 (可有多個)</li>
                 </ul>
                 
@@ -163,76 +157,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const locationInputsContainer = document.getElementById('location-inputs');
-        const addLocationBtn = document.getElementById('add-location-btn');
-        const warehouseOptions = `
-            {% for warehouse in warehouses %}
-                <option value="{{ warehouse['id'] }}">{{ warehouse['name'] }}</option>
-            {% endfor %}
-        `;
-
-        function updateRemoveButtons() {
-            const removeButtons = locationInputsContainer.querySelectorAll('.remove-location-btn');
-            if (removeButtons.length === 1) {
-                removeButtons[0].style.display = 'none';
-            } else {
-                removeButtons.forEach(button => button.style.display = 'inline-flex');
-            }
-        }
-
-        function createLocationInputGroup(warehouseId = '', locationCode = '') {
-            const newLocationInputGroup = document.createElement('div');
-            newLocationInputGroup.classList.add('input-group', 'mb-2', 'location-input-group');
-            newLocationInputGroup.innerHTML = `
-                <select class="form-select location-warehouse-select" name="location_warehouse_id[]" required>
-                    <option value="">選擇倉庫</option>
-                    ${warehouseOptions}
-                </select>
-                <input type="text" class="form-control location-code-input" name="location_code[]" value="${locationCode}" placeholder="位置代碼" required>
-                <button type="button" class="btn btn-outline-danger remove-location-btn"><i class="fas fa-times"></i></button>
-            `;
-            
-            if (warehouseId) {
-                newLocationInputGroup.querySelector(`.location-warehouse-select option[value="${warehouseId}"]`).selected = true;
-            }
-            return newLocationInputGroup;
-        }
-
-        addLocationBtn.addEventListener('click', function() {
-            locationInputsContainer.appendChild(createLocationInputGroup());
-            updateRemoveButtons();
-        });
-
-        locationInputsContainer.addEventListener('click', function(event) {
-            if (event.target.classList.contains('remove-location-btn') || event.target.closest('.remove-location-btn')) {
-                if (locationInputsContainer.querySelectorAll('.location-input-group').length > 1) {
-                    event.target.closest('.location-input-group').remove();
-                    updateRemoveButtons();
-                }
-            }
-        });
-
-        // Initial pre-fill for copy/edit
-        {% if part and part.locations %}
-            // Clear initial empty input if locations are pre-filled
-            if (locationInputsContainer.querySelectorAll('.location-input-group').length === 1 && 
-                locationInputsContainer.querySelector('.location-warehouse-select').value === '' &&
-                locationInputsContainer.querySelector('.location-code-input').value === '') {
-                locationInputsContainer.innerHTML = '';
-            }
-            {% for location in part.locations %}
-                // Already rendered by Jinja, just ensure remove buttons are correct
-            {% endfor %}
-        {% else %}
-            // Ensure at least one empty input if no locations are pre-filled
-            if (locationInputsContainer.querySelectorAll('.location-input-group').length === 0) {
-                locationInputsContainer.appendChild(createLocationInputGroup());
-            }
-        {% endif %}
-
-        updateRemoveButtons(); // Initial call to set button visibility
-    });
-</script>
+<script src="{{ url_for('static', filename='js/part_form.js') }}" defer></script>
 {% endblock %}

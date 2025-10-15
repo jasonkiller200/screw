@@ -149,11 +149,15 @@ class Part(db.Model):
         return cls.query.get(part_id)
     
     @classmethod
-    def get_all(cls, search_term=None, sort_by='part_number', sort_order='asc'):
+    def get_all(cls, search_term=None, sort_by='part_number', sort_order='asc', page=1, per_page=50):
+        from sqlalchemy import or_
         query = cls.query
 
         if search_term:
-            query = query.filter(cls.name.ilike(f'%{search_term}%'))
+            query = query.filter(or_(
+                cls.name.ilike(f'%{search_term}%'),
+                cls.part_number.ilike(f'%{search_term}%')
+            ))
         
         # Basic validation for sort_by
         valid_columns = ['part_number', 'name', 'description', 'unit', 'quantity_per_box', 
@@ -166,7 +170,7 @@ class Part(db.Model):
         else:
             query = query.order_by(getattr(cls, sort_by))
         
-        return query.all()
+        return query.paginate(page=page, per_page=per_page, error_out=False)
 
     @classmethod
     def create(cls, part_number, name, description, unit, quantity_per_box, locations_data, 

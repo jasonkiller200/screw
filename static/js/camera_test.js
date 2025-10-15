@@ -1,0 +1,181 @@
+let stream = null;
+let codeReader = null;
+let isScanning = false;
+
+async function startCamera() {
+    const video = document.getElementById('video');
+    const status = document.getElementById('status');
+    
+    try {
+        status.style.display = 'block';
+        status.className = 'status info';
+        status.textContent = '🔄 正在啟動相機...';
+        
+        // 請求相機權限
+        const constraints = {
+            video: {
+                facingMode: 'environment',
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            }
+        };
+        
+        console.log('請求相機權限:', constraints);
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        video.srcObject = stream;
+        await video.play();
+        
+        status.className = 'status success';
+        status.textContent = '✅ 相機已啟動！';
+        
+        console.log('相機資訊:', {
+            width: video.videoWidth,
+            height: video.videoHeight,
+            tracks: stream.getTracks().map(t => ({
+                kind: t.kind,
+                label: t.label,
+                enabled: t.enabled
+            }))
+        });
+        
+        // 開始掃描條碼
+        startScanning();
+        
+    } catch (err) {
+        console.error('相機錯誤:', err);
+        status.className = 'status error';
+        
+        if (err.name === 'NotAllowedError') {
+            status.textContent = '❌ 您拒絕了相機權限';
+        } else if (err.name === 'NotFoundError') {
+            status.textContent = '❌ 找不到相機裝置';
+        } else if (err.name === 'NotReadableError') {
+            status.textContent = '❌ 相機正在被使用';
+        } else {
+            status.textContent = '❌ 錯誤: ' + err.message;
+        }
+    }
+}
+
+async function startScanning() {
+    const video = document.getElementById('video');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const status = document.getElementById('status');
+    
+    isScanning = true;
+    let scanCount = 0;
+    
+    try {
+        codeReader = new ZXing.BrowserMultiFormatReader();
+        console.log('✅ 條碼掃描器已初始化');
+        
+        status.className = 'status info';
+        status.textContent = '🔍 正在掃描條碼...';
+    } catch (err) {
+        console.error('❌ 無法初始化掃描器:', err);
+        status.className = 'status error';
+        status.textContent = '❌ 掃描器初始化失敗: ' + err.message;
+        return;
+    }
+    
+    async function scan() {
+        if (!isScanning) return;
+        
+        scanCount++;
+        
+        try {
+            // 更新狀態
+            if (scanCount % 20 === 0) {
+                status.textContent = `🔍 正在掃描... (第 ${scanCount} 次)`
+            }
+            
+            // 設定 canvas 尺寸
+            if (canvas.width !== video.videoWidth) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                console.log('Canvas 尺寸:', canvas.width, 'x', canvas.height);
+            }
+            
+            // 繪製影片幀
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // 取得圖片資料
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            
+            try {
+                const result = await codeReader.decodeFromImageData(imageData);
+                if (result && result.text) {
+                    console.log('✅ 掃描成功!');
+                    console.log('內容:', result.text);
+                    console.log('格式:', result.format);
+                    showResult(result.text, result.format);
+                    return;
+                }
+            } catch (err) {
+                // NotFoundException: 正常，表示沒找到條碼
+            }
+            
+            // 繼續掃描（每 100ms 一次）
+            if (isScanning) {
+                setTimeout(scan, 100);
+            }
+            
+        } catch (err) {
+            console.error('掃描錯誤:', err);
+            if (isScanning) {
+                setTimeout(scan, 200);
+            }
+        }
+    }
+    
+    scan();
+}
+
+function showResult(code, format) {
+    const result = document.getElementById('result');
+    const resultText = document.getElementById('resultText');
+    const status = document.getElementById('status');
+    
+    resultText.innerHTML = `
+        <div>條碼內容: <strong>${code}</strong></div>
+        <div style="margin-top: 10px; color: #666;">格式: ${format || '未知'}</div>
+    `;
+    result.style.display = 'block';
+    
+    status.className = 'status success';
+    status.textContent = `✅ 掃描成功！條碼: ${code} (${format || '未知'})`;
+    
+    // 震動回饋
+    if (navigator.vibrate) {
+        navigator.vibrate(200);
+    }
+    
+    // 停止掃描
+    isScanning = false;
+}
+
+function stopCamera() {
+    isScanning = false;
+    
+    if (stream) {
+        stream.getTracks().forEach(track => {
+            track.stop();
+            console.log('已停止:', track.label);
+        });
+        stream = null;
+    }
+    
+    const video = document.getElementById('video');
+    video.srcObject = null;
+    
+    const status = document.getElementById('status');
+    status.className = 'status info';
+    status.textContent = '⏹️ 相機已關閉';
+    
+    console.log('相機已關閉');
+}
+
+// 頁面離開時自動關閉相機
+window.addEventListener('beforeunload', stopCamera);

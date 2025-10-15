@@ -260,6 +260,24 @@ class StockCount(db.Model):
         return new_count.id
 
     @classmethod
+    def update_count(cls, count_id, count_type, count_date, counted_by, notes):
+        count = cls.query.get(count_id)
+        if not count:
+            return False
+        
+        try:
+            count.count_type = count_type
+            count.count_date = count_date
+            count.counted_by = counted_by
+            count.notes = notes
+            db.session.commit()
+            return True
+        except Exception as e:
+            db.session.rollback()
+            print(f"更新盤點失敗: {e}")
+            return False
+
+    @classmethod
     def start_count(cls, count_id):
         count = cls.query.get(count_id)
         if count and count.status == 'planning':

@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from models.part import Part
+from models.part import Part, Warehouse
 from models.order import Order
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -110,6 +110,19 @@ def get_all_parts():
     """Get all parts for management interface."""
     parts = Part.get_all()
     return jsonify(parts)
+
+@api_bp.route('/warehouses', methods=['GET'])
+def get_warehouses():
+    """Gets a list of all active warehouses."""
+    warehouses = Warehouse.get_all() # This already returns a list of dicts
+    return jsonify(warehouses)
+
+@api_bp.route('/parts/search', methods=['GET'])
+def search_parts():
+    """Searches for parts by part_number or name."""
+    query = request.args.get('q', '')
+    parts = Part.get_all(search_term=query)
+    return jsonify({'parts': [part.to_dict() for part in parts]})
 
 @api_bp.route('/parts', methods=['POST'])
 def create_part():
