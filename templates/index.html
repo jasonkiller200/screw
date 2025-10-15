@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}首頁 - 五金零件庫存管理系統{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="jumbotron bg-primary text-white rounded p-5 mb-4">
+            <h1 class="display-4">歡迎使用五金零件庫存管理系統</h1>
+            <p class="lead">一個高效的零件庫存管理解決方案，支援條碼掃描、即時查詢和訂單管理。</p>
+            <hr class="my-4">
+            <p>快速開始使用系統的各項功能。</p>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 col-lg-3 mb-4">
+        <div class="card h-100 text-center">
+            <div class="card-body">
+                <i class="fas fa-search fa-3x text-info mb-3"></i>
+                <h5 class="card-title">零件查詢</h5>
+                <p class="card-text">掃描條碼或輸入零件編號，快速查詢零件資訊和訂購歷史。</p>
+                <a href="{{ url_for('web.part_lookup') }}" class="btn btn-info">開始查詢</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-3 mb-4">
+        <div class="card h-100 text-center">
+            <div class="card-body">
+                <i class="fas fa-cogs fa-3x text-success mb-3"></i>
+                <h5 class="card-title">零件管理</h5>
+                <p class="card-text">新增、編輯或刪除零件資料，維護完整的零件主檔。</p>
+                <a href="{{ url_for('web.parts') }}" class="btn btn-success">管理零件</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-3 mb-4">
+        <div class="card h-100 text-center">
+            <div class="card-body">
+                <i class="fas fa-warehouse fa-3x text-warning mb-3"></i>
+                <h5 class="card-title">庫存管理</h5>
+                <p class="card-text">管理入出庫作業、庫存盤點和交易記錄。</p>
+                <a href="{{ url_for('web.inventory') }}" class="btn btn-warning">庫存管理</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-3 mb-4">
+        <div class="card h-100 text-center">
+            <div class="card-body">
+                <i class="fas fa-shopping-cart fa-3x text-danger mb-3"></i>
+                <h5 class="card-title">訂單管理</h5>
+                <p class="card-text">查看和處理待處理的訂單，確認訂購需求。</p>
+                <a href="{{ url_for('web.orders') }}" class="btn btn-danger">管理訂單</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-3 mb-4">
+        <div class="card h-100 text-center">
+            <div class="card-body">
+                <i class="fas fa-chart-bar fa-3x text-info mb-3"></i>
+                <h5 class="card-title">統計報表</h5>
+                <p class="card-text">查看庫存統計和訂購分析報表。</p>
+                <a href="#" class="btn btn-info disabled">開發中</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>系統功能</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>手機 App 功能</h6>
+                        <ul>
+                            <li>條碼掃描查詢</li>
+                            <li>零件資訊顯示</li>
+                            <li>訂購清單管理</li>
+                            <li>訂單提交</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>網頁管理功能</h6>
+                        <ul>
+                            <li>零件主檔維護</li>
+                            <li>訂單審核處理</li>
+                            <li>庫存查詢統計</li>
+                            <li>報表匯出功能</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

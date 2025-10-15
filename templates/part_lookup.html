@@ -1,0 +1,548 @@
+{% extends "base.html" %}
+
+{% block title %}零件查詢 - 五金零件庫存管理系統{% endblock %}
+
+{% block extra_css %}
+<style>
+    .part-info {
+        background: #f8f9fa;
+        border-left: 4px solid #007bff;
+    }
+    .order-history {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    #scanner-container {
+        display: none;
+        margin-top: 15px;
+    }
+    
+    #scanner-video-wrapper {
+        position: relative;
+        width: 100%;
+        max-width: 640px;
+        margin: 0 auto;
+        background: #000;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    
+    #scanner-video {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+    
+    #scanner-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+    }
+    
+    /* 掃描瞄準框 */
+    .scanner-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 10;
+    }
+    
+    .scanner-frame {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 70%;
+        height: 50%;
+        border: 3px solid #00ff00;
+        border-radius: 12px;
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% {
+            border-color: #00ff00;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5), 0 0 20px #00ff00;
+        }
+        50% {
+            border-color: #00cc00;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5), 0 0 30px #00cc00;
+        }
+    }
+    
+    /* 掃描線動畫 */
+    .scanner-line {
+        position: absolute;
+        left: 15%;
+        right: 15%;
+        height: 3px;
+        background: linear-gradient(to right, transparent, #00ff00, transparent);
+        box-shadow: 0 0 10px #00ff00;
+        animation: scan 2s linear infinite;
+    }
+    
+    @keyframes scan {
+        0% {
+            top: 25%;
+        }
+        100% {
+            top: 75%;
+        }
+    }
+    
+    /* 角落標記 */
+    .corner {
+        position: absolute;
+        width: 40px;
+        height: 40px;
+        border: 4px solid #00ff00;
+    }
+    
+    .corner.top-left {
+        top: 25%;
+        left: 15%;
+        border-right: none;
+        border-bottom: none;
+    }
+    
+    .corner.top-right {
+        top: 25%;
+        right: 15%;
+        border-left: none;
+        border-bottom: none;
+    }
+    
+    .corner.bottom-left {
+        bottom: 25%;
+        left: 15%;
+        border-right: none;
+        border-top: none;
+    }
+    
+    .corner.bottom-right {
+        bottom: 25%;
+        right: 15%;
+        border-left: none;
+        border-top: none;
+    }
+    
+    /* 提示文字 */
+    .scanner-hint {
+        position: absolute;
+        bottom: 10%;
+        left: 50%;
+        transform: translateX(-50%);
+        color: white;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 10px 20px;
+        border-radius: 20px;
+        font-size: 14px;
+        white-space: nowrap;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+    
+    /* 偵測到條碼時的視覺回饋 */
+    .scanner-frame.detected {
+        border-color: #ff0000;
+        animation: flash 0.5s ease-in-out;
+    }
+    
+    @keyframes flash {
+        0%, 100% {
+            border-color: #00ff00;
+        }
+        50% {
+            border-color: #ffff00;
+            box-shadow: 0 0 0 9999px rgba(255, 255, 0, 0.2), 0 0 40px #ffff00;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-search me-2"></i>零件查詢</h2>
+        <p class="text-muted">輸入零件編號或使用條碼掃描器查詢零件資訊。</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8 col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">搜尋零件</h5>
+            </div>
+            <div class="card-body">
+                <form id="searchForm">
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control" id="partNumber" placeholder="輸入零件編號">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="fas fa-search"></i> 查詢
+                        </button>
+                    </div>
+                </form>
+                
+                <button class="btn btn-secondary mb-3" id="toggleScanner">
+                    <i class="fas fa-camera me-1"></i>開啟條碼掃描
+                </button>
+                
+                <div id="scanner-container">
+                    <div id="scanner-video-wrapper">
+                        <video id="scanner-video" autoplay playsinline></video>
+                        <canvas id="scanner-canvas"></canvas>
+                        
+                        <!-- 掃描瞄準框覆蓋層 -->
+                        <div class="scanner-overlay">
+                            <div class="scanner-frame" id="scannerFrame">
+                                <!-- 掃描線 -->
+                                <div class="scanner-line"></div>
+                            </div>
+                            
+                            <!-- 四個角落標記 -->
+                            <div class="corner top-left"></div>
+                            <div class="corner top-right"></div>
+                            <div class="corner bottom-left"></div>
+                            <div class="corner bottom-right"></div>
+                            
+                            <!-- 提示文字 -->
+                            <div class="scanner-hint" id="scannerHint">
+                                📷 請將條碼對準方框內
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3 text-center">
+                        <button class="btn btn-danger" id="stopScanner">
+                            <i class="fas fa-times me-1"></i>關閉掃描器
+                        </button>
+                        <button class="btn btn-info ms-2" id="switchCamera">
+                            <i class="fas fa-sync-alt me-1"></i>切換相機
+                        </button>
+                    </div>
+                    
+                    <div id="scanner-status" class="alert alert-info mt-2" style="display: none;">
+                        正在準備相機...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div id="results" style="display: none;">
+            <!-- 搜尋結果將顯示在這裡 -->
+        </div>
+        
+        <div id="loading" style="display: none;">
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">載入中...</span>
+                </div>
+                <p class="mt-2">正在查詢零件資訊...</p>
+            </div>
+        </div>
+        
+        <div id="error" style="display: none;">
+            <div class="alert alert-danger" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <span id="error-message">查詢發生錯誤</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 下單模態框 -->
+<div class="modal fade" id="orderModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">建立訂單</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="orderForm">
+                    <input type="hidden" id="orderPartNumber">
+                    <div class="mb-3">
+                        <label for="orderQuantity" class="form-label">訂購數量</label>
+                        <input type="number" class="form-control" id="orderQuantity" min="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted">
+                            零件：<span id="orderPartName"></span><br>
+                            單位：<span id="orderPartUnit"></span>
+                        </small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="submitOrder">確認訂購</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
+<script>
+document.addEventListener('load', function () {
+    // 搜尋功能
+    document.getElementById('searchForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const partNumber = document.getElementById('partNumber').value.trim();
+        if (partNumber) {
+            searchPart(partNumber);
+        }
+    });
+
+    // 條碼掃描功能
+    let codeReader = null;
+    let controls = null;
+
+    document.getElementById('toggleScanner').addEventListener('click', function() {
+        startScanner();
+    });
+
+    document.getElementById('stopScanner').addEventListener('click', function() {
+        stopScanner();
+    });
+
+    // 注意：切換相機在 @zxing/browser 中由 `decodeFromVideoDevice` 自動處理，
+    // 但我們可以保留按鈕來重新啟動掃描以選擇不同相機。
+    // 實際的相機切換邏輯需要更複雜的UI，此處簡化為重啟。
+    document.getElementById('switchCamera').addEventListener('click', function() {
+        stopScanner();
+        setTimeout(() => startScanner(), 100);
+    });
+
+    async function startScanner() {
+        const container = document.getElementById('scanner-container');
+        const video = document.getElementById('scanner-video');
+        const status = document.getElementById('scanner-status');
+
+        try {
+            container.style.display = 'block';
+            status.style.display = 'block';
+            status.textContent = '正在準備相機...';
+            status.className = 'alert alert-info mt-2';
+
+            if (!codeReader) {
+                codeReader = new ZXingBrowser.BrowserMultiFormatReader();
+                console.log('ZXing Browser scanner initialized');
+            }
+
+            // 查找所有可用的視訊輸入設備
+            const videoInputDevices = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
+            if (videoInputDevices.length < 1) {
+                throw new Error("找不到相機裝置。");
+            }
+
+            // 預設使用第一個相機
+            const selectedDeviceId = videoInputDevices[0].deviceId;
+            
+            status.textContent = '✅ 相機已就緒！請將條碼對準畫面中央';
+            status.className = 'alert alert-success mt-2';
+            console.log(`Started continuous decode from camera with id ${selectedDeviceId}`);
+
+            // 使用 decodeFromVideoDevice 進行連續掃描
+            controls = await codeReader.decodeFromVideoDevice(selectedDeviceId, 'scanner-video', (result, err) => {
+                if (result) {
+                    console.log('✅ 掃描成功!', result.text);
+                    status.textContent = `✅ 掃描成功！條碼: ${result.text}`;
+                    status.className = 'alert alert-success mt-2';
+                    document.getElementById('partNumber').value = result.text;
+
+                    if (navigator.vibrate) {
+                        navigator.vibrate([200, 100, 200]);
+                    }
+                    
+                    // 停止掃描並搜尋
+                    stopScanner();
+                    searchPart(result.text);
+                }
+
+                if (err && !(err instanceof ZXingBrowser.NotFoundException)) {
+                    console.error('掃描錯誤:', err);
+                    status.textContent = `❌ 掃描出錯: ${err.message}`;
+                    status.className = 'alert alert-danger mt-2';
+                }
+            });
+
+        } catch (err) {
+            console.error('啟動掃描器失敗:', err);
+            status.textContent = `❌ 啟動失敗: ${err.message}`;
+            status.className = 'alert alert-danger mt-2';
+        }
+    }
+
+    function stopScanner() {
+        if (controls) {
+            controls.stop();
+            controls = null;
+            codeReader = null; // 重置 codeReader
+            console.log('✅ 掃描器已關閉');
+        }
+        const container = document.getElementById('scanner-container');
+        if (container) {
+            container.style.display = 'none';
+        }
+    }
+
+    // 搜尋零件 (保持不變)
+    function searchPart(partNumber) {
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        const error = document.getElementById('error');
+        
+        results.style.display = 'none';
+        error.style.display = 'none';
+        loading.style.display = 'block';
+        
+        fetch(`/api/part/${encodeURIComponent(partNumber)}`)
+            .then(response => response.json())
+            .then(data => {
+                loading.style.display = 'none';
+                if (data.error) {
+                    showError(data.error);
+                } else {
+                    showResults(data);
+                }
+            })
+            .catch(err => {
+                loading.style.display = 'none';
+                showError('網路錯誤：' + err.message);
+            });
+    }
+
+    function showResults(data) {
+        const results = document.getElementById('results');
+        const part = data.part_info;
+        const history = data.order_history;
+        
+        let historyHtml = '';
+        if (history.length > 0) {
+            historyHtml = history.map(order => `
+                <tr>
+                    <td>${order.order_date}</td>
+                    <td>${order.quantity_ordered}</td>
+                    <td>
+                        <span class="badge bg-${order.status === 'confirmed' ? 'success' : 'warning'}">
+                            ${order.status === 'confirmed' ? '已確認' : '待處理'}
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+        } else {
+            historyHtml = '<tr><td colspan="3" class="text-center text-muted">暫無訂購記錄</td></tr>';
+        }
+        
+        results.innerHTML = `
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">零件資訊</h5>
+                    <button class="btn btn-primary btn-sm" onclick="openOrderModal('${part.part_number}', '${part.name}', '${part.unit}')">
+                        <i class="fas fa-plus me-1"></i>建立訂單
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="part-info p-3 rounded">
+                                <h6><strong>零件編號：</strong>${part.part_number}</h6>
+                                <p><strong>名稱：</strong>${part.name}</p>
+                                <p><strong>描述：</strong>${part.description}</p>
+                                <p><strong>單位：</strong>${part.unit}</p>
+                                <p><strong>每盒數量：</strong>${part.quantity_per_box}</p>
+                                <p><strong>儲存位置：</strong>${part.storage_location}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>訂購歷史</h6>
+                            <div class="order-history">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>訂購日期</th>
+                                            <th>數量</th>
+                                            <th>狀態</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${historyHtml}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        results.style.display = 'block';
+    }
+
+    function showError(message) {
+        const error = document.getElementById('error');
+        document.getElementById('error-message').textContent = message;
+        error.style.display = 'block';
+    }
+
+    // 訂單模態框功能
+    function openOrderModal(partNumber, partName, unit) {
+        document.getElementById('orderPartNumber').value = partNumber;
+        document.getElementById('orderPartName').textContent = partName;
+        document.getElementById('orderPartUnit').textContent = unit;
+        document.getElementById('orderQuantity').value = 1;
+        
+        const modal = new bootstrap.Modal(document.getElementById('orderModal'));
+        modal.show();
+    }
+
+    document.getElementById('submitOrder').addEventListener('click', function() {
+        const partNumber = document.getElementById('orderPartNumber').value;
+        const quantity = document.getElementById('orderQuantity').value;
+        
+        if (!quantity || quantity < 1) {
+            alert('請輸入有效的數量');
+            return;
+        }
+        
+        fetch('/api/order', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                part_number: partNumber,
+                quantity_ordered: parseInt(quantity)
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('訂單建立成功！');
+                bootstrap.Modal.getInstance(document.getElementById('orderModal')).hide();
+                searchPart(partNumber);
+            } else {
+                alert('訂單建立失敗：' + data.error);
+            }
+        })
+        .catch(err => {
+            alert('網路錯誤：' + err.message);
+        });
+    });
+});
+</script>
+{% endblock %}

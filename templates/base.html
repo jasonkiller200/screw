@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}五金零件庫存管理系統{% endblock %}</title>
+    
+    <!-- PWA 支援 -->
+    <meta name="theme-color" content="#0d6efd">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="庫存管理">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
+    
+    <link href="{{ url_for('static', filename='vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- 導航列 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('web.index') }}">
+                <i class="fas fa-tools me-2"></i>五金零件管理系統
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('web.index') }}">
+                            <i class="fas fa-home me-1"></i>首頁
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('web.part_lookup') }}">
+                            <i class="fas fa-search me-1"></i>零件查詢
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('web.parts') }}">
+                            <i class="fas fa-cogs me-1"></i>零件管理
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('web.inventory') }}">
+                            <i class="fas fa-warehouse me-1"></i>庫存管理
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('web.orders') }}">
+                            <i class="fas fa-shopping-cart me-1"></i>訂單管理
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要內容 -->
+    <main class="container my-4">
+        <!-- Flash 訊息 -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- 頁尾 -->
+    <footer class="bg-light py-3 mt-5">
+        <div class="container text-center">
+            <small class="text-muted">五金零件庫存管理系統 © 2024</small>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    
+    <!-- PWA 安裝提示 -->
+    <div id="installPrompt" class="alert alert-info alert-dismissible fade show position-fixed bottom-0 start-0 m-3" style="display: none; z-index: 1060;">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-mobile-alt me-2"></i>
+            <div class="flex-grow-1">
+                <strong>安裝到手機</strong><br>
+                <small>將此應用程式安裝到您的手機主畫面，獲得更好的使用體驗。</small>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm ms-2" onclick="installPWA()">安裝</button>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    </div>
+
+    <!-- PWA 和 Service Worker -->
+    <script>
+        // 註冊 Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(function(registration) {
+                        console.log('✅ Service Worker 已註冊:', registration);
+                    })
+                    .catch(function(registrationError) {
+                        console.log('❌ Service Worker 註冊失敗:', registrationError);
+                    });
+            });
+        }
+
+        // PWA 安裝提示
+        let deferredPrompt;
+        const installPrompt = document.getElementById('installPrompt');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // 阻止默認的安裝提示
+            e.preventDefault();
+            // 儲存事件，稍後使用
+            deferredPrompt = e;
+            // 顯示自定義安裝提示
+            installPrompt.style.display = 'block';
+        });
+
+        function installPWA() {
+            if (deferredPrompt) {
+                // 顯示安裝提示
+                deferredPrompt.prompt();
+                // 等待用戶選擇
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('User accepted the A2HS prompt');
+                    } else {
+                        console.log('User dismissed the A2HS prompt');
+                    }
+                    deferredPrompt = null;
+                    installPrompt.style.display = 'none';
+                });
+            }
+        }
+
+        // 檢測是否已經安裝
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('PWA was installed');
+            installPrompt.style.display = 'none';
+        });
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+
+{% block title %}入庫作業 - 五金零件庫存管理系統{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-plus-circle me-2 text-success"></i>入庫作業</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('web.index') }}">首頁</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('web.inventory') }}">庫存管理</a></li>
+                <li class="breadcrumb-item active">入庫作業</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">入庫資料</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="part_number" class="form-label">零件編號 <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="part_number" name="part_number" 
+                                           placeholder="輸入或掃描零件編號" required>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="openPartSelect()">
+                                        <i class="fas fa-search"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">可手動輸入或使用條碼掃描</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="warehouse_id" class="form-label">目標倉庫 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="warehouse_id" name="warehouse_id" required>
+                                    <option value="">選擇倉庫</option>
+                                    {% for warehouse in warehouses %}
+                                    <option value="{{ warehouse.id }}">{{ warehouse.code }} - {{ warehouse.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="quantity" class="form-label">入庫數量 <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="quantity" name="quantity" 
+                                       min="1" placeholder="輸入數量" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="transaction_type" class="form-label">入庫類型 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="transaction_type" name="transaction_type" required>
+                                    <option value="">選擇入庫類型</option>
+                                    <option value="IN_PURCHASE">採購入庫</option>
+                                    <option value="IN_TRANSFER">倉庫轉入</option>
+                                    <option value="IN_RETURN">退料入庫</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">備註</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3" 
+                                  placeholder="輸入入庫相關說明或備註"></textarea>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('web.inventory') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>返回庫存管理
+                        </a>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-check me-1"></i>確認入庫
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-info-circle me-1"></i>入庫說明</h6>
+            </div>
+            <div class="card-body">
+                <h6>入庫類型說明：</h6>
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-shopping-cart text-primary me-2"></i><strong>採購入庫：</strong>從供應商採購的零件</li>
+                    <li><i class="fas fa-exchange-alt text-info me-2"></i><strong>倉庫轉入：</strong>從其他倉庫調撥來的零件</li>
+                    <li><i class="fas fa-undo text-warning me-2"></i><strong>退料入庫：</strong>從生產線或其他部門退回的零件</li>
+                </ul>
+                
+                <div class="alert alert-info mt-3">
+                    <i class="fas fa-lightbulb me-2"></i>
+                    <small>
+                        <strong>小提示：</strong><br>
+                        • 確保零件編號正確<br>
+                        • 檢查入庫數量和單位<br>
+                        • 選擇正確的倉庫位置<br>
+                        • 詳細填寫備註信息
+                    </small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 零件信息顯示卡片 -->
+        <div class="card mt-3" id="partInfoCard" style="display: none;">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-cog me-1"></i>零件資訊</h6>
+            </div>
+            <div class="card-body" id="partInfoContent">
+                <!-- 動態載入零件資訊 -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 零件選擇模態框 -->
+<div class="modal fade" id="partSelectModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">選擇零件</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="partSearchInput" 
+                           placeholder="搜尋零件編號或名稱..." onkeyup="filterParts()">
+                </div>
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>零件編號</th>
+                                <th>名稱</th>
+                                <th>單位</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="partsTableBody">
+                            {% for part in parts %}
+                            <tr class="part-row">
+                                <td><strong>{{ part.part_number }}</strong></td>
+                                <td>{{ part.name }}</td>
+                                <td>{{ part.unit }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary" 
+                                            onclick="selectPart('{{ part.part_number }}', '{{ part.name }}', '{{ part.unit }}')">
+                                        選擇
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 開啟零件選擇模態框
+function openPartSelect() {
+    const modal = new bootstrap.Modal(document.getElementById('partSelectModal'));
+    modal.show();
+}
+
+// 選擇零件
+function selectPart(partNumber, partName, unit) {
+    document.getElementById('part_number').value = partNumber;
+    bootstrap.Modal.getInstance(document.getElementById('partSelectModal')).hide();
+    
+    // 顯示零件資訊
+    showPartInfo(partNumber, partName, unit);
+}
+
+// 顯示零件資訊
+function showPartInfo(partNumber, partName, unit) {
+    const partInfoCard = document.getElementById('partInfoCard');
+    const partInfoContent = document.getElementById('partInfoContent');
+    
+    partInfoContent.innerHTML = `
+        <p><strong>編號：</strong>${partNumber}</p>
+        <p><strong>名稱：</strong>${partName}</p>
+        <p><strong>單位：</strong>${unit}</p>
+        <div class="text-muted">
+            <small>正在載入庫存資訊...</small>
+        </div>
+    `;
+    
+    partInfoCard.style.display = 'block';
+    
+    // 載入庫存資訊
+    fetch(`/api/inventory/stock/${encodeURIComponent(partNumber)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.stock_info) {
+                let stockHtml = '<div class="mt-2"><h6>現有庫存：</h6>';
+                if (Array.isArray(data.stock_info)) {
+                    data.stock_info.forEach(stock => {
+                        stockHtml += `<small>${stock.warehouse_name}: ${stock.quantity_on_hand} ${unit}</small><br>`;
+                    });
+                } else {
+                    stockHtml += `<small>${data.stock_info.warehouse_name}: ${data.stock_info.quantity_on_hand} ${unit}</small>`;
+                }
+                stockHtml += '</div>';
+                
+                partInfoContent.innerHTML = `
+                    <p><strong>編號：</strong>${partNumber}</p>
+                    <p><strong>名稱：</strong>${partName}</p>
+                    <p><strong>單位：</strong>${unit}</p>
+                    ${stockHtml}
+                `;
+            }
+        })
+        .catch(err => {
+            console.log('載入庫存資訊失敗:', err);
+        });
+}
+
+// 過濾零件列表
+function filterParts() {
+    const filter = document.getElementById('partSearchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('.part-row');
+    
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(filter) ? '' : 'none';
+    });
+}
+
+// 監聽零件編號輸入
+document.getElementById('part_number').addEventListener('blur', function() {
+    const partNumber = this.value.trim();
+    if (partNumber) {
+        // 驗證零件是否存在
+        fetch(`/api/part/${encodeURIComponent(partNumber)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.part_info) {
+                    showPartInfo(data.part_info.part_number, data.part_info.name, data.part_info.unit);
+                } else {
+                    document.getElementById('partInfoCard').style.display = 'none';
+                }
+            })
+            .catch(err => {
+                document.getElementById('partInfoCard').style.display = 'none';
+            });
+    }
+});
+
+// 表單驗證
+document.querySelector('form').addEventListener('submit', function(e) {
+    const partNumber = document.getElementById('part_number').value.trim();
+    const warehouseId = document.getElementById('warehouse_id').value;
+    const quantity = document.getElementById('quantity').value;
+    const transactionType = document.getElementById('transaction_type').value;
+    
+    if (!partNumber || !warehouseId || !quantity || !transactionType) {
+        e.preventDefault();
+        alert('請填寫所有必填欄位');
+        return false;
+    }
+    
+    if (parseInt(quantity) <= 0) {
+        e.preventDefault();
+        alert('數量必須大於0');
+        return false;
+    }
+});
+</script>
+{% endblock %}

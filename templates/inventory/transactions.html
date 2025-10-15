@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}庫存異動記錄 - 五金零件庫存管理系統{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-exchange-alt me-2"></i>庫存異動記錄</h2>
+            <div>
+                <button class="btn btn-outline-secondary me-2" onclick="exportTransactions()">
+                    <i class="fas fa-download me-1"></i>匯出記錄
+                </button>
+                <a href="{{ url_for('web.inventory') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left me-1"></i>返回庫存管理
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 篩選條件 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">篩選條件</h6>
+            </div>
+            <div class="card-body">
+                <form id="filterForm" class="row g-3">
+                    <div class="col-md-3">
+                        <label for="warehouse_filter" class="form-label">倉庫</label>
+                        <select class="form-select" id="warehouse_filter" name="warehouse_id">
+                            <option value="">全部倉庫</option>
+                            {% for warehouse in warehouses %}
+                            <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="transaction_type_filter" class="form-label">異動類型</label>
+                        <select class="form-select" id="transaction_type_filter" name="transaction_type">
+                            <option value="">全部類型</option>
+                            <option value="IN">入庫</option>
+                            <option value="OUT">出庫</option>
+                            <option value="TRANSFER">轉倉</option>
+                            <option value="ADJUST">調整</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="date_from" class="form-label">開始日期</label>
+                        <input type="date" class="form-control" id="date_from" name="date_from">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="date_to" class="form-label">結束日期</label>
+                        <input type="date" class="form-control" id="date_to" name="date_to">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="btn btn-primary d-block">
+                            <i class="fas fa-search me-1"></i>篩選
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 異動記錄表格 -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">異動記錄</h5>
+            </div>
+            <div class="card-body">
+                {% if transactions %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>異動時間</th>
+                                <th>異動類型</th>
+                                <th>零件編號</th>
+                                <th>零件名稱</th>
+                                <th>倉庫</th>
+                                <th>數量變化</th>
+                                <th>參考類型</th>
+                                <th>參考編號</th>
+                                <th>備註</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for transaction in transactions %}
+                            <tr>
+                                <td>{{ transaction.transaction_date }}</td>
+                                <td>
+                                    {% if transaction.transaction_type == 'IN' %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-arrow-down me-1"></i>入庫
+                                        </span>
+                                    {% elif transaction.transaction_type == 'OUT' %}
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-arrow-up me-1"></i>出庫
+                                        </span>
+                                    {% elif transaction.transaction_type == 'TRANSFER' %}
+                                        <span class="badge bg-info">
+                                            <i class="fas fa-exchange-alt me-1"></i>轉倉
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-warning">
+                                            <i class="fas fa-edit me-1"></i>調整
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td><strong>{{ transaction.part_number }}</strong></td>
+                                <td>{{ transaction.part_name }}</td>
+                                <td>{{ transaction.warehouse_name }}</td>
+                                <td class="text-end">
+                                    {% if transaction.quantity > 0 %}
+                                        <span class="text-success">+{{ transaction.quantity }}</span>
+                                    {% else %}
+                                        <span class="text-danger">{{ transaction.quantity }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ transaction.reference_type or '-' }}</td>
+                                <td>{{ transaction.reference_id or '-' }}</td>
+                                <td>{{ transaction.notes or '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- 分頁 -->
+                {% if page_info %}
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div class="text-muted">
+                        顯示第 {{ page_info.start }} - {{ page_info.end }} 筆，共 {{ page_info.total }} 筆記錄
+                    </div>
+                    <nav>
+                        <ul class="pagination mb-0">
+                            {% if page_info.current_page > 1 %}
+                            <li class="page-item">
+                                <a class="page-link" href="#" onclick="loadPage({{ page_info.current_page - 1 }})">上一頁</a>
+                            </li>
+                            {% endif %}
+                            
+                            {% for page_num in range(1, page_info.total_pages + 1) %}
+                                {% if page_num == page_info.current_page %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ page_num }}</span>
+                                </li>
+                                {% else %}
+                                <li class="page-item">
+                                    <a class="page-link" href="#" onclick="loadPage({{ page_num }})">{{ page_num }}</a>
+                                </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if page_info.current_page < page_info.total_pages %}
+                            <li class="page-item">
+                                <a class="page-link" href="#" onclick="loadPage({{ page_info.current_page + 1 }})">下一頁</a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+                {% endif %}
+                
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-exchange-alt fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">無異動記錄</h5>
+                    <p class="text-muted">請調整篩選條件或確認是否有庫存異動。</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 設定預設日期範圍（最近30天）
+const today = new Date();
+const thirtyDaysAgo = new Date(today);
+thirtyDaysAgo.setDate(today.getDate() - 30);
+
+document.getElementById('date_from').value = thirtyDaysAgo.toISOString().split('T')[0];
+document.getElementById('date_to').value = today.toISOString().split('T')[0];
+
+// 篩選表單提交
+document.getElementById('filterForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    loadTransactions();
+});
+
+// 載入異動記錄
+function loadTransactions(page = 1) {
+    const formData = new FormData(document.getElementById('filterForm'));
+    const params = new URLSearchParams();
+    
+    for (const [key, value] of formData.entries()) {
+        if (value) {
+            params.append(key, value);
+        }
+    }
+    params.append('page', page);
+    
+    // 重新載入頁面
+    window.location.href = '{{ url_for("web.inventory_transactions") }}?' + params.toString();
+}
+
+// 載入指定頁面
+function loadPage(page) {
+    loadTransactions(page);
+}
+
+// 匯出異動記錄
+function exportTransactions() {
+    const formData = new FormData(document.getElementById('filterForm'));
+    const params = new URLSearchParams();
+    
+    for (const [key, value] of formData.entries()) {
+        if (value) {
+            params.append(key, value);
+        }
+    }
+    
+    window.open('/api/inventory/transactions/export?' + params.toString(), '_blank');
+}
+</script>
+{% endblock %}

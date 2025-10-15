@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}盤點管理 - 五金零件庫存管理系統{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-clipboard-list me-2"></i>盤點管理</h2>
+            <a href="{{ url_for('web.new_stock_count') }}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>建立新盤點
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">盤點記錄</h5>
+            </div>
+            <div class="card-body">
+                {% if counts %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>盤點編號</th>
+                                <th>倉庫</th>
+                                <th>盤點日期</th>
+                                <th>盤點類型</th>
+                                <th>狀態</th>
+                                <th>盤點人員</th>
+                                <th>完成時間</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for count in counts %}
+                            <tr>
+                                <td><strong>{{ count.count_number }}</strong></td>
+                                <td>{{ count.warehouse_name }}</td>
+                                <td>{{ count.count_date }}</td>
+                                <td>
+                                    {% if count.count_type == 'full' %}
+                                        <span class="badge bg-primary">全盤點</span>
+                                    {% elif count.count_type == 'cycle' %}
+                                        <span class="badge bg-info">循環盤點</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">抽點</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if count.status == 'planning' %}
+                                        <span class="badge bg-warning">規劃中</span>
+                                    {% elif count.status == 'counting' %}
+                                        <span class="badge bg-info">盤點中</span>
+                                    {% elif count.status == 'completed' %}
+                                        <span class="badge bg-success">已完成</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">已取消</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ count.counted_by or '-' }}</td>
+                                <td>{{ count.completed_at or '-' }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <a href="{{ url_for('web.stock_count_detail', count_id=count.id) }}" 
+                                           class="btn btn-outline-primary" title="查看詳細">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        {% if count.status == 'planning' %}
+                                        <button class="btn btn-outline-success" 
+                                                onclick="startCount({{ count.id }})" title="開始盤點">
+                                            <i class="fas fa-play"></i>
+                                        </button>
+                                        {% endif %}
+                                        {% if count.status == 'counting' %}
+                                        <button class="btn btn-outline-warning" 
+                                                onclick="completeCount({{ count.id }})" title="完成盤點">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">尚無盤點記錄</h5>
+                    <p class="text-muted">點擊上方按鈕開始建立第一個盤點。</p>
+                    <a href="{{ url_for('web.new_stock_count') }}" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>建立第一個盤點
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 盤點操作模態框 -->
+<div class="modal fade" id="countActionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="countActionTitle">盤點操作</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="countActionMessage"></p>
+                <form id="countActionForm">
+                    <input type="hidden" id="actionCountId">
+                    <div class="mb-3" id="verifierField" style="display: none;">
+                        <label for="verified_by" class="form-label">驗證人員</label>
+                        <input type="text" class="form-control" id="verified_by" placeholder="輸入驗證人員姓名">
+                    </div>
+                    <div class="form-check" id="adjustmentField" style="display: none;">
+                        <input class="form-check-input" type="checkbox" id="apply_adjustments">
+                        <label class="form-check-label" for="apply_adjustments">
+                            同時應用盤點差異調整
+                        </label>
+                        <div class="form-text">勾選此項將自動調整庫存數量</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="submitCountAction">確認</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 開始盤點
+function startCount(countId) {
+    document.getElementById('countActionTitle').textContent = '開始盤點';
+    document.getElementById('countActionMessage').textContent = '確定要開始這個盤點作業嗎？狀態將變更為「盤點中」。';
+    document.getElementById('actionCountId').value = countId;
+    document.getElementById('verifierField').style.display = 'none';
+    document.getElementById('adjustmentField').style.display = 'none';
+    
+    const modal = new bootstrap.Modal(document.getElementById('countActionModal'));
+    modal.show();
+}
+
+// 完成盤點
+function completeCount(countId) {
+    document.getElementById('countActionTitle').textContent = '完成盤點';
+    document.getElementById('countActionMessage').textContent = '確定要完成這個盤點作業嗎？';
+    document.getElementById('actionCountId').value = countId;
+    document.getElementById('verifierField').style.display = 'block';
+    document.getElementById('adjustmentField').style.display = 'block';
+    
+    const modal = new bootstrap.Modal(document.getElementById('countActionModal'));
+    modal.show();
+}
+
+// 提交盤點操作
+document.getElementById('submitCountAction').addEventListener('click', function() {
+    const countId = document.getElementById('actionCountId').value;
+    const title = document.getElementById('countActionTitle').textContent;
+    
+    if (title === '開始盤點') {
+        // 簡單的狀態更新（這裡可以調用API）
+        alert('盤點已開始！請前往盤點詳細頁面進行盤點作業。');
+        location.reload();
+    } else if (title === '完成盤點') {
+        const verifiedBy = document.getElementById('verified_by').value;
+        const applyAdjustments = document.getElementById('apply_adjustments').checked;
+        
+        if (!verifiedBy.trim()) {
+            alert('請輸入驗證人員姓名');
+            return;
+        }
+        
+        // 調用完成盤點 API
+        fetch(`/api/inventory/stock-counts/${countId}/complete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                verified_by: verifiedBy,
+                apply_adjustments: applyAdjustments
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('操作失敗：' + data.error);
+            }
+        })
+        .catch(err => {
+            alert('網路錯誤：' + err.message);
+        });
+    }
+    
+    bootstrap.Modal.getInstance(document.getElementById('countActionModal')).hide();
+});
+</script>
+{% endblock %}

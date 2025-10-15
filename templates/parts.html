@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}零件管理 - 五金零件庫存管理系統{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-cogs me-2"></i>零件管理</h2>
+            <a href="{{ url_for('web.new_part') }}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>新增零件
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">零件清單</h5>
+            </div>
+            <div class="card-body">
+                {% if parts %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>零件編號</th>
+                                <th>名稱</th>
+                                <th>描述</th>
+                                <th>單位</th>
+                                <th>每盒數量</th>
+                                <th>儲存位置</th>
+                                <th width="150">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for part in parts %}
+                            <tr>
+                                <td><strong>{{ part.part_number }}</strong></td>
+                                <td>{{ part.name }}</td>
+                                <td>{{ part.description }}</td>
+                                <td>{{ part.unit }}</td>
+                                <td>{{ part.quantity_per_box }}</td>
+                                <td>{{ part.storage_location }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <a href="{{ url_for('web.edit_part', part_id=part.id) }}" 
+                                           class="btn btn-outline-primary" title="編輯">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <button class="btn btn-outline-danger" 
+                                                onclick="deletePart({{ part.id }}, '{{ part.part_number }}')" 
+                                                title="刪除">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">尚無零件資料</h5>
+                    <p class="text-muted">點擊上方按鈕開始新增零件。</p>
+                    <a href="{{ url_for('web.new_part') }}" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>新增第一個零件
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 刪除確認模態框 -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">確認刪除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>您確定要刪除零件 <strong id="deletePartNumber"></strong> 嗎？</p>
+                <p class="text-danger">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    此操作無法復原！
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <form id="deleteForm" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">確認刪除</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function deletePart(partId, partNumber) {
+    // 設定模態框內容
+    document.getElementById('deletePartNumber').textContent = partNumber;
+    document.getElementById('deleteForm').action = `/parts/${partId}/delete`;
+    
+    // 顯示模態框
+    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    modal.show();
+}
+</script>
+{% endblock %}

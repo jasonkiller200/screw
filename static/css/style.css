@@ -1,0 +1,213 @@
+/* 自定義樣式 */
+body {
+    background-color: #f8f9fa;
+}
+
+.navbar-brand {
+    font-weight: bold;
+}
+
+.card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.jumbotron {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+}
+
+.btn {
+    border-radius: 6px;
+    transition: all 0.2s ease-in-out;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+}
+
+.table th {
+    border-top: none;
+    font-weight: 600;
+}
+
+.badge {
+    font-size: 0.8em;
+}
+
+/* 零件查詢頁面樣式 */
+.part-info {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-left: 4px solid #007bff;
+    border-radius: 8px;
+}
+
+.order-history {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+}
+
+/* 掃描器樣式 */
+#scanner-container {
+    background: #000;
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+}
+
+#scanner-video {
+    border-radius: 6px;
+}
+
+/* 響應式調整 */
+@media (max-width: 768px) {
+    .card {
+        margin-bottom: 1rem;
+    }
+    
+    .btn-group-sm > .btn {
+        font-size: 0.75rem;
+    }
+    
+    .table-responsive {
+        font-size: 0.9rem;
+    }
+}
+
+/* 載入動畫 */
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* 表單樣式 */
+.form-control:focus,
+.form-select:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.form-label {
+    font-weight: 500;
+    color: #495057;
+}
+
+/* 警告和成功訊息 */
+.alert {
+    border: none;
+    border-radius: 8px;
+}
+
+.alert-success {
+    background-color: #d1e7dd;
+    color: #0f5132;
+}
+
+.alert-danger {
+    background-color: #f8d7da;
+    color: #842029;
+}
+
+/* 空狀態樣式 */
+.text-center.py-5 i {
+    opacity: 0.5;
+}
+
+/* 導航樣式 */
+.navbar-nav .nav-link {
+    border-radius: 6px;
+    margin: 0 2px;
+    transition: background-color 0.2s ease-in-out;
+}
+
+.navbar-nav .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* 按鈕組樣式 */
+.btn-group .btn {
+    border-radius: 4px;
+}
+
+.btn-group .btn:not(:last-child) {
+    margin-right: 2px;
+}
+
+/* 模態框樣式 */
+.modal-content {
+    border: none;
+    border-radius: 10px;
+}
+
+.modal-header {
+    border-bottom: 1px solid #e9ecef;
+    border-radius: 10px 10px 0 0;
+}
+
+.modal-footer {
+    border-top: 1px solid #e9ecef;
+    border-radius: 0 0 10px 10px;
+}
+
+/* 進度條樣式 */
+.progress {
+    height: 8px;
+    border-radius: 4px;
+}
+
+/* 工具提示樣式 */
+.tooltip-inner {
+    background-color: #343a40;
+    border-radius: 6px;
+}
+
+/* 分頁樣式 */
+.pagination .page-link {
+    border-radius: 6px;
+    margin: 0 2px;
+    border: 1px solid #dee2e6;
+}
+
+.pagination .page-link:hover {
+    background-color: #e9ecef;
+    border-color: #adb5bd;
+}
+
+/* 搜尋框樣式 */
+.input-group .btn {
+    border-radius: 0 6px 6px 0;
+}
+
+.input-group .form-control {
+    border-radius: 6px 0 0 6px;
+}
+
+/* 統計卡片樣式 */
+.stats-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 12px;
+}
+
+.stats-card .card-body {
+    padding: 2rem;
+}
+
+.stats-card .stats-number {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.stats-card .stats-label {
+    font-size: 1rem;
+    opacity: 0.9;
+}

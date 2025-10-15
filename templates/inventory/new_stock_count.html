@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}建立新盤點 - 五金零件庫存管理系統{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-plus-circle me-2"></i>建立新盤點</h2>
+            <a href="{{ url_for('web.stock_counts') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>返回盤點管理
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">盤點基本資訊</h5>
+            </div>
+            <div class="card-body">
+                <form id="newCountForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="warehouse_id" class="form-label">選擇倉庫 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="warehouse_id" name="warehouse_id" required>
+                                <option value="">請選擇倉庫</option>
+                                {% for warehouse in warehouses %}
+                                <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="count_type" class="form-label">盤點類型 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="count_type" name="count_type" required>
+                                <option value="">請選擇盤點類型</option>
+                                <option value="full">全盤點</option>
+                                <option value="cycle">循環盤點</option>
+                                <option value="spot">抽點</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="count_date" class="form-label">盤點日期 <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="count_date" name="count_date" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="counted_by" class="form-label">盤點人員</label>
+                            <input type="text" class="form-control" id="counted_by" name="counted_by" 
+                                   placeholder="輸入盤點人員姓名">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">備註</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3" 
+                                  placeholder="輸入盤點相關說明或注意事項"></textarea>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('web.stock_counts') }}" class="btn btn-secondary">取消</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>建立盤點
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">盤點類型說明</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong class="text-primary">全盤點</strong>
+                    <p class="small text-muted mb-2">盤點所選倉庫內的所有零件庫存，適用於年度或季度盤點。</p>
+                </div>
+                
+                <div class="mb-3">
+                    <strong class="text-info">循環盤點</strong>
+                    <p class="small text-muted mb-2">按計劃定期盤點特定零件，適用於高價值或重要零件的定期檢查。</p>
+                </div>
+                
+                <div class="mb-3">
+                    <strong class="text-secondary">抽點</strong>
+                    <p class="small text-muted mb-2">隨機抽查部分零件庫存，適用於日常檢查或異常調查。</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">快速操作</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="importCountData()">
+                        <i class="fas fa-file-csv me-1"></i>匯入盤點資料
+                    </button>
+                    <button type="button" class="btn btn-outline-info btn-sm" onclick="downloadTemplate()">
+                        <i class="fas fa-download me-1"></i>下載盤點範本
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 匯入資料模態框 -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">匯入盤點資料</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    請上傳 CSV 格式的盤點資料檔案。檔案應包含：零件編號、實盤數量等欄位。
+                </div>
+                
+                <form id="importForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="csvFile" class="form-label">選擇 CSV 檔案</label>
+                        <input type="file" class="form-control" id="csvFile" accept=".csv" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="importWarehouse" class="form-label">目標倉庫</label>
+                        <select class="form-select" id="importWarehouse" required>
+                            <option value="">請選擇倉庫</option>
+                            {% for warehouse in warehouses %}
+                            <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="executeImport()">
+                    <i class="fas fa-upload me-1"></i>開始匯入
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 設定今天為預設盤點日期
+document.getElementById('count_date').value = new Date().toISOString().split('T')[0];
+
+// 提交新盤點表單
+document.getElementById('newCountForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData);
+    
+    fetch('/api/inventory/stock-counts', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert('盤點建立成功！');
+            window.location.href = '/inventory/stock-counts/' + result.count_id;
+        } else {
+            alert('建立失敗：' + result.error);
+        }
+    })
+    .catch(err => {
+        alert('網路錯誤：' + err.message);
+    });
+});
+
+// 匯入盤點資料
+function importCountData() {
+    const modal = new bootstrap.Modal(document.getElementById('importModal'));
+    modal.show();
+}
+
+// 執行匯入
+function executeImport() {
+    const fileInput = document.getElementById('csvFile');
+    const warehouseId = document.getElementById('importWarehouse').value;
+    
+    if (!fileInput.files[0]) {
+        alert('請選擇 CSV 檔案');
+        return;
+    }
+    
+    if (!warehouseId) {
+        alert('請選擇目標倉庫');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('warehouse_id', warehouseId);
+    
+    fetch('/api/inventory/import-count-data', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert(`匯入成功！共處理 ${result.processed_count} 筆資料`);
+            bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();
+            if (result.count_id) {
+                window.location.href = '/inventory/stock-counts/' + result.count_id;
+            }
+        } else {
+            alert('匯入失敗：' + result.error);
+        }
+    })
+    .catch(err => {
+        alert('網路錯誤：' + err.message);
+    });
+}
+
+// 下載範本
+function downloadTemplate() {
+    window.open('/api/inventory/count-template', '_blank');
+}
+</script>
+{% endblock %}
