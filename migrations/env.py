@@ -2,6 +2,8 @@ import logging
 from logging.config import fileConfig
 
 from flask import current_app
+from app import app # ADD THIS LINE
+from extensions import db # ADD THIS LINE
 
 from alembic import context
 
@@ -35,20 +37,12 @@ def get_engine_url():
 # add your model's MetaData object here
 # for 'autogenerate' support
 # from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-config.set_main_option('sqlalchemy.url', get_engine_url())
-target_db = current_app.extensions['migrate'].db
+# target_metadata = mymodel.Base.metadata # This line will be set within app context
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
-
-
-def get_metadata():
-    if hasattr(target_db, 'metadatas'):
-        return target_db.metadatas[None]
-    return target_db.metadata
 
 
 def run_migrations_offline():
@@ -65,7 +59,7 @@ def run_migrations_offline():
     """
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url, target_metadata=get_metadata(), literal_binds=True
+        url=url, target_metadata=db.metadata, literal_binds=True # Use db.metadata directly
     )
 
     with context.begin_transaction():
@@ -99,7 +93,7 @@ def run_migrations_online():
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
-            target_metadata=get_metadata(),
+            target_metadata=db.metadata, # Use db.metadata directly
             **conf_args
         )
 
@@ -110,4 +104,16 @@ def run_migrations_online():
 if context.is_offline_mode():
     run_migrations_offline()
 else:
-    run_migrations_online()
+    # Ensure app context is pushed for online mode
+    with app.app_context():
+        # These lines now execute within the app context
+        config.set_main_option('sqlalchemy.url', get_engine_url())
+        # target_db = current_app.extensions['migrate'].db # No longer needed as db is imported directly
+
+        # Ensure all models are imported to be visible to db.metadata
+        from models.part import Part, Warehouse, WarehouseLocation, PartWarehouseLocation
+        from models.order import Order
+        from models.inventory import CurrentInventory, InventoryTransaction, StockCount, StockCountDetail
+        from models.work_order import WorkOrderDemand
+
+        run_migrations_online()

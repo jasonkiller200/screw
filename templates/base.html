@@ -17,7 +17,7 @@
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
     
     <link href="{{ url_for('static', filename='vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/all.min.css') }}" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
     {% block extra_css %}{% endblock %}
 </head>
@@ -88,7 +88,7 @@
     <!-- 頁尾 -->
     <footer class="bg-light py-3 mt-5">
         <div class="container text-center">
-            <small class="text-muted">五金零件庫存管理系統 © 2024</small>
+            <small class="text-muted">五金零件庫存管理系統 © 2025 design by Ralf</small>
         </div>
     </footer>
 

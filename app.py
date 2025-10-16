@@ -34,6 +34,7 @@ app = create_app()
 from models.part import Part, Warehouse, WarehouseLocation, PartWarehouseLocation
 from models.order import Order
 from models.inventory import CurrentInventory, InventoryTransaction, StockCount, StockCountDetail
+from models.work_order import WorkOrderDemand # ADD THIS LINE
 
 if __name__ == '__main__':
     import os

@@ -186,17 +186,25 @@ document.addEventListener('DOMContentLoaded', function () {
         
         let historyHtml = '';
         if (history.length > 0) {
-            historyHtml = history.map(order => `
-                <tr>
-                    <td>${order.order_date}</td>
-                    <td>${order.quantity_ordered}</td>
-                    <td>
-                        <span class="badge bg-${order.status === 'confirmed' ? 'success' : 'warning'}">
-                            ${order.status === 'confirmed' ? '已確認' : '待處理'}
-                        </span>
-                    </td>
-                </tr>
-            `).join('');
+            historyHtml = history.map(order => {
+                const date = new Date(order.order_date);
+                const formattedDate = date.getFullYear() + '-' +
+                                      String(date.getMonth() + 1).padStart(2, '0') + '-' +
+                                      String(date.getDate()).padStart(2, '0') + ' ' +
+                                      String(date.getHours()).padStart(2, '0') + ':' +
+                                      String(date.getMinutes()).padStart(2, '0');
+                return `
+                    <tr>
+                        <td>${formattedDate}</td>
+                        <td>${order.quantity_ordered}</td>
+                        <td>
+                            <span class="badge bg-${order.status === 'confirmed' ? 'success' : 'warning'}">
+                                ${order.status === 'confirmed' ? '已確認' : '待處理'}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
         } else {
             historyHtml = '<tr><td colspan="3" class="text-center text-muted">暫無訂購記錄</td></tr>';
         }

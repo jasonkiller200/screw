@@ -60,7 +60,7 @@
                                 <td>{{ order.part.name if order.part else '-' }}</td>
                                 <td>{{ order.warehouse.name if order.warehouse else '-' }}</td>
                                 <td>{{ order.location_code or '-' }}</td>
-                                <td>{{ order.order_date }}</td>
+                                <td>{{ order.order_date.strftime('%Y-%m-%d %H:%M') }}</td>
                                 <td>{{ order.quantity_ordered }}</td>
                                 <td>
                                     <span class="badge bg-warning">待處理</span>
@@ -116,7 +116,7 @@
                                 <td>{{ order.part.name if order.part else '-' }}</td>
                                 <td>{{ order.warehouse.name if order.warehouse else '-' }}</td>
                                 <td>{{ order.location_code or '-' }}</td>
-                                <td>{{ order.order_date }}</td>
+                                <td>{{ order.order_date.strftime('%Y-%m-%d %H:%M') }}</td>
                                 <td>{{ order.quantity_ordered }}</td>
                                 <td>
                                     {% if order.status == 'confirmed' %}
