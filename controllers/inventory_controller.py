@@ -3,6 +3,7 @@ from models.inventory import CurrentInventory, InventoryTransaction, StockCount,
 from models.part import Part, Warehouse
 import csv
 import io
+from services.inventory_service import InventoryService # Import the new service
 
 inventory_api_bp = Blueprint('inventory_api', __name__, url_prefix='/api/inventory')
 
@@ -516,56 +517,21 @@ def import_count_data_batch():
     if not file.filename.lower().endswith('.csv'):
         return jsonify({'error': 'Only CSV files are supported'}), 400
     
-    try:
-        # 讀取 CSV 檔案，支援多種編碼
-        file_content = file.stream.read()
-        
-        # 嘗試不同的編碼方式
-        encodings = ['utf-8-sig', 'utf-8', 'big5', 'gbk', 'cp950']
-        csv_content = None
-        
-        for encoding in encodings:
-            try:
-                csv_content = file_content.decode(encoding)
-                break
-            except UnicodeDecodeError:
-                continue
-        
-        if csv_content is None:
-            return jsonify({'error': 'Unable to decode CSV file. Please save as UTF-8.'}), 400
-        
-        # 處理 CSV 內容
-        stream = io.StringIO(csv_content, newline=None)
-        csv_reader = csv.DictReader(stream)
-        
-        count_data = []
-        for row in csv_reader:
-            count_data.append(row)
-        
-        # 首先建立一個新的盤點
-        count_id = StockCount.create_count(
-            warehouse_id=int(warehouse_id),
-            count_type='full',
-            description='批量匯入盤點資料',
-            counted_by='系統匯入'
-        )
-        
-        if not count_id:
-            return jsonify({'error': 'Failed to create stock count'}), 500
-        
-        # 匯入資料
-        success_count, error_list = StockCount.import_count_data(count_id, count_data)
-        
-        return jsonify({
+    # Pass the file stream to the service layer
+    result = InventoryService.import_stock_count_data(int(warehouse_id), file.stream)
+    
+    if result['success']:
+        response_data = {
             'success': True,
-            'count_id': count_id,
-            'processed_count': success_count,
-            'total_rows': len(count_data),
-            'errors': error_list
-        })
-        
-    except Exception as e:
-        return jsonify({'error': f'Failed to process file: {str(e)}'}), 500
+            'message': f"成功匯入 {result['processed_count']} 筆盤點資料。總計 {result['total_rows']} 筆。",
+            'count_id': result['count_id'],
+            'processed_count': result['processed_count'],
+            'total_rows': result['total_rows'],
+            'errors': result['errors']
+        }
+        return jsonify(response_data)
+    else:
+        return jsonify({'success': False, 'error': result['error']}), 500
 
 @inventory_api_bp.route('/count-template', methods=['GET'])
 def download_general_count_template():

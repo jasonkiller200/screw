@@ -182,3 +182,167 @@ def delete_part(part_id):
         return jsonify({'success': True, 'message': 'Part deleted successfully'}), 200
     else:
         return jsonify({'error': 'Part not found'}), 404
+
+# ============ 工單管理 API ============
+
+@api_bp.route('/work-orders', methods=['GET'])
+def get_work_orders():
+    """獲取工單需求列表"""
+    from models.work_order import WorkOrderDemand
+    
+    # 獲取查詢參數
+    order_id = request.args.get('order_id')
+    part_number = request.args.get('part_number')
+    
+    # 建立查詢
+    query = WorkOrderDemand.query
+    
+    if order_id:
+        query = query.filter(WorkOrderDemand.order_id.like(f'%{order_id}%'))
+    
+    if part_number:
+        query = query.filter(WorkOrderDemand.part_number.like(f'%{part_number}%'))
+    
+    # 執行查詢並排序
+    demands = query.order_by(WorkOrderDemand.order_id, WorkOrderDemand.part_number).all()
+    
+    # 轉換為字典格式
+    result = {
+        'demands': [demand.to_dict() for demand in demands],
+        'total_count': len(demands)
+    }
+    
+    return jsonify(result)
+
+@api_bp.route('/work-orders/<string:order_id>', methods=['GET'])
+def get_work_order_by_id(order_id):
+    """依訂單編號獲取工單需求"""
+    from models.work_order import WorkOrderDemand
+    
+    demands = WorkOrderDemand.get_by_order(order_id)
+    
+    if not demands:
+        return jsonify({'error': '找不到該訂單的工單需求'}), 404
+    
+    result = {
+        'order_id': order_id,
+        'demands': [demand.to_dict() for demand in demands],
+        'total_items': len(demands),
+        'total_quantity': sum(demand.required_quantity for demand in demands)
+    }
+    
+    return jsonify(result)
+
+@api_bp.route('/work-orders/orders', methods=['GET'])
+def get_all_work_order_numbers():
+    """獲取所有工單編號"""
+    from models.work_order import WorkOrderDemand
+    
+    orders = [row[0] for row in WorkOrderDemand.get_all_orders()]
+    
+    return jsonify({
+        'orders': orders,
+        'count': len(orders)
+    })
+
+@api_bp.route('/work-orders/search/part/<string:part_number>', methods=['GET'])
+def search_work_orders_by_part(part_number):
+    """依物料編號搜尋工單需求"""
+    from models.work_order import WorkOrderDemand
+    
+    demands = WorkOrderDemand.search_by_part(part_number)
+    
+    result = {
+        'part_number': part_number,
+        'demands': [demand.to_dict() for demand in demands],
+        'total_count': len(demands)
+    }
+    
+    return jsonify(result)
+
+@api_bp.route('/inventory/transactions/export', methods=['GET'])
+def export_inventory_transactions():
+    """匯出庫存異動記錄為 Excel 檔案"""
+    from models.inventory import InventoryTransaction
+    from datetime import datetime, timedelta
+    import pandas as pd
+    from io import BytesIO
+    from flask import send_file
+    
+    # 取得篩選參數
+    part_id = request.args.get('part_id', type=int)
+    warehouse_id = request.args.get('warehouse_id', type=int)
+    transaction_type = request.args.get('transaction_type')
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+    
+    # 如果沒有指定日期範圍，預設為最近30天
+    if not date_from and not date_to:
+        today = datetime.now()
+        thirty_days_ago = today - timedelta(days=30)
+        date_from = thirty_days_ago.strftime('%Y-%m-%d')
+        date_to = today.strftime('%Y-%m-%d')
+    
+    # 建立查詢
+    transactions_query = InventoryTransaction.query.join(Part).join(Warehouse)
+    
+    # 應用篩選條件
+    if part_id:
+        transactions_query = transactions_query.filter(InventoryTransaction.part_id == part_id)
+    if warehouse_id:
+        transactions_query = transactions_query.filter(InventoryTransaction.warehouse_id == warehouse_id)
+    if transaction_type:
+        transactions_query = transactions_query.filter(InventoryTransaction.transaction_type == transaction_type)
+    if date_from:
+        try:
+            from_date = datetime.strptime(date_from, '%Y-%m-%d')
+            transactions_query = transactions_query.filter(InventoryTransaction.transaction_date >= from_date)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            to_date = datetime.strptime(date_to, '%Y-%m-%d')
+            to_date = to_date.replace(hour=23, minute=59, second=59)
+            transactions_query = transactions_query.filter(InventoryTransaction.transaction_date <= to_date)
+        except ValueError:
+            pass
+    
+    # 取得所有符合條件的交易記錄
+    transactions = transactions_query.order_by(
+        InventoryTransaction.transaction_date.desc(),
+        InventoryTransaction.id.desc()
+    ).all()
+    
+    # 準備匯出資料
+    export_data = []
+    for transaction in transactions:
+        export_data.append({
+            '異動時間': transaction.transaction_date.strftime('%Y-%m-%d %H:%M:%S'),
+            '異動類型': transaction.transaction_type,
+            '零件編號': transaction.part.part_number if transaction.part else 'N/A',
+            '零件名稱': transaction.part.name if transaction.part else 'N/A',
+            '倉庫': transaction.warehouse.name if transaction.warehouse else 'N/A',
+            '數量變化': transaction.quantity,
+            '參考類型': transaction.reference_type or '',
+            '參考編號': transaction.reference_id or '',
+            '備註': transaction.notes or ''
+        })
+    
+    # 建立 DataFrame 並匯出為 Excel
+    df = pd.DataFrame(export_data)
+    
+    # 建立 Excel 檔案
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='庫存異動記錄', index=False)
+    output.seek(0)
+    
+    # 產生檔案名稱
+    filename = f"庫存異動記錄_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )

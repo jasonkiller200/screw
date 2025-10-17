@@ -6,6 +6,8 @@ thirtyDaysAgo.setDate(today.getDate() - 30);
 document.addEventListener('DOMContentLoaded', function() {
     const dateFrom = document.getElementById('date_from');
     const dateTo = document.getElementById('date_to');
+    
+    // 只有當欄位沒有值時才設定預設值（來自伺服器的選中值優先）
     if (dateFrom && !dateFrom.value) {
         dateFrom.value = thirtyDaysAgo.toISOString().split('T')[0];
     }

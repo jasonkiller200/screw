@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+
+{% block title %}申請登記 - 週期訂單管理{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- 頁面標題 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('web.index') }}">首頁</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('weekly_order.weekly_orders') }}">週期訂單管理</a></li>
+                    <li class="breadcrumb-item active">申請登記</li>
+                </ol>
+            </nav>
+            <h2><i class="fas fa-plus-circle text-success"></i> 申請登記</h2>
+            <p class="text-muted">在 {{ current_cycle.cycle_name }} 中新增申請項目</p>
+        </div>
+    </div>
+
+    <!-- 週期資訊 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="alert alert-info">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h6 class="alert-heading mb-2">
+                            <i class="fas fa-info-circle me-2"></i>當前申請週期
+                        </h6>
+                        <p class="mb-0">
+                            <strong>{{ current_cycle.cycle_name }}</strong><br>
+                            截止時間：{{ current_cycle.deadline.strftime('%Y年%m月%d日 %H:%M') }}
+                            {% if current_cycle.is_active %}
+                            <span class="badge bg-success ms-2">可申請</span>
+                            {% else %}
+                            <span class="badge bg-danger ms-2">已截止</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <div id="timeRemaining" class="text-muted small"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 來源資訊提示 -->
+    {% if prefill_data and prefill_data.source %}
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                {% if prefill_data.source == 'shortage' %}
+                <strong>從庫存不足報告帶入</strong> - 以下資料已自動填入，請檢查並補充其他必要資訊
+                {% elif prefill_data.source == 'lookup' %}
+                <strong>從零件查詢帶入</strong> - 以下資料已自動填入，請檢查並補充其他必要資訊
+                {% else %}
+                <strong>從 {{ prefill_data.source }} 帶入</strong> - 請檢查預填資料
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 登記表單 -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">申請項目資訊</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('weekly_order.register_order') }}">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="part_number" class="form-label">品號 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="part_number" name="part_number" 
+                                       value="{{ prefill_data.part_number if prefill_data else '' }}" required>
+                                <div class="form-text">產品編號或零件號碼</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="material_nature" class="form-label">物料性質</label>
+                                <select class="form-select" id="material_nature" name="material_nature">
+                                    <option value="">請選擇...</option>
+                                    <option value="採購品" {{ 'selected' if prefill_data.material_nature == '採購品' else '' }}>採購品</option>
+                                    <option value="製造品" {{ 'selected' if prefill_data.material_nature == '製造品' else '' }}>製造品</option>
+                                    <option value="消耗品" {{ 'selected' if prefill_data.material_nature == '消耗品' else '' }}>消耗品</option>
+                                    <option value="其他" {{ 'selected' if prefill_data.material_nature == '其他' else '' }}>其他</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="part_name" class="form-label">品名 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="part_name" name="part_name" 
+                                   value="{{ prefill_data.part_name if prefill_data else '' }}" required>
+                            <div class="form-text">產品或零件的完整名稱</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="specifications" class="form-label">規格</label>
+                            <input type="text" class="form-control" id="specifications" name="specifications"
+                                   value="{{ prefill_data.specifications if prefill_data else '' }}">
+                            <div class="form-text">詳細規格說明（如尺寸、型號等）</div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="quantity" class="form-label">數量 <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="quantity" name="quantity" min="1" 
+                                       value="{{ prefill_data.quantity if prefill_data else '' }}" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="unit" class="form-label">單位 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="unit" name="unit" required>
+                                    <option value="">請選擇單位</option>
+                                    <option value="個" {{ 'selected' if prefill_data.unit == '個' else '' }}>個</option>
+                                    <option value="盒" {{ 'selected' if prefill_data.unit == '盒' else '' }}>盒</option>
+                                    <option value="包" {{ 'selected' if prefill_data.unit == '包' else '' }}>包</option>
+                                    <option value="組" {{ 'selected' if prefill_data.unit == '組' else '' }}>組</option>
+                                    <option value="公斤" {{ 'selected' if prefill_data.unit == '公斤' else '' }}>公斤</option>
+                                    <option value="公尺" {{ 'selected' if prefill_data.unit == '公尺' else '' }}>公尺</option>
+                                    <option value="片" {{ 'selected' if prefill_data.unit == '片' else '' }}>片</option>
+                                    <option value="支" {{ 'selected' if prefill_data.unit == '支' else '' }}>支</option>
+                                    <option value="條" {{ 'selected' if prefill_data.unit == '條' else '' }}>條</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="category" class="form-label">種類</label>
+                                <input type="text" class="form-control" id="category" name="category"
+                                       value="{{ prefill_data.category if prefill_data else '' }}">
+                                <div class="form-text">如：ZROM</div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="required_date" class="form-label">需用日期</label>
+                                <input type="date" class="form-control" id="required_date" name="required_date">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="priority" class="form-label">申請類型 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="priority" name="priority" required>
+                                    <option value="normal" {{ 'selected' if not prefill_data or prefill_data.priority != 'urgent' else '' }}>一般申請</option>
+                                    <option value="urgent" {{ 'selected' if prefill_data.priority == 'urgent' else '' }}>緊急申請</option>
+                                </select>
+                                <div class="form-text">緊急申請將優先處理</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="purpose_notes" class="form-label">台份用/備註</label>
+                                <input type="text" class="form-control" id="purpose_notes" name="purpose_notes">
+                                <div class="form-text">用途說明或備註</div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="applicant_name" class="form-label">申請人 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="applicant_name" name="applicant_name" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="department" class="form-label">申請單位</label>
+                                <input type="text" class="form-control" id="department" name="department">
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('weekly_order.weekly_orders') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-1"></i>返回
+                            </a>
+                            <button type="submit" class="btn btn-success" {% if not current_cycle.is_active %}disabled{% endif %}>
+                                <i class="fas fa-save me-1"></i>提交登記
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- 填寫說明 -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-info-circle me-1"></i>填寫說明</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>品號：</strong>必填，產品編號</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>品名：</strong>必填，產品名稱</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>數量/單位：</strong>必填</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>申請人：</strong>必填</li>
+                        <li class="mb-0"><i class="fas fa-info text-info me-2"></i>其他欄位為選填</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 週期狀態 -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-clock me-1"></i>申請狀態</h6>
+                </div>
+                <div class="card-body">
+                    {% if current_cycle.is_active %}
+                    <div class="alert alert-success small mb-2">
+                        <i class="fas fa-check-circle me-1"></i>
+                        申請週期進行中，可以提交登記
+                    </div>
+                    {% else %}
+                    <div class="alert alert-danger small mb-2">
+                        <i class="fas fa-times-circle me-1"></i>
+                        申請週期已截止，無法提交登記
+                    </div>
+                    {% endif %}
+                    
+                    <p class="small text-muted mb-0">
+                        <strong>注意事項：</strong><br>
+                        1. 請於週三17:00前完成登記<br>
+                        2. 確保資料正確完整<br>
+                        3. 提交後請等待主管審查
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 計算並顯示剩餘時間
+function updateTimeRemaining() {
+    const deadline = new Date('{{ current_cycle.deadline.isoformat() }}');
+    const now = new Date();
+    const diff = deadline - now;
+    
+    const timeRemainingEl = document.getElementById('timeRemaining');
+    
+    if (diff <= 0) {
+        timeRemainingEl.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>申請已截止</span>';
+        return;
+    }
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    timeRemainingEl.innerHTML = `
+        <i class="fas fa-hourglass-half me-1"></i>
+        剩餘時間：${days}天 ${hours}小時 ${minutes}分鐘
+    `;
+}
+
+// 頁面載入時更新時間，並每分鐘更新一次
+document.addEventListener('DOMContentLoaded', function() {
+    updateTimeRemaining();
+    setInterval(updateTimeRemaining, 60000); // 每分鐘更新
+    
+    // 設定預設需用日期為一週後
+    const requiredDateInput = document.getElementById('required_date');
+    const nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    requiredDateInput.value = nextWeek.toISOString().split('T')[0];
+});
+</script>
+{% endblock %}

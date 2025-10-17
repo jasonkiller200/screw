@@ -1,0 +1,421 @@
+{% extends "base.html" %}
+
+{% block title %}工單需求管理{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- 頁面標題 -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2><i class="fas fa-tasks"></i> 工單需求管理</h2>
+            <p class="text-muted">管理工單物料需求，掌握生產進度</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#importModal">
+                <i class="fas fa-upload me-1"></i>匯入工單需求
+            </button>
+        </div>
+    </div>
+
+    <!-- 搜尋表單 -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-search"></i> 搜尋條件</h5>
+                </div>
+                <div class="card-body">
+                    <form method="GET" action="{{ url_for('web.work_orders') }}">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="order_id" class="form-label">訂單編號</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="order_id" 
+                                       name="order_id" 
+                                       value="{{ search_order_id }}"
+                                       placeholder="請輸入訂單編號...">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="part_number" class="form-label">物料編號</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="part_number" 
+                                       name="part_number" 
+                                       value="{{ search_part_number }}"
+                                       placeholder="請輸入物料編號...">
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary me-2">
+                                    <i class="fas fa-search"></i> 搜尋
+                                </button>
+                                <a href="{{ url_for('web.work_orders') }}" class="btn btn-secondary">
+                                    <i class="fas fa-times"></i> 清除
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 統計卡片 -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <div class="card-title">總需求記錄</div>
+                            <h3>{{ demands|length }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-list-alt fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <div class="card-title">不重複訂單</div>
+                            <h3>{{ all_orders|length }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-clipboard-list fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <div class="card-title">不重複物料</div>
+                            <h3>{{ demands|map(attribute='part_number')|unique|list|length }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-boxes fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <div class="card-title">需求總量</div>
+                            <h3>{{ demands|sum(attribute='required_quantity')|round(2) }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-calculator fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 工單需求列表 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5><i class="fas fa-table"></i> 工單需求清單</h5>
+                    <div>
+                        {% if search_order_id or search_part_number %}
+                        <span class="badge bg-info">
+                            已篩選 {{ demands|length }} 筆記錄
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if demands %}
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>訂單編號</th>
+                                    <th>物料編號</th>
+                                    <th>物料說明</th>
+                                    <th>需求數量</th>
+                                    <th>需求日期</th>
+                                    <th>作業說明</th>
+                                    <th>上層物料</th>
+                                    <th>散裝</th>
+                                    <th>建立時間</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for demand in demands %}
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-primary">{{ demand.order_id }}</span>
+                                    </td>
+                                    <td>
+                                        <code>{{ demand.part_number }}</code>
+                                    </td>
+                                    <td>
+                                        <div class="text-truncate" style="max-width: 200px;" 
+                                             title="{{ demand.material_description }}">
+                                            {{ demand.material_description or '(無說明)' }}
+                                        </div>
+                                    </td>
+                                    <td class="text-end">
+                                        <span class="fw-bold text-primary">{{ demand.required_quantity }}</span>
+                                    </td>
+                                    <td>
+                                        {% if demand.required_date %}
+                                        <span class="text-nowrap">{{ demand.required_date.strftime('%Y-%m-%d') }}</span>
+                                        {% else %}
+                                        <span class="text-muted">(無日期)</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="text-truncate" style="max-width: 150px;" 
+                                             title="{{ demand.operation_description }}">
+                                            {{ demand.operation_description or '(無作業說明)' }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="text-truncate" style="max-width: 150px;" 
+                                             title="{{ demand.parent_material_description }}">
+                                            {{ demand.parent_material_description or '(無上層物料)' }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if demand.bulk_material == 'X' %}
+                                        <span class="badge bg-warning">是</span>
+                                        {% else %}
+                                        <span class="badge bg-light text-dark">否</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-muted small">
+                                        {% if demand.created_at %}
+                                        {{ demand.created_at.strftime('%m-%d %H:%M') }}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">沒有找到工單需求記錄</h5>
+                        <p class="text-muted">
+                            {% if search_order_id or search_part_number %}
+                            請調整搜尋條件或 <a href="{{ url_for('web.work_orders') }}">檢視所有記錄</a>
+                            {% else %}
+                            請先匯入工單需求資料
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 匯入工單需求模態框 -->
+<div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importModalLabel">
+                    <i class="fas fa-upload me-2"></i>匯入工單需求資料
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>注意事項：</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>僅支援 Excel 檔案 (.xlsx 格式)</li>
+                        <li>檔案應包含以下欄位：訂單、物料、需求數量 (EINHEIT)、物料說明、作業說明、上層物料說明、需求日期、散裝物料</li>
+                        <li>系統會自動判斷新增或更新記錄（依訂單編號和物料編號）</li>
+                        <li>匯入過程可能需要幾分鐘時間，請耐心等待</li>
+                    </ul>
+                </div>
+                
+                <form id="importForm" action="{{ url_for('web.import_work_order_demands') }}" method="post" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="excelFile" class="form-label">選擇 Excel 檔案</label>
+                        <input type="file" class="form-control" id="excelFile" name="excel_file" 
+                               accept=".xlsx,.xls" required>
+                        <div class="form-text">請選擇包含工單需求資料的 Excel 檔案</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="alert alert-info small mb-2">
+                            <i class="fas fa-info-circle me-1"></i>
+                            <strong>自動篩選功能：</strong>系統會自動過濾掉物料說明包含"圖"的項目，不進行匯入。
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="confirmImport" required>
+                            <label class="form-check-label" for="confirmImport">
+                                我確認已備份現有資料，並了解匯入操作可能會更新現有記錄
+                            </label>
+                        </div>
+                    </div>
+                </form>
+                
+                <!-- 匯入進度 -->
+                <div id="importProgress" style="display: none;">
+                    <div class="d-flex align-items-center">
+                        <div class="spinner-border spinner-border-sm me-2" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span>正在匯入資料，請稍候...</span>
+                    </div>
+                    <div class="progress mt-2">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 100%"></div>
+                    </div>
+                </div>
+                
+                <!-- 匯入結果 -->
+                <div id="importResult" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success" id="startImportBtn">
+                    <i class="fas fa-upload me-1"></i>開始匯入
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.table th {
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.text-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+</style>
+
+<script>
+// 工單需求匯入功能
+document.getElementById('startImportBtn').addEventListener('click', function() {
+    const form = document.getElementById('importForm');
+    const fileInput = document.getElementById('excelFile');
+    const confirmCheck = document.getElementById('confirmImport');
+    const progressDiv = document.getElementById('importProgress');
+    const resultDiv = document.getElementById('importResult');
+    const startBtn = this;
+    
+    // 驗證表單
+    if (!fileInput.files.length) {
+        alert('請選擇要匯入的 Excel 檔案');
+        return;
+    }
+    
+    if (!confirmCheck.checked) {
+        alert('請確認您已了解匯入操作的影響');
+        return;
+    }
+    
+    // 顯示進度，隱藏按鈕
+    progressDiv.style.display = 'block';
+    resultDiv.style.display = 'none';
+    startBtn.disabled = true;
+    document.querySelector('[data-bs-dismiss="modal"]').disabled = true;
+    
+    // 創建 FormData 並提交
+    const formData = new FormData(form);
+    
+    fetch(form.action, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        progressDiv.style.display = 'none';
+        resultDiv.style.display = 'block';
+        
+        if (data.success) {
+            let filterInfo = '';
+            if (data.filtered_count && data.filtered_count > 0) {
+                filterInfo = `<li>🚫 篩選排除: <strong>${data.filtered_count}</strong> 筆 (包含'圖'的項目)</li>`;
+            }
+            
+            resultDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <h6><i class="fas fa-check-circle me-2"></i>匯入完成！</h6>
+                    <ul class="mb-0">
+                        <li>✓ 新增記錄: <strong>${data.imported_count}</strong> 筆</li>
+                        <li>⟲ 更新記錄: <strong>${data.updated_count}</strong> 筆</li>
+                        <li>✗ 錯誤記錄: <strong>${data.error_count}</strong> 筆</li>
+                        ${filterInfo}
+                        <li>📊 總計處理: <strong>${data.total_processed}</strong> 筆</li>
+                    </ul>
+                    <div class="mt-2">
+                        <button class="btn btn-primary btn-sm" onclick="location.reload()">
+                            <i class="fas fa-refresh me-1"></i>重新載入頁面
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-exclamation-triangle me-2"></i>匯入失敗</h6>
+                    <p class="mb-0">${data.error || '未知錯誤'}</p>
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        progressDiv.style.display = 'none';
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <h6><i class="fas fa-exclamation-triangle me-2"></i>匯入失敗</h6>
+                <p class="mb-0">網路錯誤或伺服器異常，請稍後重試</p>
+            </div>
+        `;
+        console.error('匯入錯誤:', error);
+    })
+    .finally(() => {
+        startBtn.disabled = false;
+        document.querySelector('[data-bs-dismiss="modal"]').disabled = false;
+    });
+});
+
+// 重置模態框狀態
+document.getElementById('importModal').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('importForm').reset();
+    document.getElementById('importProgress').style.display = 'none';
+    document.getElementById('importResult').style.display = 'none';
+    document.getElementById('startImportBtn').disabled = false;
+    document.querySelector('[data-bs-dismiss="modal"]').disabled = false;
+});
+</script>
+{% endblock %}

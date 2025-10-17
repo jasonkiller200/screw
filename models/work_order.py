@@ -37,6 +37,54 @@ class WorkOrderDemand(db.Model):
 
     @classmethod
     def create_from_excel(cls, data):
-        # This method will be used by the import function
-        # It will handle creating or updating demand records
-        pass
+        """從 Excel 資料創建或更新工單需求記錄"""
+        existing = cls.query.filter_by(
+            order_id=data['order_id'],
+            part_number=data['part_number']
+        ).first()
+        
+        if existing:
+            # 更新現有記錄
+            existing.required_quantity = data['required_quantity']
+            existing.material_description = data.get('material_description', '')
+            existing.operation_description = data.get('operation_description', '')
+            existing.parent_material_description = data.get('parent_material_description', '')
+            existing.required_date = data['required_date']
+            existing.bulk_material = data.get('bulk_material', '')
+            return existing
+        else:
+            # 創建新記錄
+            new_demand = cls()
+            new_demand.order_id = data['order_id']
+            new_demand.part_number = data['part_number']
+            new_demand.required_quantity = data['required_quantity']
+            new_demand.material_description = data.get('material_description', '')
+            new_demand.operation_description = data.get('operation_description', '')
+            new_demand.parent_material_description = data.get('parent_material_description', '')
+            new_demand.required_date = data['required_date']
+            new_demand.bulk_material = data.get('bulk_material', '')
+            return new_demand
+    
+    @classmethod
+    def get_by_order(cls, order_id):
+        """依訂單編號查詢工單需求"""
+        return cls.query.filter_by(order_id=order_id).all()
+    
+    @classmethod
+    def get_all_orders(cls):
+        """獲取所有不重複的訂單編號"""
+        return db.session.query(cls.order_id).distinct().all()
+    
+    @classmethod
+    def search_by_part(cls, part_number):
+        """依物料編號查詢工單需求"""
+        return cls.query.filter(cls.part_number.like(f'%{part_number}%')).all()
+    
+    @classmethod
+    def get_pending_requirements(cls):
+        """獲取待處理的工單需求（這裡暫時返回所有，未來可加入已領料數量判斷）"""
+        from datetime import datetime
+        return cls.query.filter(cls.required_date >= datetime.now()).all()
+    
+    def __repr__(self):
+        return f'<WorkOrderDemand {self.order_id}-{self.part_number}>'

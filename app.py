@@ -3,6 +3,7 @@ from flask_cors import CORS
 from controllers.api_controller import api_bp
 from controllers.web_controller import web_bp
 from controllers.inventory_controller import inventory_api_bp
+from controllers.weekly_order_controller import weekly_order_bp
 from extensions import db, migrate # Import from extensions
 
 def create_app():
@@ -24,6 +25,7 @@ def create_app():
     app.register_blueprint(api_bp)              # API 路由 (/api/...)
     app.register_blueprint(inventory_api_bp)    # 庫存 API 路由 (/api/inventory/...)
     app.register_blueprint(web_bp)              # 網頁路由 (/...)
+    app.register_blueprint(weekly_order_bp)     # 週期訂單路由 (/weekly-orders/...)
     
     return app
 
@@ -35,6 +37,7 @@ from models.part import Part, Warehouse, WarehouseLocation, PartWarehouseLocatio
 from models.order import Order
 from models.inventory import CurrentInventory, InventoryTransaction, StockCount, StockCountDetail
 from models.work_order import WorkOrderDemand # ADD THIS LINE
+from models.weekly_order import WeeklyOrderCycle, OrderRegistration, User, OrderReviewLog
 
 if __name__ == '__main__':
     import os

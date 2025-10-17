@@ -1,0 +1,369 @@
+{% extends "base.html" %}
+
+{% block title %}批量週期訂單申請{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- 頁面標題 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('web.index') }}">首頁</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('weekly_order.weekly_orders') }}">週期訂單管理</a></li>
+                    <li class="breadcrumb-item active">批量申請</li>
+                </ol>
+            </nav>
+            <h2><i class="fas fa-list-plus text-success"></i> 批量週期訂單申請</h2>
+            <p class="text-muted">在 {{ current_cycle.cycle_name }} 中批量新增申請項目</p>
+        </div>
+    </div>
+
+    <!-- 週期資訊 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="alert alert-info">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h6 class="alert-heading mb-2">
+                            <i class="fas fa-info-circle me-2"></i>當前申請週期
+                        </h6>
+                        <p class="mb-0">
+                            <strong>{{ current_cycle.cycle_name }}</strong><br>
+                            截止時間：{{ current_cycle.deadline.strftime('%Y年%m月%d日 %H:%M') }}
+                            {% if current_cycle.is_active %}
+                            <span class="badge bg-success ms-2">可申請</span>
+                            {% else %}
+                            <span class="badge bg-danger ms-2">已截止</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <div id="timeRemaining" class="text-muted small"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 批量申請表單 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h5 class="mb-0">批量申請項目</h5>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="addNewItem()">
+                                <i class="fas fa-plus"></i> 新增項目
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm ms-2" onclick="importFromTemplate()">
+                                <i class="fas fa-file-import"></i> 匯入模板
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <form id="batchOrderForm" method="POST" action="{{ url_for('weekly_order.batch_register_form') }}">
+                        <!-- 公共資訊 -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label for="applicant_name" class="form-label">申請人 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="applicant_name" name="applicant_name" 
+                                       value="{{ current_user.name if current_user else '系統使用者' }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="department" class="form-label">申請單位 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="department" name="department" 
+                                       value="{{ current_user.department if current_user else '生產部門' }}" required>
+                            </div>
+                        </div>
+
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label for="global_priority" class="form-label">批量優先級</label>
+                                <select class="form-select" id="global_priority" onchange="applyGlobalPriority()">
+                                    <option value="">個別設定...</option>
+                                    <option value="normal">一般申請（套用全部）</option>
+                                    <option value="urgent">緊急申請（套用全部）</option>
+                                </select>
+                                <div class="form-text">選擇後將套用到所有項目</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="global_required_date" class="form-label">批量需用日期</label>
+                                <input type="date" class="form-control" id="global_required_date" onchange="applyGlobalDate()">
+                                <div class="form-text">選擇後將套用到所有項目</div>
+                            </div>
+                        </div>
+
+                        <!-- 申請項目表格 -->
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="batchItemsTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th width="5%">#</th>
+                                        <th width="12%">品號 <span class="text-danger">*</span></th>
+                                        <th width="15%">品名 <span class="text-danger">*</span></th>
+                                        <th width="10%">規格</th>
+                                        <th width="8%">數量 <span class="text-danger">*</span></th>
+                                        <th width="8%">單位</th>
+                                        <th width="10%">分類</th>
+                                        <th width="10%">需用日期</th>
+                                        <th width="10%">優先級</th>
+                                        <th width="12%">備註</th>
+                                        <th width="5%">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="batchItemsBody">
+                                    <!-- 項目將通過 JavaScript 動態添加 -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 提交按鈕 -->
+                        <div class="row mt-4">
+                            <div class="col-12 text-center">
+                                <a href="{{ url_for('weekly_order.weekly_orders') }}" class="btn btn-secondary me-3">
+                                    <i class="fas fa-arrow-left"></i> 返回週期訂單
+                                </a>
+                                <button type="submit" class="btn btn-success btn-lg" id="submitBatchOrder">
+                                    <i class="fas fa-paper-plane"></i> 提交批量申請
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 項目模板（隱藏） -->
+<template id="itemRowTemplate">
+    <tr>
+        <td class="text-center item-sequence">1</td>
+        <td>
+            <input type="text" class="form-control form-control-sm" name="items[0][part_number]" required>
+        </td>
+        <td>
+            <input type="text" class="form-control form-control-sm" name="items[0][part_name]" required>
+        </td>
+        <td>
+            <input type="text" class="form-control form-control-sm" name="items[0][specifications]">
+        </td>
+        <td>
+            <input type="number" class="form-control form-control-sm" name="items[0][quantity]" min="1" value="1" required>
+        </td>
+        <td>
+            <select class="form-select form-select-sm" name="items[0][unit]">
+                <option value="個">個</option>
+                <option value="件">件</option>
+                <option value="組">組</option>
+                <option value="套">套</option>
+                <option value="kg">kg</option>
+                <option value="m">m</option>
+                <option value="mm">mm</option>
+                <option value="其他">其他</option>
+            </select>
+        </td>
+        <td>
+            <input type="text" class="form-control form-control-sm" name="items[0][category]" placeholder="AUTO">
+        </td>
+        <td>
+            <input type="date" class="form-control form-control-sm" name="items[0][required_date]">
+        </td>
+        <td>
+            <select class="form-select form-select-sm" name="items[0][priority]">
+                <option value="normal">一般</option>
+                <option value="urgent">緊急</option>
+            </select>
+        </td>
+        <td>
+            <input type="text" class="form-control form-control-sm" name="items[0][purpose_notes]" placeholder="用途說明">
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeItem(this)">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>
+    </tr>
+</template>
+
+<script>
+let itemCount = 0;
+
+// 頁面載入時初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 添加第一個項目
+    addNewItem();
+    
+    // 如果有預填資料，則填入
+    {% if prefill_items %}
+    const prefillItems = {{ prefill_items | tojsonfilter }};
+    prefillItems.forEach((item, index) => {
+        if (index > 0) addNewItem(); // 第一個已經添加了
+        fillItemData(index, item);
+    });
+    {% endif %}
+    
+    updateTimeRemaining();
+    setInterval(updateTimeRemaining, 60000); // 每分鐘更新一次
+});
+
+// 新增項目
+function addNewItem() {
+    const template = document.getElementById('itemRowTemplate');
+    const tbody = document.getElementById('batchItemsBody');
+    const newRow = template.content.cloneNode(true);
+    
+    // 更新項目序號和表單名稱
+    const tr = newRow.querySelector('tr');
+    tr.querySelector('.item-sequence').textContent = itemCount + 1;
+    
+    // 更新所有表單元素的 name 屬性
+    const inputs = tr.querySelectorAll('input, select');
+    inputs.forEach(input => {
+        const name = input.getAttribute('name');
+        if (name) {
+            input.setAttribute('name', name.replace('[0]', `[${itemCount}]`));
+        }
+    });
+    
+    tbody.appendChild(newRow);
+    itemCount++;
+}
+
+// 移除項目
+function removeItem(button) {
+    if (itemCount <= 1) {
+        alert('至少需要保留一個申請項目');
+        return;
+    }
+    
+    const row = button.closest('tr');
+    row.remove();
+    itemCount--;
+    
+    // 重新編號
+    updateItemSequences();
+}
+
+// 更新項目序號
+function updateItemSequences() {
+    const rows = document.querySelectorAll('#batchItemsBody tr');
+    rows.forEach((row, index) => {
+        row.querySelector('.item-sequence').textContent = index + 1;
+        
+        // 更新表單名稱
+        const inputs = row.querySelectorAll('input, select');
+        inputs.forEach(input => {
+            const name = input.getAttribute('name');
+            if (name) {
+                const newName = name.replace(/\[\d+\]/, `[${index}]`);
+                input.setAttribute('name', newName);
+            }
+        });
+    });
+}
+
+// 套用全域優先級
+function applyGlobalPriority() {
+    const globalPriority = document.getElementById('global_priority').value;
+    if (globalPriority) {
+        const prioritySelects = document.querySelectorAll('select[name*="[priority]"]');
+        prioritySelects.forEach(select => {
+            select.value = globalPriority;
+        });
+    }
+}
+
+// 套用全域需用日期
+function applyGlobalDate() {
+    const globalDate = document.getElementById('global_required_date').value;
+    if (globalDate) {
+        const dateInputs = document.querySelectorAll('input[name*="[required_date]"]');
+        dateInputs.forEach(input => {
+            input.value = globalDate;
+        });
+    }
+}
+
+// 填入項目資料（用於預填）
+function fillItemData(index, data) {
+    const row = document.querySelectorAll('#batchItemsBody tr')[index];
+    if (!row) return;
+    
+    if (data.part_number) row.querySelector('input[name*="[part_number]"]').value = data.part_number;
+    if (data.part_name) row.querySelector('input[name*="[part_name]"]').value = data.part_name;
+    if (data.specifications) row.querySelector('input[name*="[specifications]"]').value = data.specifications;
+    if (data.quantity) row.querySelector('input[name*="[quantity]"]').value = data.quantity;
+    if (data.unit) row.querySelector('select[name*="[unit]"]').value = data.unit;
+    if (data.category) row.querySelector('input[name*="[category]"]').value = data.category;
+    if (data.priority) row.querySelector('select[name*="[priority]"]').value = data.priority;
+    if (data.purpose_notes) row.querySelector('input[name*="[purpose_notes]"]').value = data.purpose_notes;
+}
+
+// 匯入模板功能（未來擴展）
+function importFromTemplate() {
+    alert('模板匯入功能將在未來版本中提供');
+}
+
+// 更新剩餘時間
+function updateTimeRemaining() {
+    {% if current_cycle.is_active %}
+    const deadline = new Date('{{ current_cycle.deadline.isoformat() }}');
+    const now = new Date();
+    const timeDiff = deadline - now;
+    
+    if (timeDiff > 0) {
+        const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+        
+        document.getElementById('timeRemaining').innerHTML = 
+            `<i class="fas fa-clock text-warning"></i> 剩餘時間：${days}天 ${hours}小時 ${minutes}分鐘`;
+    } else {
+        document.getElementById('timeRemaining').innerHTML = 
+            '<i class="fas fa-exclamation-triangle text-danger"></i> 申請已截止';
+    }
+    {% endif %}
+}
+
+// 表單提交前驗證
+document.getElementById('batchOrderForm').addEventListener('submit', function(e) {
+    const rows = document.querySelectorAll('#batchItemsBody tr');
+    if (rows.length === 0) {
+        e.preventDefault();
+        alert('請至少添加一個申請項目');
+        return;
+    }
+    
+    // 檢查必填欄位
+    let hasEmpty = false;
+    rows.forEach(row => {
+        const requiredInputs = row.querySelectorAll('input[required], select[required]');
+        requiredInputs.forEach(input => {
+            if (!input.value.trim()) {
+                hasEmpty = true;
+                input.classList.add('is-invalid');
+            } else {
+                input.classList.remove('is-invalid');
+            }
+        });
+    });
+    
+    if (hasEmpty) {
+        e.preventDefault();
+        alert('請填寫所有必填欄位（已標示為紅色）');
+        return;
+    }
+    
+    // 確認提交
+    if (!confirm(`確定要提交 ${rows.length} 個申請項目嗎？`)) {
+        e.preventDefault();
+    }
+});
+</script>
+{% endblock %}

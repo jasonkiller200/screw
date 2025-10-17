@@ -1,27 +1,19 @@
-// 將 openOrderModal 定義為全域函數，讓 inline HTML 可以調用
-let currentPartLocations = []; // 保存當前零件的儲位資訊
-
+// 重定向到週期申請（取代建立訂單功能）
 function openOrderModal(partNumber, partName, unit) {
-    document.getElementById('orderPartNumber').value = partNumber;
-    document.getElementById('orderPartName').textContent = partName;
-    document.getElementById('orderPartUnit').textContent = unit;
-    document.getElementById('orderQuantity').value = 1;
-    
-    // 填充儲位選項
-    const locationSelect = document.getElementById('orderLocation');
-    locationSelect.innerHTML = '<option value="">請選擇儲位</option>';
-    
-    if (currentPartLocations && currentPartLocations.length > 0) {
-        currentPartLocations.forEach(loc => {
-            const option = document.createElement('option');
-            option.value = loc.location_code;
-            option.textContent = `${loc.warehouse_name} - ${loc.location_code}`;
-            locationSelect.appendChild(option);
+    // 顯示提示並重定向到週期申請
+    if (confirm('訂單功能已統一到週期申請系統。\n點擊確定前往週期申請頁面')) {
+        const params = new URLSearchParams({
+            part_number: partNumber,
+            part_name: partName,
+            unit: unit,
+            quantity: '1',
+            material_nature: '採購品',
+            priority: 'normal',
+            source: 'lookup'
         });
+        
+        window.location.href = `/weekly_orders/register?${params.toString()}`;
     }
-    
-    const modal = new bootstrap.Modal(document.getElementById('orderModal'));
-    modal.show();
 }
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -238,9 +230,14 @@ document.addEventListener('DOMContentLoaded', function () {
             <div class="card mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">零件資訊</h5>
-                    <button class="btn btn-primary btn-sm" onclick="openOrderModal('${part.part_number}', '${part.name}', '${part.unit}')">
-                        <i class="fas fa-plus me-1"></i>建立訂單
-                    </button>
+                    <div class="btn-group">
+                        <button class="btn btn-success btn-sm" onclick="addToWeeklyOrder('${part.part_number}', '${part.name}', '${part.unit}')">
+                            <i class="fas fa-calendar-plus me-1"></i>加入週期申請
+                        </button>
+                        <button class="btn btn-primary btn-sm" onclick="openOrderModal('${part.part_number}', '${part.name}', '${part.unit}')">
+                            <i class="fas fa-plus me-1"></i>申請採購
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="row">
@@ -349,3 +346,66 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 });
+
+// 加入週期申請
+function addToWeeklyOrder(partNumber, partName, unit) {
+    // 顯示優先級選擇彈窗
+    const modalHtml = `
+        <div class="modal fade" id="priorityModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">選擇申請類型</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>零件：<strong>${partName}</strong> (${partNumber})</p>
+                        <div class="mb-3">
+                            <label class="form-label">申請類型</label>
+                            <select class="form-select" id="prioritySelect">
+                                <option value="normal">一般申請</option>
+                                <option value="urgent">緊急申請</option>
+                            </select>
+                            <div class="form-text">緊急申請將優先處理</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-primary" onclick="confirmAddToWeeklyOrder('${partNumber}', '${partName}', '${unit}')">確認加入</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 移除現有的模態框（如果存在）
+    const existingModal = document.getElementById('priorityModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // 添加模態框到頁面
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // 顯示模態框
+    const modal = new bootstrap.Modal(document.getElementById('priorityModal'));
+    modal.show();
+}
+
+// 確認加入週期申請
+function confirmAddToWeeklyOrder(partNumber, partName, unit) {
+    const priority = document.getElementById('prioritySelect').value;
+    
+    // 跳轉到週期申請頁面，並預填資料
+    const params = new URLSearchParams({
+        part_number: partNumber,
+        part_name: partName,
+        unit: unit,
+        quantity: '1',
+        material_nature: '採購品',
+        priority: priority,
+        source: 'lookup'
+    });
+    
+    window.location.href = `/weekly_orders/register?${params.toString()}`;
+}

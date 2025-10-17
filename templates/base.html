@@ -59,9 +59,32 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('web.orders') }}">
-                            <i class="fas fa-shopping-cart me-1"></i>訂單管理
+                        <a class="nav-link" href="{{ url_for('weekly_order.weekly_orders') }}">
+                            <i class="fas fa-calendar-week me-1"></i>訂單管理
+                            <span class="badge bg-success ms-1">NEW</span>
                         </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('web.order_history') }}">
+                            <i class="fas fa-history me-1"></i>歷史記錄
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('web.work_orders') }}">
+                            <i class="fas fa-tasks me-1"></i>工單管理
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="reportsDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-chart-bar me-1"></i>報表分析
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('web.parts_comparison_report') }}">
+                                    <i class="fas fa-balance-scale me-1"></i>零件差異分析
+                                </a>
+                            </li>
+                        </ul>
                     </li>
                 </ul>
             </div>

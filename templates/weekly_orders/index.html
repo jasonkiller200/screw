@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block title %}訂單管理{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- 頁面標題 -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2><i class="fas fa-calendar-alt"></i> 訂單管理</h2>
+            <p class="text-muted">管理每週申請單登記與審查流程</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <button type="button" class="btn btn-primary" onclick="refreshSummary()">
+                <i class="fas fa-sync-alt me-1"></i>重新整理
+            </button>
+        </div>
+    </div>
+
+    <!-- 當前週期狀態卡片 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-primary" id="currentCycleCard">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clock me-2"></i>當前申請訂單
+                        <span class="badge bg-light text-primary ms-2" id="cycleStatus">載入中...</span>
+                    </h5>
+                </div>
+                <div class="card-body" id="cycleContent">
+                    <div class="text-center py-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">載入中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 快速操作 -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-plus-circle text-success"></i> 申請登記</h6>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">登記新的申請項目到當前週期</p>
+                    <a href="{{ url_for('weekly_order.register_order') }}" class="btn btn-success">
+                        <i class="fas fa-plus me-1"></i>新增登記
+                    </a>
+                    <a href="{{ url_for('weekly_order.batch_register_form') }}" class="btn btn-outline-success ms-2">
+                        <i class="fas fa-list-plus me-1"></i>批量申請
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-check-circle text-info"></i> 主管審查</h6>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">審查當前週期的申請項目</p>
+                    <button class="btn btn-info" id="reviewBtn" onclick="goToReview()">
+                        <i class="fas fa-search me-1"></i>開始審查
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 歷史週期 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-history"></i> 歷史週期</h5>
+                </div>
+                <div class="card-body">
+                    {% if historical_cycles %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>週期名稱</th>
+                                    <th>開始日期</th>
+                                    <th>截止日期</th>
+                                    <th>狀態</th>
+                                    <th>登記數量</th>
+                                    <th>已核准</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cycle in historical_cycles %}
+                                <tr>
+                                    <td><strong>{{ cycle.cycle_name }}</strong></td>
+                                    <td>{{ cycle.start_date.strftime('%Y-%m-%d') if cycle.start_date else '-' }}</td>
+                                    <td>{{ cycle.deadline.strftime('%Y-%m-%d %H:%M') if cycle.deadline else '-' }}</td>
+                                    <td>
+                                        {% if cycle.status == 'active' %}
+                                        <span class="badge bg-success">進行中</span>
+                                        {% elif cycle.status == 'reviewing' %}
+                                        <span class="badge bg-warning">審查中</span>
+                                        {% elif cycle.status == 'completed' %}
+                                        <span class="badge bg-info">已完成</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ cycle.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ cycle.total_registrations }}</td>
+                                    <td>{{ cycle.approved_registrations }}</td>
+                                    <td>
+                                        <a href="{{ url_for('weekly_order.view_cycle', cycle_id=cycle.id) }}" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i> 查看
+                                        </a>
+                                        {% if cycle.status in ['active', 'reviewing'] %}
+                                        <a href="{{ url_for('weekly_order.review_cycle', cycle_id=cycle.id) }}" 
+                                           class="btn btn-sm btn-outline-success">
+                                            <i class="fas fa-check"></i> 審查
+                                        </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">暫無歷史週期記錄</h5>
+                        <p class="text-muted">新建的週期申請會顯示在這裡</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentCycleId = null;
+
+// 頁面載入時獲取摘要
+document.addEventListener('DOMContentLoaded', function() {
+    refreshSummary();
+});
+
+// 重新整理摘要資訊
+function refreshSummary() {
+    fetch('/weekly-orders/api/cycle-summary')
+        .then(response => response.json())
+        .then(data => {
+            updateCycleCard(data);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('載入摘要資訊失敗');
+        });
+}
+
+// 更新週期卡片
+function updateCycleCard(data) {
+    const statusEl = document.getElementById('cycleStatus');
+    const contentEl = document.getElementById('cycleContent');
+    const reviewBtn = document.getElementById('reviewBtn');
+    
+    if (!data.has_active_cycle) {
+        statusEl.textContent = '無活躍週期';
+        statusEl.className = 'badge bg-light text-secondary ms-2';
+        contentEl.innerHTML = `
+            <div class="text-center py-3">
+                <i class="fas fa-calendar-plus fa-2x text-muted mb-3"></i>
+                <h5 class="text-muted">目前沒有活躍的申請週期</h5>
+                <button class="btn btn-primary" onclick="createNewCycle()">
+                    <i class="fas fa-plus me-1"></i>建立新週期
+                </button>
+            </div>
+        `;
+        reviewBtn.disabled = true;
+        return;
+    }
+    
+    const cycle = data.cycle;
+    currentCycleId = cycle.id;
+    
+    // 更新狀態標籤
+    if (cycle.is_active) {
+        statusEl.textContent = '進行中';
+        statusEl.className = 'badge bg-success ms-2';
+    } else if (cycle.is_overdue) {
+        statusEl.textContent = '已截止';
+        statusEl.className = 'badge bg-danger ms-2';
+    } else {
+        statusEl.textContent = cycle.status;
+        statusEl.className = 'badge bg-warning ms-2';
+    }
+    
+    // 更新卡片內容
+    let timeRemaining = '';
+    if (data.time_remaining) {
+        const tr = data.time_remaining;
+        timeRemaining = `
+            <div class="alert alert-info mb-3">
+                <i class="fas fa-hourglass-half me-2"></i>
+                <strong>剩餘時間：</strong>
+                ${tr.days} 天 ${tr.hours} 小時 ${tr.minutes} 分鐘
+            </div>
+        `;
+    }
+    
+    contentEl.innerHTML = `
+        <div class="row">
+            <div class="col-md-8">
+                <h5>${cycle.cycle_name}</h5>
+                <p class="text-muted mb-1">
+                    <i class="fas fa-calendar-start me-1"></i>
+                    開始：${new Date(cycle.start_date).toLocaleDateString('zh-TW')}
+                </p>
+                <p class="text-muted mb-3">
+                    <i class="fas fa-calendar-times me-1"></i>
+                    截止：${new Date(cycle.deadline).toLocaleString('zh-TW')}
+                </p>
+                ${timeRemaining}
+            </div>
+            <div class="col-md-4">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="border rounded p-2">
+                            <h4 class="text-primary mb-1">${data.stats.total}</h4>
+                            <small class="text-muted">總登記</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="border rounded p-2">
+                            <h4 class="text-success mb-1">${data.stats.approved}</h4>
+                            <small class="text-muted">已核准</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    reviewBtn.disabled = false;
+}
+
+// 前往審查頁面
+function goToReview() {
+    if (currentCycleId) {
+        window.location.href = `/weekly-orders/review/${currentCycleId}`;
+    } else {
+        alert('沒有可審查的週期');
+    }
+}
+
+// 建立新週期
+function createNewCycle() {
+    if (confirm('確定要建立新的申請週期嗎？')) {
+        fetch('/weekly-orders/api/create-cycle', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('建立失敗：' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('建立失敗：網路錯誤');
+        });
+    }
+}
+
+// 錯誤顯示
+function showError(message) {
+    const contentEl = document.getElementById('cycleContent');
+    contentEl.innerHTML = `
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            ${message}
+        </div>
+    `;
+}
+</script>
+{% endblock %}

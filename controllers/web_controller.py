@@ -2,10 +2,13 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from models.part import Part, Warehouse, WarehouseLocation, PartWarehouseLocation # Import PartWarehouseLocation for dummy object
 from models.order import Order
 from models.inventory import CurrentInventory, InventoryTransaction, StockCount
+from extensions import db
+from datetime import datetime, timedelta
 import os
 import pandas as pd
 from werkzeug.utils import secure_filename
 from io import BytesIO
+from services.part_service import PartService # Import the new service
 
 web_bp = Blueprint('web', __name__)
 
@@ -45,10 +48,172 @@ def parts():
 
 @web_bp.route('/orders')
 def orders():
-    """Orders management page."""
-    pending_orders = Order.get_pending_orders()
-    all_orders = Order.get_all_orders()
-    return render_template('orders.html', pending_orders=pending_orders, all_orders=all_orders)
+    """重定向到週期訂單頁面"""
+    flash('所有訂單管理已統一到週期訂單系統中', 'info')
+    return redirect(url_for('weekly_order.weekly_orders'))
+
+@web_bp.route('/order-history')
+def order_history():
+    """歷史訂單記錄頁面 - 只顯示已遷移的訂單"""
+    migrated_orders = Order.query.filter_by(status='migrated').order_by(db.desc(Order.order_date)).all()
+    confirmed_orders = Order.query.filter_by(status='confirmed').order_by(db.desc(Order.order_date)).all()
+    
+    all_history_orders = migrated_orders + confirmed_orders
+    
+    return render_template('order_history.html', 
+                         history_orders=all_history_orders,
+                         migrated_count=len(migrated_orders),
+                         confirmed_count=len(confirmed_orders))
+
+@web_bp.route('/work-orders')
+def work_orders():
+    """工單需求管理頁面"""
+    from models.work_order import WorkOrderDemand
+    
+    # 獲取查詢參數
+    order_id = request.args.get('order_id', '')
+    part_number = request.args.get('part_number', '')
+    
+    # 建立查詢
+    query = WorkOrderDemand.query
+    
+    if order_id:
+        query = query.filter(WorkOrderDemand.order_id.like(f'%{order_id}%'))
+    
+    if part_number:
+        query = query.filter(WorkOrderDemand.part_number.like(f'%{part_number}%'))
+    
+    # 獲取所有工單需求並按訂單編號排序
+    demands = query.order_by(WorkOrderDemand.order_id, WorkOrderDemand.part_number).all()
+    
+    # 獲取所有不重複的訂單編號
+    all_orders = [row[0] for row in WorkOrderDemand.get_all_orders()]
+    
+    return render_template('work_orders.html', 
+                         demands=demands, 
+                         all_orders=all_orders,
+                         search_order_id=order_id,
+                         search_part_number=part_number)
+
+@web_bp.route('/work-orders/import', methods=['POST'])
+def import_work_order_demands():
+    """匯入工單需求資料"""
+    from models.work_order import WorkOrderDemand
+    from datetime import datetime
+    from extensions import db
+    
+    if 'excel_file' not in request.files:
+        return jsonify({'success': False, 'error': '沒有檔案被上傳'})
+
+    file = request.files['excel_file']
+    if file.filename == '':
+        return jsonify({'success': False, 'error': '沒有選擇檔案'})
+
+    if not (file and file.filename is not None and file.filename.lower().endswith(('.xlsx', '.xls'))):
+        return jsonify({'success': False, 'error': '請上傳 Excel 檔案 (.xlsx 或 .xls 格式)'})
+
+    try:
+        # 讀取 Excel 檔案
+        df = pd.read_excel(file.stream)
+        
+        # 驗證必要欄位
+        required_columns = ['訂單', '物料', '需求數量 (EINHEIT)', '物料說明', '作業說明', '上層物料說明', '需求日期', '散裝物料']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        
+        if missing_columns:
+            return jsonify({
+                'success': False, 
+                'error': f'Excel 檔案缺少必要欄位: {", ".join(missing_columns)}'
+            })
+        
+        imported_count = 0
+        updated_count = 0
+        error_count = 0
+        filtered_count = 0  # 新增：被篩選掉的數量
+        
+        # 處理每一行資料
+        for index, row in df.iterrows():
+            try:
+                # 讀取欄位資料
+                order_id = str(row['訂單']).strip()
+                part_number = str(row['物料']).strip()
+                required_quantity = float(row['需求數量 (EINHEIT)'])
+                
+                # 處理可能為空的欄位
+                material_description = str(row['物料說明']).strip() if not pd.isna(row['物料說明']) else ''
+                operation_description = str(row['作業說明']).strip() if not pd.isna(row['作業說明']) else ''
+                parent_material_description = str(row['上層物料說明']).strip() if not pd.isna(row['上層物料說明']) else ''
+                bulk_material = str(row['散裝物料']).strip() if not pd.isna(row['散裝物料']) else ''
+                
+                # 篩選：跳過物料說明包含"圖"的項目
+                if '圖' in material_description:
+                    filtered_count += 1
+                    continue  # 跳過此項目，不進行匯入
+                
+                # 解析需求日期
+                required_date = row['需求日期']
+                if pd.isna(required_date):
+                    required_date = datetime.now()
+                elif isinstance(required_date, str):
+                    try:
+                        required_date = datetime.strptime(required_date, '%Y-%m-%d')
+                    except:
+                        required_date = datetime.now()
+                elif not isinstance(required_date, datetime):
+                    required_date = datetime.now()
+                
+                # 檢查記錄是否已存在
+                existing_demand = WorkOrderDemand.query.filter_by(
+                    order_id=order_id, 
+                    part_number=part_number
+                ).first()
+                
+                if existing_demand:
+                    # 更新現有記錄
+                    existing_demand.required_quantity = required_quantity
+                    existing_demand.material_description = material_description
+                    existing_demand.operation_description = operation_description
+                    existing_demand.parent_material_description = parent_material_description
+                    existing_demand.required_date = required_date
+                    existing_demand.bulk_material = bulk_material
+                    updated_count += 1
+                else:
+                    # 建立新記錄
+                    new_demand = WorkOrderDemand()
+                    new_demand.order_id = order_id
+                    new_demand.part_number = part_number
+                    new_demand.required_quantity = required_quantity
+                    new_demand.material_description = material_description
+                    new_demand.operation_description = operation_description
+                    new_demand.parent_material_description = parent_material_description
+                    new_demand.required_date = required_date
+                    new_demand.bulk_material = bulk_material
+                    
+                    db.session.add(new_demand)
+                    imported_count += 1
+                    
+            except Exception as e:
+                error_count += 1
+                print(f"處理第 {index + 2} 行時發生錯誤: {e}")
+        
+        # 提交資料庫變更
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'imported_count': imported_count,
+            'updated_count': updated_count,
+            'error_count': error_count,
+            'filtered_count': filtered_count,  # 新增：被篩選掉的數量
+            'total_processed': len(df)
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False, 
+            'error': f'匯入過程發生錯誤: {str(e)}'
+        })
 
 @web_bp.route('/part_lookup')
 def part_lookup():
@@ -306,82 +471,20 @@ def import_parts():
         return redirect(url_for('web.parts'))
 
     if file and file.filename is not None and file.filename.endswith('.xlsx'):
-        try:
-            df = pd.read_excel(file)
-            
-            column_map = {
-                '零件編號': 'part_number',
-                '名稱': 'name',
-                '描述': 'description',
-                '單位': 'unit',
-                '每盒數量': 'quantity_per_box',
-                '儲存位置(倉別代碼:位置代碼, 逗號分隔)': 'locations_str' # New column for locations
-            }
-
-            if not all(col in df.columns for col in column_map.keys()):
-                flash(f'Excel 文件缺少必要的欄位。需要: {", ".join(column_map.keys())}', 'error')
-                return redirect(url_for('web.parts'))
-
-            df.rename(columns=column_map, inplace=True)
-
-            imported_count = 0
-            skipped_count = 0
-            
-            for index, row in df.iterrows():
-                # Basic validation
-                if pd.isna(row.get('part_number')) or pd.isna(row.get('name')) or pd.isna(row.get('unit')) or pd.isna(row.get('locations_str')):
-                    skipped_count += 1
-                    continue
-
-                try:
-                    quantity_per_box = int(row['quantity_per_box'])
-                except (ValueError, TypeError):
-                    quantity_per_box = 1
-                
-                # Parse locations string into list of dicts
-                locations_str = str(row['locations_str'])
-                locations_data = []
-                for loc_pair_str in locations_str.split(','):
-                    parts = [p.strip() for p in loc_pair_str.split(':') if p.strip()]
-                    if len(parts) == 2:
-                        warehouse_code = parts[0]
-                        location_code = parts[1]
-                        # Look up warehouse_id from code
-                        warehouse = Part.get_warehouse_by_code(warehouse_code)
-                        if warehouse:
-                            locations_data.append({'warehouse_id': warehouse['id'], 'location_code': location_code})
-                        else:
-                            flash(f'匯入失敗: 找不到倉別代碼 {warehouse_code}', 'error')
-                            skipped_count += 1
-                            continue
-                    elif parts:
-                        flash(f'匯入失敗: 儲存位置格式錯誤 {loc_pair_str}，應為 倉別代碼:位置代碼', 'error')
-                        skipped_count += 1
-                        continue
-                
-                if not locations_data:
-                    skipped_count += 1
-                    continue
-
-                if not Part.exists(row['part_number']):
-                    Part.create(
-                        part_number=row['part_number'],
-                        name=row['name'],
-                        description=row.get('description', ''),
-                        unit=row['unit'],
-                        quantity_per_box=quantity_per_box,
-                        locations_data=locations_data # Pass list of locations data
-                    )
-                    imported_count += 1
-                else:
-                    flash(f"匯入失敗: 零件編號 {row['part_number']} 已存在", 'error')
-                    skipped_count += 1
-            
-            flash(f'成功匯入 {imported_count} 個新零件。跳過 {skipped_count} 個已存在或資料不完整的零件。', 'success')
-
-        except Exception as e:
-            flash(f'處理檔案時發生錯誤: {e}', 'error')
+        # Pass the file stream to the service layer
+        result = PartService.import_parts_from_excel(file.stream)
         
+        if result['success']:
+            flash(result['message'], 'success')
+            if result['errors']:
+                for error_msg in result['errors']:
+                    flash(error_msg, 'warning') # Use warning for individual row errors
+        else:
+            flash(result['error'], 'error')
+            if result['errors']:
+                for error_msg in result['errors']:
+                    flash(error_msg, 'warning')
+
         return redirect(url_for('web.parts'))
     else:
         flash('只接受 .xlsx 格式的檔案', 'error')
@@ -431,18 +534,466 @@ def inventory():
 @web_bp.route('/inventory/transactions')
 def inventory_transactions():
     """交易記錄頁面"""
+    # 取得篩選參數
     part_id = request.args.get('part_id', type=int)
     warehouse_id = request.args.get('warehouse_id', type=int)
-    warehouses = Warehouse.get_all()
-    parts = Part.get_all()
-    transactions = InventoryTransaction.get_transactions(part_id, warehouse_id, 200)
+    transaction_type = request.args.get('transaction_type')
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+    page = request.args.get('page', 1, type=int)
+    per_page = 50  # 每頁顯示筆數
+    
+    # 如果沒有指定日期範圍，預設為最近30天
+    if not date_from and not date_to:
+        today = datetime.now()
+        thirty_days_ago = today - timedelta(days=30)
+        date_from = thirty_days_ago.strftime('%Y-%m-%d')
+        date_to = today.strftime('%Y-%m-%d')
+    
+    # 取得所有倉庫供篩選使用
+    warehouses = Warehouse.get_all()  # 這已經返回字典列表了
+    
+    # 取得篩選後的交易記錄
+    transactions_query = InventoryTransaction.query.join(Part).join(Warehouse)
+    
+    # 應用篩選條件
+    if part_id:
+        transactions_query = transactions_query.filter(InventoryTransaction.part_id == part_id)
+    if warehouse_id:
+        transactions_query = transactions_query.filter(InventoryTransaction.warehouse_id == warehouse_id)
+    if transaction_type:
+        transactions_query = transactions_query.filter(InventoryTransaction.transaction_type == transaction_type)
+    if date_from:
+        try:
+            from_date = datetime.strptime(date_from, '%Y-%m-%d')
+            transactions_query = transactions_query.filter(InventoryTransaction.transaction_date >= from_date)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            to_date = datetime.strptime(date_to, '%Y-%m-%d')
+            # 加上一天，使結束日期包含當天的所有記錄
+            to_date = to_date.replace(hour=23, minute=59, second=59)
+            transactions_query = transactions_query.filter(InventoryTransaction.transaction_date <= to_date)
+        except ValueError:
+            pass
+    
+    # 按日期排序並分頁
+    transactions_query = transactions_query.order_by(db.desc(InventoryTransaction.transaction_date), 
+                                                   db.desc(InventoryTransaction.id))
+    
+    # 執行分頁查詢
+    paginated = transactions_query.paginate(
+        page=page, 
+        per_page=per_page, 
+        error_out=False
+    )
+    
+    # 準備交易記錄資料
+    transactions = []
+    for transaction in paginated.items:
+        transactions.append({
+            'id': transaction.id,
+            'transaction_date': transaction.transaction_date.strftime('%Y-%m-%d %H:%M:%S'),
+            'transaction_type': transaction.transaction_type,
+            'part_number': transaction.part.part_number if transaction.part else 'N/A',
+            'part_name': transaction.part.name if transaction.part else 'N/A',
+            'warehouse_name': transaction.warehouse.name if transaction.warehouse else 'N/A',
+            'quantity': transaction.quantity,
+            'reference_type': transaction.reference_type,
+            'reference_id': transaction.reference_id,
+            'notes': transaction.notes
+        })
+    
+    # 準備分頁資訊
+    page_info = None
+    if paginated.total and paginated.total > 0:
+        page_info = {
+            'current_page': page,
+            'total_pages': paginated.pages,
+            'total': paginated.total,
+            'start': (page - 1) * per_page + 1,
+            'end': min(page * per_page, paginated.total)
+        }
     
     return render_template('inventory/transactions.html',
                          warehouses=warehouses,
-                         parts=parts,
                          transactions=transactions,
+                         page_info=page_info,
                          selected_part_id=part_id,
-                         selected_warehouse_id=warehouse_id)
+                         selected_warehouse_id=warehouse_id,
+                         selected_transaction_type=transaction_type,
+                         selected_date_from=date_from,
+                         selected_date_to=date_to)
+
+@web_bp.route('/reports/parts-comparison')
+def parts_comparison_report():
+    """零件差異分析報告頁面"""
+    return render_template('reports/parts_comparison.html')
+
+@web_bp.route('/reports/parts-comparison/data')
+def parts_comparison_data():
+    """獲取零件差異分析數據"""
+    from models.work_order import WorkOrderDemand
+    from models.inventory import CurrentInventory
+    from models.part import Part
+    
+    try:
+        # 1. 取得工單需求零件的詳細資訊
+        work_order_details = db.session.query(
+            WorkOrderDemand.part_number,
+            WorkOrderDemand.material_description,
+            db.func.sum(WorkOrderDemand.required_quantity).label('total_required'),
+            db.func.count(WorkOrderDemand.order_id).label('order_count')
+        ).group_by(
+            WorkOrderDemand.part_number,
+            WorkOrderDemand.material_description
+        ).all()
+        
+        work_order_dict = {}
+        for row in work_order_details:
+            work_order_dict[row[0]] = {
+                'description': row[1],
+                'total_required': float(row[2]),
+                'order_count': int(row[3])
+            }
+        
+        # 2. 取得零件倉零件的詳細資訊
+        inventory_details = db.session.query(Part).all()
+        
+        inventory_dict = {}
+        for part in inventory_details:
+            inventory_dict[part.part_number] = {
+                'name': part.name,
+                'unit': part.unit or '',
+                'description': part.description or ''
+            }
+        
+        # 3. 取得零件庫存資訊
+        stock_details = db.session.query(
+            Part.part_number,
+            db.func.sum(CurrentInventory.quantity_on_hand).label('total_stock'),
+            db.func.sum(CurrentInventory.available_quantity).label('available_stock')
+        ).join(CurrentInventory, Part.id == CurrentInventory.part_id).group_by(Part.part_number).all()
+        
+        stock_dict = {}
+        for row in stock_details:
+            stock_dict[row[0]] = {
+                'total_stock': float(row[1]) if row[1] else 0,
+                'available_stock': float(row[2]) if row[2] else 0
+            }
+        
+        # 4. 分析差異
+        # 4.1 工單需求有但零件倉沒有的零件
+        missing_in_inventory = []
+        for part_number, details in work_order_dict.items():
+            if part_number not in inventory_dict:
+                missing_in_inventory.append({
+                    'part_number': part_number,
+                    'description': details['description'],
+                    'total_required': details['total_required'],
+                    'order_count': details['order_count'],
+                    'status': '工單需求有，零件倉缺少',
+                    'action': '新增至零件倉'
+                })
+        
+        # 4.2 零件倉有的零件與工單需求對比
+        inventory_with_demand = []
+        for part_number, details in inventory_dict.items():
+            work_order_info = work_order_dict.get(part_number, {})
+            stock_info = stock_dict.get(part_number, {'total_stock': 0, 'available_stock': 0})
+            
+            required_qty = work_order_info.get('total_required', 0)
+            available_qty = stock_info.get('available_stock', 0)
+            shortage = max(0, required_qty - available_qty)
+            
+            inventory_with_demand.append({
+                'part_number': part_number,
+                'name': details['name'],
+                'description': details['description'],
+                'unit': details['unit'],
+                'required_quantity': required_qty,
+                'total_stock': stock_info.get('total_stock', 0),
+                'available_stock': available_qty,
+                'shortage': shortage,
+                'order_count': work_order_info.get('order_count', 0),
+                'has_demand': required_qty > 0,
+                'stock_status': '充足' if shortage == 0 and required_qty > 0 else ('缺料' if shortage > 0 else '無需求')
+            })
+        
+        # 4.3 零件倉有但工單需求沒有的零件
+        unused_inventory = []
+        for part_number, details in inventory_dict.items():
+            if part_number not in work_order_dict:
+                stock_info = stock_dict.get(part_number, {'total_stock': 0, 'available_stock': 0})
+                unused_inventory.append({
+                    'part_number': part_number,
+                    'name': details['name'],
+                    'description': details['description'],
+                    'unit': details['unit'],
+                    'total_stock': stock_info.get('total_stock', 0),
+                    'available_stock': stock_info.get('available_stock', 0),
+                    'status': '零件倉有，無工單需求',
+                    'action': '檢視是否為過剩庫存'
+                })
+        
+        # 5. 計算統計資訊
+        summary = {
+            'work_order_parts_count': len(work_order_dict),
+            'inventory_parts_count': len(inventory_dict),
+            'common_parts_count': len(set(work_order_dict.keys()) & set(inventory_dict.keys())),
+            'missing_in_inventory_count': len(missing_in_inventory),
+            'unused_in_inventory_count': len(unused_inventory),
+            'shortage_parts_count': len([item for item in inventory_with_demand if item['shortage'] > 0]),
+            'sufficient_parts_count': len([item for item in inventory_with_demand if item['stock_status'] == '充足'])
+        }
+        
+        return jsonify({
+            'success': True,
+            'summary': summary,
+            'missing_in_inventory': sorted(missing_in_inventory, key=lambda x: x['total_required'], reverse=True),
+            'inventory_with_demand': sorted(inventory_with_demand, key=lambda x: x['shortage'], reverse=True),
+            'unused_inventory': sorted(unused_inventory, key=lambda x: x['total_stock'], reverse=True)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@web_bp.route('/reports/parts-comparison/add-parts', methods=['POST'])
+def add_parts_to_inventory():
+    """批量新增零件至零件倉"""
+    from models.part import Part
+    
+    try:
+        data = request.get_json()
+        if not data or 'parts' not in data:
+            return jsonify({
+                'success': False,
+                'error': '請求數據格式錯誤'
+            })
+        
+        parts = data['parts']
+        if not isinstance(parts, list) or len(parts) == 0:
+            return jsonify({
+                'success': False,
+                'error': '零件列表不能為空'
+            })
+        
+        added_count = 0
+        skipped_count = 0
+        error_parts = []
+        
+        for part_data in parts:
+            part_number = part_data.get('part_number', '').strip()
+            description = part_data.get('description', '').strip()
+            
+            if not part_number:
+                error_parts.append('零件編號不能為空')
+                continue
+            
+            # 檢查零件是否已存在
+            existing_part = Part.query.filter_by(part_number=part_number).first()
+            if existing_part:
+                skipped_count += 1
+                continue
+            
+            # 創建新零件
+            new_part = Part(
+                part_number=part_number,
+                name=description or part_number,  # 如果沒有描述，使用零件編號作為名稱
+                description=description,
+                unit='個',  # 預設單位
+                quantity_per_box=1,  # 預設每箱數量
+                safety_stock=0,  # 預設安全庫存
+                reorder_point=0,  # 預設補貨點
+                standard_cost=0,  # 預設成本
+                is_active=True  # 預設啟用
+            )
+            
+            try:
+                db.session.add(new_part)
+                db.session.flush()  # 確保取得ID
+                added_count += 1
+            except Exception as e:
+                error_parts.append(f'{part_number}: {str(e)}')
+                db.session.rollback()
+                continue
+        
+        if added_count > 0:
+            db.session.commit()
+        
+        # 準備回應訊息
+        response_data = {
+            'success': True,
+            'added_count': added_count,
+            'skipped_count': skipped_count,
+            'message': f'成功新增 {added_count} 個零件'
+        }
+        
+        if skipped_count > 0:
+            response_data['message'] += f'，跳過 {skipped_count} 個已存在的零件'
+        
+        if error_parts:
+            response_data['errors'] = error_parts
+            response_data['message'] += f'，{len(error_parts)} 個零件新增失敗'
+        
+        return jsonify(response_data)
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': f'新增零件時發生錯誤: {str(e)}'
+        })
+
+@web_bp.route('/reports/parts-comparison/add-part-detailed', methods=['POST'])
+def add_part_detailed():
+    """新增單個零件(詳細資訊)至零件倉"""
+    from models.part import Part
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': '請求數據格式錯誤'
+            })
+        
+        part_number = data.get('part_number', '').strip()
+        name = data.get('name', '').strip()
+        
+        if not part_number or not name:
+            return jsonify({
+                'success': False,
+                'error': '零件編號和名稱不能為空'
+            })
+        
+        # 檢查零件是否已存在
+        existing_part = Part.query.filter_by(part_number=part_number).first()
+        if existing_part:
+            return jsonify({
+                'success': False,
+                'error': f'零件編號 {part_number} 已存在'
+            })
+        
+        # 創建新零件
+        new_part = Part(
+            part_number=part_number,
+            name=name,
+            description=data.get('description', ''),
+            unit=data.get('unit', '個'),
+            quantity_per_box=data.get('quantity_per_box', 1),
+            safety_stock=data.get('safety_stock', 0),
+            reorder_point=data.get('reorder_point', 0),
+            standard_cost=data.get('standard_cost', 0),
+            is_active=True
+        )
+        
+        db.session.add(new_part)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'成功新增零件 {part_number}',
+            'part_id': new_part.id
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': f'新增零件時發生錯誤: {str(e)}'
+        })
+
+@web_bp.route('/reports/parts-comparison/create-purchase-order', methods=['POST'])
+def create_purchase_order():
+    """建立採購單"""
+    from models.order import Order
+    from models.part import Part
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': '請求數據格式錯誤'
+            })
+        
+        order_number = data.get('order_number', '').strip()
+        expected_date = data.get('expected_date')
+        priority = data.get('priority', 'normal')
+        notes = data.get('notes', '')
+        items = data.get('items', [])
+        
+        if not order_number or not expected_date or not items:
+            return jsonify({
+                'success': False,
+                'error': '請填寫所有必要資訊'
+            })
+        
+        # 轉換日期格式
+        from datetime import datetime
+        try:
+            expected_date = datetime.strptime(expected_date, '%Y-%m-%d')
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'error': '日期格式錯誤'
+            })
+        
+        # 計算總金額
+        total_amount = sum(item.get('subtotal', 0) for item in items)
+        
+        # 為每個零件創建訂單記錄
+        order_ids = []
+        
+        for item in items:
+            part_number = item.get('part_number')
+            quantity = item.get('quantity', 0)
+            unit_price = item.get('unit_price', 0)
+            
+            # 查找零件
+            part = Part.query.filter_by(part_number=part_number).first()
+            if not part:
+                continue
+            
+            # 創建訂單記錄
+            new_order = Order(
+                part_id=part.id,
+                warehouse_id=1,  # 預設倉庫
+                quantity_ordered=quantity,
+                quantity_received=0,
+                unit_cost=unit_price,
+                status='pending',
+                supplier='自動採購單',  # 預設供應商
+                expected_date=expected_date,
+                notes=f"{order_number} - {notes}" if notes else order_number
+            )
+            
+            db.session.add(new_order)
+            db.session.flush()
+            order_ids.append(new_order.id)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'採購單 {order_number} 建立成功',
+            'order_ids': order_ids,
+            'order_number': order_number,
+            'total_amount': total_amount,
+            'items_count': len(items)
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': f'建立採購單時發生錯誤: {str(e)}'
+        })
 
 @web_bp.route('/inventory/stock-in', methods=['GET', 'POST'])
 def stock_in():
@@ -507,11 +1058,17 @@ def stock_out():
         warehouse_id = request.form.get('warehouse_id')
         quantity = request.form.get('quantity')
         transaction_type = request.form.get('transaction_type')
+        work_order_id = request.form.get('work_order_id')
         notes = request.form.get('notes', '')
         
         # 驗證必填欄位
         if not all([part_number, warehouse_id, quantity, transaction_type]):
             flash('所有欄位都是必填的', 'error')
+            return redirect(url_for('web.stock_out'))
+        
+        # 工單領用時需要工單編號
+        if transaction_type == 'OUT_WORK_ORDER' and not work_order_id:
+            flash('工單領用必須選擇工單編號', 'error')
             return redirect(url_for('web.stock_out'))
         
         # 驗證零件
@@ -544,14 +1101,24 @@ def stock_out():
             flash(f'庫存不足。可用數量: {available}', 'error')
             return redirect(url_for('web.stock_out'))
         
+        # 準備備註資訊
+        final_notes = notes
+        if transaction_type == 'OUT_WORK_ORDER' and work_order_id:
+            final_notes = f"工單領用 - 工單編號: {work_order_id}"
+            if notes:
+                final_notes += f"\n備註: {notes}"
+        
         # 執行出庫
         success = CurrentInventory.update_stock(
             part.id, warehouse_id, -quantity, transaction_type,
-            'MANUAL', None, notes
+            'MANUAL', None, final_notes
         )
         
         if success:
-            flash(f'{part_number} 出庫 {quantity} {part.unit} 成功', 'success')
+            success_msg = f'{part_number} 出庫 {quantity} {part.unit} 成功'
+            if transaction_type == 'OUT_WORK_ORDER':
+                success_msg += f' (工單: {work_order_id})'
+            flash(success_msg, 'success')
         else:
             flash('出庫作業失敗', 'error')
         
@@ -610,12 +1177,18 @@ def edit_stock_count(count_id):
         notes = request.form.get('notes')
         
         from datetime import datetime
-        try:
-            # The date from the form is a string, convert it to a date object
-            count_date = datetime.strptime(count_date_str, '%Y-%m-%d')
-        except (ValueError, TypeError):
-            flash('無效的日期格式', 'error')
-            # Get all warehouses for the dropdown
+        count_date = None
+        if count_date_str:
+            try:
+                # The date from the form is a string, convert it to a date object
+                count_date = datetime.strptime(count_date_str, '%Y-%m-%d')
+            except (ValueError, TypeError):
+                flash('無效的日期格式', 'error')
+                # Get all warehouses for the dropdown
+                warehouses = Warehouse.get_all()
+                return render_template('inventory/edit_stock_count.html', count=count, warehouses=warehouses)
+        else:
+            flash('盤點日期為必填項目', 'error')
             warehouses = Warehouse.get_all()
             return render_template('inventory/edit_stock_count.html', count=count, warehouses=warehouses)
 
