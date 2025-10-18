@@ -10,7 +10,7 @@
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item"><a href="{{ url_for('web.index') }}">首頁</a></li>
-                    <li class="breadcrumb-item"><a href="{{ url_for('weekly_order.weekly_orders') }}">週期訂單管理</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('weekly_order.weekly_orders') }}">訂單管理</a></li>
                     <li class="breadcrumb-item active">批量申請</li>
                 </ol>
             </nav>
@@ -108,10 +108,10 @@
                                         <th width="15%">品名 <span class="text-danger">*</span></th>
                                         <th width="8%">數量 <span class="text-danger">*</span></th>
                                         <th width="8%">單位</th>
-                                        <th width="10%">分類</th>
+                                        <th width="10%">類別</th>
                                         <th width="10%">需用日期</th>
-                                        <th width="10%">優先級</th>
-                                        <th width="12%">備註</th>
+                                        <th width="10%">申請類型</th>
+                                        <th width="12%">台份用/備註</th>
                                         <th width="5%">操作</th>
                                     </tr>
                                 </thead>
@@ -150,7 +150,7 @@
             <input type="text" class="form-control form-control-sm" name="items[0][part_name]" required>
         </td>
         <td>
-            <input type="number" class="form-control form-control-sm" name="items[0][quantity]" min="1" value="1" required>
+            <input type="number" class="form-control form-control-sm" name="items[0][quantity]" min="1" required>
         </td>
         <td>
             <select class="form-select form-select-sm" name="items[0][unit]">
@@ -165,7 +165,9 @@
             </select>
         </td>
         <td>
-            <input type="text" class="form-control form-control-sm" name="items[0][category]" placeholder="AUTO">
+            <select class="form-select form-select-sm" name="items[0][category]">
+                <option value="">請選擇類別</option>
+            </select>
         </td>
         <td>
             <input type="date" class="form-control form-control-sm" name="items[0][required_date]">
@@ -218,7 +220,7 @@ function addNewItem() {
     const tr = newRow.querySelector('tr');
     tr.querySelector('.item-sequence').textContent = itemCount + 1;
     
-    // 更新所有表單元素的 name 屬性
+// 更新所有表單元素的 name 屬性
     const inputs = tr.querySelectorAll('input, select');
     inputs.forEach(input => {
         const name = input.getAttribute('name');
@@ -227,6 +229,15 @@ function addNewItem() {
         }
     });
     
+    // Add event listener for barcode scanner (Enter key)
+    const partNumberInput = tr.querySelector('input[name*="[part_number]"]');
+    partNumberInput.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault(); // Prevent form submission
+            autoFillRow(this);
+        }
+    });
+
     tbody.appendChild(newRow);
     itemCount++;
 }
@@ -303,6 +314,58 @@ function fillItemData(index, data) {
 // 匯入模板功能（未來擴展）
 function importFromTemplate() {
     alert('模板匯入功能將在未來版本中提供');
+}
+
+// Auto-fill row data and handle scanner input
+function autoFillRow(partNumberInput) {
+    const partNumber = partNumberInput.value.trim();
+    const row = partNumberInput.closest('tr');
+    if (partNumber) {
+        fetch(`/api/part/${partNumber}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Part not found');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.part_info) {
+                    // Fill current row
+                    row.querySelector('input[name*="[part_name]"]').value = data.part_info.name || '';
+                    row.querySelector('select[name*="[unit]"]').value = data.part_info.unit || '';
+                    
+                    const categorySelect = row.querySelector('select[name*="[category]"]');
+                    const category = data.part_info.type || '';
+                    let optionExists = false;
+                    for (let i = 0; i < categorySelect.options.length; i++) {
+                        if (categorySelect.options[i].value === category) {
+                            optionExists = true;
+                            break;
+                        }
+                    }
+                    if (!optionExists && category) {
+                        const newOption = new Option(category, category, true, true);
+                        categorySelect.add(newOption);
+                    }
+                    categorySelect.value = category;
+
+                    // Add a new row and focus it for the next scan
+                    addNewItem();
+                    const allRows = document.querySelectorAll('#batchItemsBody tr');
+                    const lastRow = allRows[allRows.length - 1];
+                    if (lastRow) {
+                        lastRow.querySelector('input[name*="[part_number]"]').focus();
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error.message);
+                // Clear fields if part is not found
+                row.querySelector('input[name*="[part_name]"]').value = '';
+                row.querySelector('select[name*="[unit]"]').value = '';
+                row.querySelector('select[name*="[category]"]').value = '';
+            });
+    }
 }
 
 // 更新剩餘時間

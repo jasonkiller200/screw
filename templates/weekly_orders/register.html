@@ -10,7 +10,7 @@
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item"><a href="{{ url_for('web.index') }}">首頁</a></li>
-                    <li class="breadcrumb-item"><a href="{{ url_for('weekly_order.weekly_orders') }}">週期訂單管理</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('weekly_order.weekly_orders') }}">訂單管理</a></li>
                     <li class="breadcrumb-item active">申請登記</li>
                 </ol>
             </nav>
@@ -64,9 +64,10 @@
     </div>
     {% endif %}
 
-    <!-- 登記表單 -->
+    <!-- 登記表單與說明 -->
     <div class="row">
-        <div class="col-lg-8">
+        <!-- 主表單 -->
+        <div class="col-md-8">
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0">申請項目資訊</h5>
@@ -80,11 +81,12 @@
                                        value="{{ prefill_data.part_number if prefill_data else '' }}" required>
                                 <div class="form-text">產品編號或零件號碼</div>
                             </div>
-                            <div class="mb-3">
-                            <label for="part_name" class="form-label">品名 <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="part_name" name="part_name" 
-                                   value="{{ prefill_data.part_name if prefill_data else '' }}" required>
-                            <div class="form-text">產品或零件的完整名稱</div>
+                            <div class="col-md-6">
+                                <label for="part_name" class="form-label">品名 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="part_name" name="part_name" 
+                                       value="{{ prefill_data.part_name if prefill_data else '' }}" required>
+                                <div class="form-text">產品或零件的完整名稱</div>
+                            </div>
                         </div>
 
                         <div class="row mb-3">
@@ -97,21 +99,23 @@
                                 <label for="unit" class="form-label">單位 <span class="text-danger">*</span></label>
                                 <select class="form-select" id="unit" name="unit" required>
                                     <option value="">請選擇單位</option>
-                                    <option value="個" {{ 'selected' if prefill_data.unit == '個' else '' }}>個</option>
-                                    <option value="盒" {{ 'selected' if prefill_data.unit == '盒' else '' }}>盒</option>
-                                    <option value="包" {{ 'selected' if prefill_data.unit == '包' else '' }}>包</option>
-                                    <option value="組" {{ 'selected' if prefill_data.unit == '組' else '' }}>組</option>
-                                    <option value="公斤" {{ 'selected' if prefill_data.unit == '公斤' else '' }}>公斤</option>
-                                    <option value="公尺" {{ 'selected' if prefill_data.unit == '公尺' else '' }}>公尺</option>
-                                    <option value="片" {{ 'selected' if prefill_data.unit == '片' else '' }}>片</option>
-                                    <option value="支" {{ 'selected' if prefill_data.unit == '支' else '' }}>支</option>
-                                    <option value="條" {{ 'selected' if prefill_data.unit == '條' else '' }}>條</option>
+                                    <option value="個" {{ 'selected' if prefill_data and prefill_data.unit == '個' else '' }}>個</option>
+                                    <option value="盒" {{ 'selected' if prefill_data and prefill_data.unit == '盒' else '' }}>盒</option>
+                                    <option value="包" {{ 'selected' if prefill_data and prefill_data.unit == '包' else '' }}>包</option>
+                                    <option value="組" {{ 'selected' if prefill_data and prefill_data.unit == '組' else '' }}>組</option>
+                                    <option value="公斤" {{ 'selected' if prefill_data and prefill_data.unit == '公斤' else '' }}>公斤</option>
+                                    <option value="公尺" {{ 'selected' if prefill_data and prefill_data.unit == '公尺' else '' }}>公尺</option>
+                                    <option value="片" {{ 'selected' if prefill_data and prefill_data.unit == '片' else '' }}>片</option>
+                                    <option value="支" {{ 'selected' if prefill_data and prefill_data.unit == '支' else '' }}>支</option>
+                                    <option value="條" {{ 'selected' if prefill_data and prefill_data.unit == '條' else '' }}>條</option>
                                 </select>
                             </div>
                             <div class="col-md-4">
-                                <label for="category" class="form-label">種類</label>
-                                <input type="text" class="form-control" id="category" name="category"
-                                       value="{{ prefill_data.category if prefill_data else '' }}">
+                                <label for="category" class="form-label">類別</label>
+                                <select class="form-select" id="category" name="category">
+                                    <option value="">請選擇類別</option>
+                                    <!-- Options will be populated dynamically -->
+                                </select>
                                 <div class="form-text">如：ZROM</div>
                             </div>
                         </div>
@@ -125,7 +129,7 @@
                                 <label for="priority" class="form-label">申請類型 <span class="text-danger">*</span></label>
                                 <select class="form-select" id="priority" name="priority" required>
                                     <option value="normal" {{ 'selected' if not prefill_data or prefill_data.priority != 'urgent' else '' }}>一般申請</option>
-                                    <option value="urgent" {{ 'selected' if prefill_data.priority == 'urgent' else '' }}>緊急申請</option>
+                                    <option value="urgent" {{ 'selected' if prefill_data and prefill_data.priority == 'urgent' else '' }}>緊急申請</option>
                                 </select>
                                 <div class="form-text">緊急申請將優先處理</div>
                             </div>
@@ -160,7 +164,8 @@
             </div>
         </div>
 
-        <div class="col-lg-4">
+        <!-- 右側資訊欄 -->
+        <div class="col-md-4">
             <!-- 填寫說明 -->
             <div class="card mb-3">
                 <div class="card-header">
@@ -241,6 +246,41 @@ document.addEventListener('DOMContentLoaded', function() {
     const nextWeek = new Date();
     nextWeek.setDate(nextWeek.getDate() + 7);
     requiredDateInput.value = nextWeek.toISOString().split('T')[0];
+
+    // 自動帶入品名、種類和單位
+    const partNumberInput = document.getElementById('part_number');
+    partNumberInput.addEventListener('blur', function() {
+        const partNumber = this.value.trim();
+        if (partNumber) {
+            fetch(`/api/part/${partNumber}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.part_info) {
+                        document.getElementById('part_name').value = data.part_info.name || '';
+                        
+                        const categorySelect = document.getElementById('category');
+                        const category = data.part_info.type || '';
+                        // Check if the category option already exists
+                        let optionExists = false;
+                        for (let i = 0; i < categorySelect.options.length; i++) {
+                            if (categorySelect.options[i].value === category) {
+                                optionExists = true;
+                                break;
+                            }
+                        }
+                        // If not, add it
+                        if (!optionExists && category) {
+                            const newOption = new Option(category, category, true, true);
+                            categorySelect.add(newOption);
+                        }
+                        categorySelect.value = category;
+
+                        document.getElementById('unit').value = data.part_info.unit || '';
+                    }
+                })
+                .catch(error => console.error('Error fetching part details:', error));
+        }
+    });
 });
 </script>
 {% endblock %}

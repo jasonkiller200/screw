@@ -252,10 +252,21 @@ def batch_register_form():
             flash(f'批量申請提交失敗：{str(e)}', 'error')
             return redirect(request.url)
 
-@weekly_order_bp.route('/weekly-orders/cycle/<int:cycle_id>')
-def view_cycle(cycle_id):
-    """查看特定週期的詳細資訊"""
+@weekly_order_bp.route('/weekly-orders/cycle/<int:cycle_id>', methods=['GET', 'DELETE'])
+def manage_cycle(cycle_id):
+    """查看或刪除特定週期"""
     cycle = WeeklyOrderCycle.query.get_or_404(cycle_id)
+    
+    if request.method == 'DELETE':
+        try:
+            db.session.delete(cycle)
+            db.session.commit()
+            return jsonify({'success': True, 'message': '週期已成功刪除'})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'error': str(e)})
+    
+    # GET request
     registrations = OrderRegistration.query.filter_by(cycle_id=cycle_id).order_by(OrderRegistration.item_sequence).all()
     review_logs = OrderReviewLog.query.filter_by(cycle_id=cycle_id).order_by(OrderReviewLog.created_at.desc()).all()
     
@@ -337,7 +348,7 @@ def batch_review():
         updated_count = 0
         for reg_id in registration_ids:
             registration = OrderRegistration.query.get(reg_id)
-            if registration and registration.status == 'pending':
+            if registration and registration.status == 'registered':
                 old_status = registration.status
                 registration.status = action
                 
@@ -422,10 +433,8 @@ def export_excel(cycle_id):
         # 儲存檔案路徑（可選）
         filename = f"申請單_{cycle.cycle_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
         
-        # 更新週期狀態
-        cycle.status = 'completed'
+        # Do not change cycle status here, only log the export action
         cycle.excel_generated = True
-        cycle.reviewed_at = get_taipei_time()
         
         # 記錄審查log
         review_log = OrderReviewLog()
