@@ -127,7 +127,6 @@
                                     </th>
                                     <th>品號</th>
                                     <th>品名</th>
-                                    <th>規格</th>
                                     <th>數量</th>
                                     <th>單位</th>
                                     <th>類型</th>
@@ -148,7 +147,6 @@
                                     </td>
                                     <td><strong>{{ registration.part_number }}</strong></td>
                                     <td>{{ registration.part_name }}</td>
-                                    <td>{{ registration.specifications or '-' }}</td>
                                     <td class="text-end">{{ registration.quantity }}</td>
                                     <td>{{ registration.unit }}</td>
                                     <td>
@@ -289,8 +287,6 @@ function viewDetails(registrationId) {
                         <table class="table table-sm">
                             <tr><td><strong>品號：</strong></td><td>${data.part_number}</td></tr>
                             <tr><td><strong>品名：</strong></td><td>${data.part_name}</td></tr>
-                            <tr><td><strong>規格：</strong></td><td>${data.specifications || '-'}</td></tr>
-                            <tr><td><strong>物料性質：</strong></td><td>${data.material_nature || '-'}</td></tr>
                             <tr><td><strong>種類：</strong></td><td>${data.category || '-'}</td></tr>
                         </table>
                     </div>

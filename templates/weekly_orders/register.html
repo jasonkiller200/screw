@@ -80,30 +80,11 @@
                                        value="{{ prefill_data.part_number if prefill_data else '' }}" required>
                                 <div class="form-text">產品編號或零件號碼</div>
                             </div>
-                            <div class="col-md-6">
-                                <label for="material_nature" class="form-label">物料性質</label>
-                                <select class="form-select" id="material_nature" name="material_nature">
-                                    <option value="">請選擇...</option>
-                                    <option value="採購品" {{ 'selected' if prefill_data.material_nature == '採購品' else '' }}>採購品</option>
-                                    <option value="製造品" {{ 'selected' if prefill_data.material_nature == '製造品' else '' }}>製造品</option>
-                                    <option value="消耗品" {{ 'selected' if prefill_data.material_nature == '消耗品' else '' }}>消耗品</option>
-                                    <option value="其他" {{ 'selected' if prefill_data.material_nature == '其他' else '' }}>其他</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
+                            <div class="mb-3">
                             <label for="part_name" class="form-label">品名 <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="part_name" name="part_name" 
                                    value="{{ prefill_data.part_name if prefill_data else '' }}" required>
                             <div class="form-text">產品或零件的完整名稱</div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="specifications" class="form-label">規格</label>
-                            <input type="text" class="form-control" id="specifications" name="specifications"
-                                   value="{{ prefill_data.specifications if prefill_data else '' }}">
-                            <div class="form-text">詳細規格說明（如尺寸、型號等）</div>
                         </div>
 
                         <div class="row mb-3">

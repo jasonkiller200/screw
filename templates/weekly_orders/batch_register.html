@@ -106,7 +106,6 @@
                                         <th width="5%">#</th>
                                         <th width="12%">品號 <span class="text-danger">*</span></th>
                                         <th width="15%">品名 <span class="text-danger">*</span></th>
-                                        <th width="10%">規格</th>
                                         <th width="8%">數量 <span class="text-danger">*</span></th>
                                         <th width="8%">單位</th>
                                         <th width="10%">分類</th>
@@ -149,9 +148,6 @@
         </td>
         <td>
             <input type="text" class="form-control form-control-sm" name="items[0][part_name]" required>
-        </td>
-        <td>
-            <input type="text" class="form-control form-control-sm" name="items[0][specifications]">
         </td>
         <td>
             <input type="number" class="form-control form-control-sm" name="items[0][quantity]" min="1" value="1" required>
@@ -297,7 +293,6 @@ function fillItemData(index, data) {
     
     if (data.part_number) row.querySelector('input[name*="[part_number]"]').value = data.part_number;
     if (data.part_name) row.querySelector('input[name*="[part_name]"]').value = data.part_name;
-    if (data.specifications) row.querySelector('input[name*="[specifications]"]').value = data.specifications;
     if (data.quantity) row.querySelector('input[name*="[quantity]"]').value = data.quantity;
     if (data.unit) row.querySelector('select[name*="[unit]"]').value = data.unit;
     if (data.category) row.querySelector('input[name*="[category]"]').value = data.category;

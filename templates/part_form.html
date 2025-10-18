@@ -58,9 +58,20 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label for="description" class="form-label">描述</label>
+                        <label for="type" class="form-label">類型</label>
+                        <select class="form-select" id="type" name="type">
+                            <option value="">請選擇類型</option>
+                            <option value="ZROM" {% if part and part.type == 'ZROM' %}selected{% endif %}>ZROM - 市購件,金額小,倉庫不撥料</option>
+                            <option value="A" {% if part and part.type == 'A' %}selected{% endif %}>A - 市購件,未納入BOM表(PT100)</option>
+                            <option value="B" {% if part and part.type == 'B' %}selected{% endif %}>B - 生產工具(手套)</option>
+                            <option value="C" {% if part and part.type == 'C' %}selected{% endif %}>C - 生產耗材(顆粒布)</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">備註</label>
                         <textarea class="form-control" id="description" name="description" rows="3">{{ part.description if part else '' }}</textarea>
-                        <div class="form-text">詳細的零件描述和規格</div>
+                        <div class="form-text">關於此零件的備註事項</div>
                     </div>
                     
                     <div class="row">
@@ -89,24 +100,24 @@
                         </div>
                         <div class="col-md-4">
                             <div class="mb-3">
-                                <label for="locations" class="form-label">儲存位置 <span class="text-danger">*</span></label>
+                                <label for="locations" class="form-label">儲存位置</label>
                                 <div id="location-inputs">
                                     {% if part and part.location_associations %}
                                         {% for assoc in part.location_associations %}
                                             <div class="input-group mb-2 location-input-group">
-                                                <select class="form-select location-warehouse-select" name="location_warehouse_id[]" required>
+                                                <select class="form-select location-warehouse-select" name="location_warehouse_id[]">
                                                     <option value="{{ assoc.warehouse_location.warehouse_id }}" selected>{{ assoc.warehouse_location.warehouse.name }}</option>
                                                 </select>
-                                                <input type="text" class="form-control location-code-input" name="location_code[]" value="{{ assoc.warehouse_location.location_code }}" placeholder="位置代碼" required>
+                                                <input type="text" class="form-control location-code-input" name="location_code[]" value="{{ assoc.warehouse_location.location_code }}" placeholder="位置代碼">
                                                 <button type="button" class="btn btn-outline-danger remove-location-btn"><i class="fas fa-times"></i></button>
                                             </div>
                                         {% endfor %}
                                     {% else %}
                                         <div class="input-group mb-2 location-input-group">
-                                            <select class="form-select location-warehouse-select" name="location_warehouse_id[]" required>
+                                            <select class="form-select location-warehouse-select" name="location_warehouse_id[]">
                                                 <option value="">選擇倉庫</option>
                                             </select>
-                                            <input type="text" class="form-control location-code-input" name="location_code[]" placeholder="位置代碼" required>
+                                            <input type="text" class="form-control location-code-input" name="location_code[]" placeholder="位置代碼">
                                             <button type="button" class="btn btn-outline-danger remove-location-btn" style="display:none;"><i class="fas fa-times"></i></button>
                                         </div>
                                     {% endif %}

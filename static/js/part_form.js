@@ -43,16 +43,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-    function updateRemoveButtons() {
-        if (!locationInputsContainer) return;
-        const removeButtons = locationInputsContainer.querySelectorAll('.remove-location-btn');
-        if (removeButtons.length <= 1) {
-            removeButtons.forEach(button => button.style.display = 'none');
-        } else {
-            removeButtons.forEach(button => button.style.display = 'inline-flex');
-        }
-    }
-
+    // Function to create a new location input group
     function createLocationInputGroup() {
         const newLocationInputGroup = document.createElement('div');
         newLocationInputGroup.classList.add('input-group', 'mb-2', 'location-input-group');
@@ -60,8 +51,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const select = document.createElement('select');
         select.className = 'form-select location-warehouse-select';
         select.name = 'location_warehouse_id[]';
-        select.required = true;
-        // Use a temporary empty select, it will be populated by the main logic
+        select.required = false; // Set to false as per previous change
         select.innerHTML = '<option value="">選擇倉庫</option>';
         populateSelect(select, allWarehouses); // Populate with the loaded warehouses
         
@@ -72,7 +62,7 @@ document.addEventListener('DOMContentLoaded', function() {
         input.className = 'form-control location-code-input';
         input.name = 'location_code[]';
         input.placeholder = '位置代碼';
-        input.required = true;
+        input.required = false; // Set to false as per previous change
         newLocationInputGroup.appendChild(input);
 
         const button = document.createElement('button');
@@ -84,6 +74,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return newLocationInputGroup;
     }
 
+    // Event listener for "Add Location" button
     if (addLocationBtn) {
         addLocationBtn.disabled = true; // Disable button until warehouse data is loaded
         addLocationBtn.addEventListener('click', function() {
@@ -92,21 +83,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             locationInputsContainer.appendChild(createLocationInputGroup());
-            updateRemoveButtons();
         });
     }
 
+    // Event listener for removing location
     if (locationInputsContainer) {
         locationInputsContainer.addEventListener('click', function(event) {
             const removeBtn = event.target.closest('.remove-location-btn');
             if (removeBtn) {
-                if (locationInputsContainer.querySelectorAll('.location-input-group').length > 1) {
-                    removeBtn.closest('.location-input-group').remove();
-                    updateRemoveButtons();
-                }
+                removeBtn.closest('.location-input-group').remove();
             }
         });
     }
-
-    updateRemoveButtons(); // Initial call
 });

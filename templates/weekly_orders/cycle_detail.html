@@ -91,7 +91,6 @@
                                     <th>項次</th>
                                     <th>品號</th>
                                     <th>品名</th>
-                                    <th>規格</th>
                                     <th>數量</th>
                                     <th>類型</th>
                                     <th>申請人</th>
@@ -105,7 +104,6 @@
                                     <td>{{ registration.item_sequence }}</td>
                                     <td><strong>{{ registration.part_number }}</strong></td>
                                     <td>{{ registration.part_name }}</td>
-                                    <td>{{ registration.specifications or '-' }}</td>
                                     <td>{{ registration.quantity }} {{ registration.unit }}</td>
                                     <td>
                                         {% if registration.priority == 'urgent' %}

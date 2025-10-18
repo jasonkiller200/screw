@@ -125,9 +125,7 @@ class OrderRegistration(db.Model):
     cycle_id = db.Column(db.Integer, db.ForeignKey('weekly_order_cycles.id'), nullable=False)
     item_sequence = db.Column(db.Integer, nullable=False, comment='項次')
     part_number = db.Column(db.String(100), nullable=False, comment='品號')
-    material_nature = db.Column(db.String(50), nullable=True, comment='物料性質')
     part_name = db.Column(db.String(200), nullable=False, comment='品名')
-    specifications = db.Column(db.String(200), nullable=True, comment='規格')
     quantity = db.Column(db.Integer, nullable=False, comment='數量')
     unit = db.Column(db.String(20), nullable=False, comment='單位')
     category = db.Column(db.String(50), nullable=True, comment='種類')
@@ -154,9 +152,7 @@ class OrderRegistration(db.Model):
             'cycle_id': self.cycle_id,
             'item_sequence': self.item_sequence,
             'part_number': self.part_number,
-            'material_nature': self.material_nature,
             'part_name': self.part_name,
-            'specifications': self.specifications,
             'quantity': self.quantity,
             'unit': self.unit,
             'category': self.category,

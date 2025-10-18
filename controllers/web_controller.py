@@ -248,7 +248,7 @@ def new_part():
         # Validate required fields and at least one storage location
         # description is nullable, so it's not included in the all() check
         # Explicitly check for None or empty strings for required fields
-        if not part_number or not name or not unit or not quantity_per_box or not locations_data:
+        if not part_number or not name or not unit or not quantity_per_box:
             flash('所有欄位都是必填的，且至少需要一個儲存位置', 'error')
             part_data = {
                 'part_number': part_number,
@@ -338,6 +338,7 @@ def edit_part(part_id):
     if request.method == 'POST':
         part_number = request.form.get('part_number')
         name = request.form.get('name')
+        type = request.form.get('type')
         description = request.form.get('description')
         unit = request.form.get('unit')
         quantity_per_box = request.form.get('quantity_per_box')
@@ -356,13 +357,14 @@ def edit_part(part_id):
         # Validate required fields and at least one storage location
         # description is nullable, so it's not included in the all() check
         # Explicitly check for None or empty strings for required fields
-        if not part_number or not name or not unit or not quantity_per_box or not locations_data:
+        if not part_number or not name or not unit or not quantity_per_box:
             flash('所有欄位都是必填的，且至少需要一個儲存位置', 'error')
             # To re-render the form with submitted data, we need to fetch the part again
             part = Part.get_by_id(part_id)
             if part:
                 # Update part object attributes for re-rendering
                 part.name = name
+                part.type = type
                 part.description = description
                 part.unit = unit
                 part.quantity_per_box = quantity_per_box
@@ -382,6 +384,7 @@ def edit_part(part_id):
                 part = Part.get_by_id(part_id)
                 if part:
                     part.name = name
+                    part.type = type
                     part.description = description
                     part.unit = unit
                     part.quantity_per_box = quantity_per_box
@@ -414,6 +417,7 @@ def edit_part(part_id):
             part_id=part_id, 
             part_number=part_number, 
             name=name, 
+            type=type, 
             description=description, 
             unit=unit, 
             quantity_per_box=quantity_per_box, 

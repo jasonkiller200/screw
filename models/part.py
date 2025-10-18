@@ -97,7 +97,8 @@ class Part(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     part_number = db.Column(db.String(100), unique=True, nullable=False)
     name = db.Column(db.String(255), nullable=False)
-    description = db.Column(db.Text, nullable=True)
+    type = db.Column(db.String(100), nullable=True, comment='類型')
+    description = db.Column(db.Text, nullable=True, comment='備註')
     unit = db.Column(db.String(50), nullable=False, default='個')
     quantity_per_box = db.Column(db.Integer, nullable=False)
     safety_stock = db.Column(db.Integer, default=0)
@@ -109,10 +110,11 @@ class Part(db.Model):
     # Relationship to PartWarehouseLocation
     location_associations = relationship("PartWarehouseLocation", back_populates="part", cascade="all, delete-orphan")
 
-    def __init__(self, part_number, name, description=None, unit='個', quantity_per_box=1,
+    def __init__(self, part_number, name, type=None, description=None, unit='個', quantity_per_box=1,
                  safety_stock=0, reorder_point=0, standard_cost=0, is_active=True, created_at=None):
         self.part_number = part_number
         self.name = name
+        self.type = type
         self.description = description
         self.unit = unit
         self.quantity_per_box = quantity_per_box
@@ -125,9 +127,10 @@ class Part(db.Model):
     def to_dict(self, include_locations=False):
         data = {
             'id': self.id,
-            'part_number': self.part_number,
             'name': self.name,
-            'description': self.description,
+            'type': self.type,
+            'remarks': self.description, # Renamed from description
+
             'unit': self.unit,
             'quantity_per_box': self.quantity_per_box,
             'safety_stock': self.safety_stock,
@@ -173,7 +176,7 @@ class Part(db.Model):
         return query.paginate(page=page, per_page=per_page, error_out=False)
 
     @classmethod
-    def create(cls, part_number, name, description, unit, quantity_per_box, locations_data, 
+    def create(cls, part_number, name, type, description, unit, quantity_per_box, locations_data, 
                safety_stock=0, reorder_point=0, standard_cost=0, is_active=True):
         
         if cls.query.filter_by(part_number=part_number).first():
@@ -225,6 +228,7 @@ class Part(db.Model):
         new_part = cls(
             part_number=part_number,
             name=name,
+            type=type,
             description=description,
             unit=unit,
             quantity_per_box=quantity_per_box,
@@ -261,7 +265,7 @@ class Part(db.Model):
         return {'success': True}
 
     @classmethod
-    def update(cls, part_id, part_number, name, description, unit, quantity_per_box, locations_data,
+    def update(cls, part_id, part_number, name, type, description, unit, quantity_per_box, locations_data,
                safety_stock=0, reorder_point=0, standard_cost=0, is_active=True):
         
         part = cls.query.get(part_id)
@@ -318,6 +322,7 @@ class Part(db.Model):
 
         part.part_number = part_number
         part.name = name
+        part.type = type
         part.description = description
         part.unit = unit
         part.quantity_per_box = quantity_per_box

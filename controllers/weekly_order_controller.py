@@ -51,7 +51,6 @@ def register_order():
         prefill_data = {
             'part_number': request.args.get('part_number', ''),
             'part_name': request.args.get('part_name', ''),
-            'specifications': request.args.get('specifications', ''),
             'quantity': request.args.get('quantity', ''),
             'unit': request.args.get('unit', ''),
             'category': request.args.get('category', ''),
@@ -69,9 +68,7 @@ def register_order():
                 cycle_id=current_cycle.id,
                 item_sequence=next_sequence,
                 part_number=request.form.get('part_number', '').strip(),
-                material_nature=request.form.get('material_nature', '').strip(),
                 part_name=request.form.get('part_name', '').strip(),
-                specifications=request.form.get('specifications', '').strip(),
                 quantity=int(request.form.get('quantity', 0)),
                 unit=request.form.get('unit', '').strip(),
                 category=request.form.get('category', '').strip(),
@@ -127,9 +124,7 @@ def batch_register():
             registration.cycle_id = current_cycle.id
             registration.item_sequence = next_sequence
             registration.part_number = part_data.get('part_number', '').strip()
-            registration.material_nature = part_data.get('material_nature', '採購品').strip()
             registration.part_name = part_data.get('part_name', '').strip()
-            registration.specifications = part_data.get('specifications', '').strip()
             registration.quantity = int(part_data.get('quantity', 1))
             registration.unit = part_data.get('unit', '個').strip()
             registration.category = part_data.get('category', '').strip()
@@ -223,9 +218,7 @@ def batch_register_form():
                 registration.cycle_id = current_cycle.id
                 registration.item_sequence = next_sequence
                 registration.part_number = part_number
-                registration.material_nature = '採購品'  # 預設值
                 registration.part_name = part_name
-                registration.specifications = request.form.get(f'items[{item_index}][specifications]', '').strip()
                 registration.quantity = quantity
                 registration.unit = request.form.get(f'items[{item_index}][unit]', '個').strip()
                 registration.category = request.form.get(f'items[{item_index}][category]', '').strip()
@@ -397,9 +390,7 @@ def export_excel(cycle_id):
             data.append({
                 '項次': reg.item_sequence,
                 '品號': reg.part_number,
-                '物料性質': reg.material_nature or '',
                 '品名': reg.part_name,
-                '規格': reg.specifications or '',
                 '數量': reg.quantity,
                 '單位': reg.unit,
                 '種類': reg.category or '',
