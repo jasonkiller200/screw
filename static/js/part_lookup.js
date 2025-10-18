@@ -1,8 +1,7 @@
 // 重定向到週期申請（取代建立訂單功能）
 function openOrderModal(partNumber, partName, unit) {
     // 顯示提示並重定向到週期申請
-    if (confirm('訂單功能已統一到週期申請系統。
-點擊確定前往週期申請頁面')) {
+    if (confirm('訂單功能已統一到週期申請系統。點擊確定前往週期申請頁面')) {
         const params = new URLSearchParams({
             part_number: partNumber,
             part_name: partName,
@@ -72,12 +71,12 @@ document.addEventListener('DOMContentLoaded', function () {
             status.className = 'alert alert-info mt-2';
 
             if (!codeReader) {
-                codeReader = new ZXing.BrowserMultiFormatReader();
+                codeReader = new ZXingBrowser.BrowserMultiFormatReader();
                 console.log('ZXing Browser scanner initialized');
             }
 
             // 查找所有可用的視訊輸入設備
-            const videoInputDevices = await ZXing.BrowserCodeReader.listVideoInputDevices();
+            const videoInputDevices = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
             if (videoInputDevices.length < 1) {
                 throw new Error("找不到相機裝置。");
             }
@@ -106,10 +105,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     searchPart(result.text);
                 }
 
-                if (err && !(err instanceof ZXing.NotFoundException)) {
-                    console.error('掃描錯誤:', err);
-                    status.textContent = `❌ 掃描出錯: ${err.message}`;
-                    status.className = 'alert alert-danger mt-2';
+                if (err) {
+                    // Ignore common, non-fatal errors that happen during scanning
+                    const ignoredErrors = ['NotFoundException', 'ChecksumException', 'FormatException'];
+                    if (!ignoredErrors.includes(err.name)) {
+                        console.error('掃描錯誤:', err);
+                        status.textContent = `❌ 掃描出錯: ${err.message}`;
+                        status.className = 'alert alert-danger mt-2';
+                    }
                 }
             });
 
