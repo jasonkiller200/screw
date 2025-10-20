@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, send_file
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, send_file, make_response
 from extensions import db
 from models.weekly_order import WeeklyOrderCycle, OrderRegistration, OrderReviewLog, User
 from datetime import datetime, timedelta
@@ -251,6 +251,29 @@ def batch_register_form():
             db.session.rollback()
             flash(f'批量申請提交失敗：{str(e)}', 'error')
             return redirect(request.url)
+
+@weekly_order_bp.route('/weekly-orders/batch_register.js')
+def batch_register_js():
+    """Renders the javascript for the batch register page."""
+    current_cycle = WeeklyOrderCycle.get_current_cycle()
+    
+    # This logic is duplicated from batch_register_form's GET part
+    prefill_items = []
+    items_param = request.args.get('items')
+    if items_param:
+        try:
+            import json
+            prefill_items = json.loads(items_param)
+        except (json.JSONDecodeError, TypeError):
+            prefill_items = []
+
+    response = make_response(render_template(
+        'weekly_orders/batch_register.js.j2',
+        current_cycle=current_cycle,
+        prefill_items=prefill_items
+    ))
+    response.headers['Content-Type'] = 'application/javascript'
+    return response
 
 @weekly_order_bp.route('/weekly-orders/cycle/<int:cycle_id>', methods=['GET', 'DELETE'])
 def manage_cycle(cycle_id):

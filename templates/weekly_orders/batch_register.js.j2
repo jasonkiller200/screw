@@ -1,0 +1,233 @@
+let itemCount = 0;
+
+// 頁面載入時初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 添加第一個項目
+    addNewItem();
+    
+    // 如果有預填資料，則填入
+    {% if prefill_items %}
+    const prefillItems = {{ prefill_items | tojson }};
+    prefillItems.forEach((item, index) => {
+        if (index > 0) addNewItem(); // 第一個已經添加了
+        fillItemData(index, item);
+    });
+    {% endif %}
+    
+    updateTimeRemaining();
+    setInterval(updateTimeRemaining, 60000); // 每分鐘更新一次
+});
+
+// 新增項目
+function addNewItem() {
+    const template = document.getElementById('itemRowTemplate');
+    const tbody = document.getElementById('batchItemsBody');
+    const newRow = template.content.cloneNode(true);
+    
+    // 更新項目序號和表單名稱
+    const tr = newRow.querySelector('tr');
+    tr.querySelector('.item-sequence').textContent = itemCount + 1;
+    
+// 更新所有表單元素的 name 屬性
+    const inputs = tr.querySelectorAll('input, select');
+    inputs.forEach(input => {
+        const name = input.getAttribute('name');
+        if (name) {
+            input.setAttribute('name', name.replace('[0]', `[${itemCount}]`));
+        }
+    });
+    
+    // Add event listener for barcode scanner (Enter key)
+    const partNumberInput = tr.querySelector('input[name*="[part_number]"]');
+    partNumberInput.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault(); // Prevent form submission
+            autoFillRow(this);
+        }
+    });
+
+    tbody.appendChild(newRow);
+    itemCount++;
+}
+
+// 移除項目
+function removeItem(button) {
+    if (itemCount <= 1) {
+        alert('至少需要保留一個申請項目');
+        return;
+    }
+    
+    const row = button.closest('tr');
+    row.remove();
+    itemCount--;
+    
+    // 重新編號
+    updateItemSequences();
+}
+
+// 更新項目序號
+function updateItemSequences() {
+    const rows = document.querySelectorAll('#batchItemsBody tr');
+    rows.forEach((row, index) => {
+        row.querySelector('.item-sequence').textContent = index + 1;
+        
+        // 更新表單名稱
+        const inputs = row.querySelectorAll('input, select');
+        inputs.forEach(input => {
+            const name = input.getAttribute('name');
+            if (name) {
+                const newName = name.replace(/\[\d+\]/, `[${index}]`);
+                input.setAttribute('name', newName);
+            }
+        });
+    });
+}
+
+// 套用全域優先級
+function applyGlobalPriority() {
+    const globalPriority = document.getElementById('global_priority').value;
+    if (globalPriority) {
+        const prioritySelects = document.querySelectorAll('select[name*="[priority]"]');
+        prioritySelects.forEach(select => {
+            select.value = globalPriority;
+        });
+    }
+}
+
+// 套用全域需用日期
+function applyGlobalDate() {
+    const globalDate = document.getElementById('global_required_date').value;
+    if (globalDate) {
+        const dateInputs = document.querySelectorAll('input[name*="[required_date]"]');
+        dateInputs.forEach(input => {
+            input.value = globalDate;
+        });
+    }
+}
+
+// 填入項目資料（用於預填）
+function fillItemData(index, data) {
+    const row = document.querySelectorAll('#batchItemsBody tr')[index];
+    if (!row) return;
+    
+    if (data.part_number) row.querySelector('input[name*="[part_number]"]').value = data.part_number;
+    if (data.part_name) row.querySelector('input[name*="[part_name]"]').value = data.part_name;
+    if (data.quantity) row.querySelector('input[name*="[quantity]"]').value = data.quantity;
+    if (data.unit) row.querySelector('select[name*="[unit]"]').value = data.unit;
+    if (data.category) row.querySelector('input[name*="[category]"]').value = data.category;
+    if (data.priority) row.querySelector('select[name*="[priority]"]').value = data.priority;
+    if (data.purpose_notes) row.querySelector('input[name*="[purpose_notes]"]').value = data.purpose_notes;
+}
+
+// 匯入模板功能（未來擴展）
+function importFromTemplate() {
+    alert('模板匯入功能將在未來版本中提供');
+}
+
+// Auto-fill row data and handle scanner input
+function autoFillRow(partNumberInput) {
+    const partNumber = partNumberInput.value.trim();
+    const row = partNumberInput.closest('tr');
+    if (partNumber) {
+        fetch(`/api/part/${partNumber}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Part not found');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.part_info) {
+                    // Fill current row
+                    row.querySelector('input[name*="[part_name]"]').value = data.part_info.name || '';
+                    row.querySelector('select[name*="[unit]"]').value = data.part_info.unit || '';
+                    
+                    const categorySelect = row.querySelector('select[name*="[category]"]');
+                    const category = data.part_info.type || '';
+                    let optionExists = false;
+                    for (let i = 0; i < categorySelect.options.length; i++) {
+                        if (categorySelect.options[i].value === category) {
+                            optionExists = true;
+                            break;
+                        }
+                    }
+                    if (!optionExists && category) {
+                        const newOption = new Option(category, category, true, true);
+                        categorySelect.add(newOption);
+                    }
+                    categorySelect.value = category;
+
+                    // Add a new row and focus it for the next scan
+                    addNewItem();
+                    const allRows = document.querySelectorAll('#batchItemsBody tr');
+                    const lastRow = allRows[allRows.length - 1];
+                    if (lastRow) {
+                        lastRow.querySelector('input[name*="[part_number]"]').focus();
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error.message);
+                // Clear fields if part is not found
+                row.querySelector('input[name*="[part_name]"]').value = '';
+                row.querySelector('select[name*="[unit]"]').value = '';
+                row.querySelector('select[name*="[category]"]').value = '';
+            });
+    }
+}
+
+// 更新剩餘時間
+function updateTimeRemaining() {
+    {% if current_cycle.is_active %}
+    const deadline = new Date('{{ current_cycle.deadline.isoformat() }}');
+    const now = new Date();
+    const timeDiff = deadline - now;
+    
+    if (timeDiff > 0) {
+        const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+        
+        document.getElementById('timeRemaining').innerHTML = 
+            `<i class="fas fa-clock text-warning"></i> 剩餘時間：${days}天 ${hours}小時 ${minutes}分鐘`;
+    } else {
+        document.getElementById('timeRemaining').innerHTML = 
+            '<i class="fas fa-exclamation-triangle text-danger"></i> 申請已截止';
+    }
+    {% endif %}
+}
+
+// 表單提交前驗證
+document.getElementById('batchOrderForm').addEventListener('submit', function(e) {
+    const rows = document.querySelectorAll('#batchItemsBody tr');
+    if (rows.length === 0) {
+        e.preventDefault();
+        alert('請至少添加一個申請項目');
+        return;
+    }
+    
+    // 檢查必填欄位
+    let hasEmpty = false;
+    rows.forEach(row => {
+        const requiredInputs = row.querySelectorAll('input[required], select[required]');
+        requiredInputs.forEach(input => {
+            if (!input.value.trim()) {
+                hasEmpty = true;
+                input.classList.add('is-invalid');
+            } else {
+                input.classList.remove('is-invalid');
+            }
+        });
+    });
+    
+    if (hasEmpty) {
+        e.preventDefault();
+        alert('請填寫所有必填欄位（已標示為紅色）');
+        return;
+    }
+    
+    // 確認提交
+    if (!confirm(`確定要提交 ${rows.length} 個申請項目嗎？`)) {
+        e.preventDefault();
+    }
+});

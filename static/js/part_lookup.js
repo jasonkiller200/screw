@@ -1,20 +1,4 @@
-// 重定向到週期申請（取代建立訂單功能）
-function openOrderModal(partNumber, partName, unit) {
-    // 顯示提示並重定向到週期申請
-    if (confirm('訂單功能已統一到週期申請系統。點擊確定前往週期申請頁面')) {
-        const params = new URLSearchParams({
-            part_number: partNumber,
-            part_name: partName,
-            unit: unit,
-            quantity: '1',
-            material_nature: '採購品',
-            priority: 'normal',
-            source: 'lookup'
-        });
-        
-        window.location.href = `/weekly_orders/register?${params.toString()}`;
-    }
-}
+
 
 document.addEventListener('DOMContentLoaded', function () {
     console.log('🚀 零件查詢頁面已載入');
@@ -177,9 +161,11 @@ document.addEventListener('DOMContentLoaded', function () {
         const history = data.order_history;
         const inventories = data.inventories || [];
         
+        console.log('🔍 showResults 接收到的 part 物件:', part); // 添加這行來診斷
+
         // 保存當前零件的儲位資訊
-        currentPartLocations = part.locations || [];
-        
+        currentPartLocations = part?.locations || []; // 使用可選鏈接
+
         let historyHtml = '';
         if (history.length > 0) {
             historyHtml = history.map(order => {
@@ -210,7 +196,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (inventories.length > 0) {
             inventoryHtml = inventories.map(inv => {
                 // 找出該倉庫的倉位
-                const warehouseLocations = part.locations ? 
+                const warehouseLocations = part?.locations ? // 使用可選鏈接
                     part.locations.filter(loc => loc.warehouse_id === inv.warehouse_id) : [];
                 const locationStr = warehouseLocations.length > 0 ? 
                     warehouseLocations.map(loc => loc.location_code).join(', ') : 
@@ -234,12 +220,9 @@ document.addEventListener('DOMContentLoaded', function () {
             <div class="card mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">零件資訊</h5>
-                    <div class="btn-group">
-                        <button class="btn btn-success btn-sm" onclick="addToWeeklyOrder('${part.part_number}', '${part.name}', '${part.unit}')">
+                    <div>
+                        <button class="btn btn-success btn-sm" onclick="addToWeeklyOrder('${part?.part_number || ''}', '${part?.name || ''}', '${part?.unit || ''}')">
                             <i class="fas fa-calendar-plus me-1"></i>加入週期申請
-                        </button>
-                        <button class="btn btn-primary btn-sm" onclick="openOrderModal('${part.part_number}', '${part.name}', '${part.unit}')">
-                            <i class="fas fa-plus me-1"></i>申請採購
                         </button>
                     </div>
                 </div>
@@ -247,13 +230,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div class="row">
                         <div class="col-md-6">
                             <div class="part-info p-3 rounded mb-3">
-                                <h6><strong>零件編號：</strong>${part.part_number}</h6>
-                                <p class="mb-2"><strong>名稱：</strong>${part.name}</p>
-                                <p class="mb-2"><strong>描述：</strong>${part.description || '無'}</p>
-                                <p class="mb-2"><strong>單位：</strong>${part.unit}</p>
-                                <p class="mb-2"><strong>每盒數量：</strong>${part.quantity_per_box}</p>
+                                <h6><strong>零件編號：</strong>${part?.part_number || 'N/A'}</h6>
+                                <p class="mb-2"><strong>名稱：：</strong>${part?.name || 'N/A'}</p>
+                                <p class="mb-2"><strong>備註：</strong>${part?.description || '無'}</p>
+                                <p class="mb-2"><strong>單位：</strong>${part?.unit || 'N/A'}</p>
+                                <p class="mb-2"><strong>每盒數量：：</strong>${part?.quantity_per_box || 'N/A'}</p>
+                                <p class="mb-2"><strong>採購前置期：</strong>${part?.lead_time || 'N/A'} 天</p>
                                 <p class="mb-0"><strong>儲存位置：</strong>
-                                    ${part.locations && part.locations.length > 0 ? 
+                                    ${part?.locations && part.locations.length > 0 ? 
                                         part.locations.map(loc => `${loc.warehouse_name}:${loc.location_code}`).join(', ') : 
                                         '無'}
                                 </p>
@@ -411,5 +395,5 @@ function confirmAddToWeeklyOrder(partNumber, partName, unit) {
         source: 'lookup'
     });
     
-    window.location.href = `/weekly_orders/register?${params.toString()}`;
+    window.location.href = `/weekly-orders/register?${params.toString()}`;
 }
