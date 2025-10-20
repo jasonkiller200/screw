@@ -1,9 +1,17 @@
 import logging
 from logging.config import fileConfig
 
+import sys
+import os
 from flask import current_app
-from app import app # ADD THIS LINE
-from extensions import db # ADD THIS LINE
+
+# Add the project root directory to sys.path
+# This assumes env.py is in migrations/
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, project_root)
+
+from app import app
+from extensions import db
 
 from alembic import context
 

@@ -20,6 +20,7 @@
 | `quantity_per_box`     | Integer              | Not Null           | 每盒數量 (Quantity Per Box) |
 | `safety_stock`         | Integer              | Default=0          | 安全庫存 (Safety Stock) |
 | `reorder_point`        | Integer              | Default=0          | 補貨點 (Reorder Point) |
+| `lead_time`            | Integer              | Not Null, Default=5 | 採購前置期 (天) (Procurement Lead Time (Days)) |
 | `standard_cost`        | Numeric(10, 2)       | Default=0          | 標準成本 (Standard Cost) |
 | `is_active`            | Boolean              | Default=True       | 是否啟用 (Is Active) |
 | `created_at`           | DateTime             | Default            | 建立時間 (Created At) |

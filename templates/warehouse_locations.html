@@ -338,11 +338,12 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-    const EDIT_WAREHOUSE_URL_TPL = "{{ url_for('web.edit_warehouse', warehouse_id=0) }}";
-    const DELETE_WAREHOUSE_URL_TPL = "{{ url_for('web.delete_warehouse', warehouse_id=0) }}";
-    const EDIT_LOCATION_URL_TPL = "{{ url_for('web.edit_warehouse_location', location_id=0) }}";
-    const DELETE_LOCATION_URL_TPL = "{{ url_for('web.delete_warehouse_location', location_id=0) }}";
-</script>
 <script src="{{ url_for('static', filename='js/warehouse_locations.js') }}" defer></script>
+{% endblock %}
+
+{% block body_attributes %}
+data-edit-warehouse-url-tpl="{{ url_for('web.edit_warehouse', warehouse_id=0) }}"
+data-delete-warehouse-url-tpl="{{ url_for('web.delete_warehouse', warehouse_id=0) }}"
+data-edit-location-url-tpl="{{ url_for('web.edit_warehouse_location', location_id=0) }}"
+data-delete-location-url-tpl="{{ url_for('web.delete_warehouse_location', location_id=0) }}"
 {% endblock %}

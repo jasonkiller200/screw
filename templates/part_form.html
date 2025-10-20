@@ -100,16 +100,28 @@
                         </div>
                         <div class="col-md-4">
                             <div class="mb-3">
+                                <label for="lead_time" class="form-label">採購前置期 (天) <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="lead_time" name="lead_time" 
+                                       value="{{ part.lead_time if part else 5 }}" min="0" required>
+                                <div class="form-text">從下訂單到收貨所需的預計天數</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-3">
                                 <label for="locations" class="form-label">儲存位置</label>
                                 <div id="location-inputs">
-                                    {% if part and part.location_associations %}
-                                        {% for assoc in part.location_associations %}
+                                    {% if part and part.locations %} {# Use part.locations from controller #}
+                                        {% for loc_data in part.locations %}
                                             <div class="input-group mb-2 location-input-group">
                                                 <select class="form-select location-warehouse-select" name="location_warehouse_id[]">
-                                                    <option value="{{ assoc.warehouse_location.warehouse_id }}" selected>{{ assoc.warehouse_location.warehouse.name }}</option>
+                                                    <option value="{{ loc_data.warehouse_id }}" selected>{{ loc_data.warehouse_name }}</option>
                                                 </select>
-                                                <input type="text" class="form-control location-code-input" name="location_code[]" value="{{ assoc.warehouse_location.location_code }}" placeholder="位置代碼">
-                                                <button type="button" class="btn btn-outline-danger remove-location-btn"><i class="fas fa-times"></i></button>
+                                                <input type="text" class="form-control location-code-input" name="location_code[]" value="{{ loc_data.location_code }}" placeholder="位置代碼">
+                                                <span class="input-group-text text-muted small">庫存: <span class="location-stock-quantity">{{ loc_data.stock_quantity }}</span></span>
+                                                <button type="button" class="btn btn-outline-danger remove-location-btn" data-stock-quantity="{{ loc_data.stock_quantity }}"><i class="fas fa-times"></i></button>
                                             </div>
                                         {% endfor %}
                                     {% else %}
@@ -118,7 +130,8 @@
                                                 <option value="">選擇倉庫</option>
                                             </select>
                                             <input type="text" class="form-control location-code-input" name="location_code[]" placeholder="位置代碼">
-                                            <button type="button" class="btn btn-outline-danger remove-location-btn" style="display:none;"><i class="fas fa-times"></i></button>
+                                            <span class="input-group-text text-muted small">庫存: <span class="location-stock-quantity">0</span></span>
+                                            <button type="button" class="btn btn-outline-danger remove-location-btn" style="display:none;" data-stock-quantity="0"><i class="fas fa-times"></i></button>
                                         </div>
                                     {% endif %}
                                 </div>

@@ -232,6 +232,7 @@ def new_part():
         description = request.form.get('description')
         unit = request.form.get('unit')
         quantity_per_box = request.form.get('quantity_per_box')
+        lead_time = request.form.get('lead_time', type=int, default=5) # Get lead_time
         
         # Get locations data from form
         location_warehouse_ids = request.form.getlist('location_warehouse_id[]')
@@ -256,6 +257,7 @@ def new_part():
                 'description': description,
                 'unit': unit,
                 'quantity_per_box': quantity_per_box,
+                'lead_time': lead_time, # Include lead_time
                 'locations': locations_data
             }
             return render_template('part_form.html', part=part_data, warehouses=warehouses)
@@ -272,6 +274,7 @@ def new_part():
                     'description': description,
                     'unit': unit,
                     'quantity_per_box': quantity_per_box,
+                    'lead_time': lead_time, # Include lead_time
                     'locations': locations_data
                 }
                 return render_template('part_form.html', part=part_data, warehouses=warehouses)
@@ -279,14 +282,16 @@ def new_part():
 
         try:
             quantity_per_box = int(quantity_per_box)
+            lead_time = int(lead_time) # Ensure lead_time is an integer
         except ValueError:
-            flash('每盒數量必須是數字', 'error')
+            flash('每盒數量和採購前置期必須是數字', 'error')
             part_data = {
                 'part_number': part_number,
                 'name': name,
                 'description': description,
                 'unit': unit,
                 'quantity_per_box': quantity_per_box,
+                'lead_time': lead_time, # Include lead_time
                 'locations': locations_data
             }
             return render_template('part_form.html', part=part_data, warehouses=warehouses)
@@ -295,9 +300,11 @@ def new_part():
         result = Part.create(
             part_number=part_number, 
             name=name, 
+            type=None, # Assuming type is not collected in new_part form, default to None
             description=description, 
             unit=unit, 
             quantity_per_box=quantity_per_box, 
+            lead_time=lead_time, # Pass lead_time
             locations_data=locations_data
         )
         
@@ -324,6 +331,7 @@ def new_part():
                 'description': description,
                 'unit': unit,
                 'quantity_per_box': quantity_per_box,
+                'lead_time': lead_time, # Include lead_time
                 'locations': locations_data
             }
             return render_template('part_form.html', part=part_data, warehouses=warehouses)
@@ -335,6 +343,12 @@ def edit_part(part_id):
     """Edit part page."""
     warehouses = Warehouse.get_all() # Get all warehouses for dropdown
 
+    part = Part.get_by_id(part_id) # Fetch part here for GET and POST re-render
+    if not part:
+        flash('找不到零件', 'error')
+        return redirect(url_for('web.parts'))
+
+
     if request.method == 'POST':
         part_number = request.form.get('part_number')
         name = request.form.get('name')
@@ -342,6 +356,7 @@ def edit_part(part_id):
         description = request.form.get('description')
         unit = request.form.get('unit')
         quantity_per_box = request.form.get('quantity_per_box')
+        lead_time = request.form.get('lead_time', type=int, default=5) # Get lead_time
         
         # Get locations data from form
         location_warehouse_ids = request.form.getlist('location_warehouse_id[]')
@@ -359,20 +374,19 @@ def edit_part(part_id):
         # Explicitly check for None or empty strings for required fields
         if not part_number or not name or not unit or not quantity_per_box:
             flash('所有欄位都是必填的，且至少需要一個儲存位置', 'error')
-            # To re-render the form with submitted data, we need to fetch the part again
-            part = Part.get_by_id(part_id)
-            if part:
-                # Update part object attributes for re-rendering
-                part.name = name
-                part.type = type
-                part.description = description
-                part.unit = unit
-                part.quantity_per_box = quantity_per_box
-                # Manually set locations for re-rendering
-                part.location_associations = [] # Clear existing associations for re-rendering
-                for loc_data in locations_data:
-                    dummy_wh_loc = WarehouseLocation(loc_data['warehouse_id'], loc_data['location_code'])
-                    part.location_associations.append(DummyPartWarehouseLocation(dummy_wh_loc))
+            # Update part object attributes for re-rendering
+            part.part_number = part_number # Keep part_number if it was submitted
+            part.name = name
+            part.type = type
+            part.description = description
+            part.unit = unit
+            part.quantity_per_box = quantity_per_box
+            part.lead_time = lead_time # Preserve lead_time
+            # Manually set locations for re-rendering
+            part.location_associations = [] # Clear existing associations for re-rendering
+            for loc_data in locations_data:
+                dummy_wh_loc = WarehouseLocation(loc_data['warehouse_id'], loc_data['location_code'])
+                part.location_associations.append(DummyPartWarehouseLocation(dummy_wh_loc))
             return render_template('part_form.html', part=part, edit_mode=True, warehouses=warehouses)
         
         # Validate for duplicate locations within the submitted data
@@ -381,35 +395,35 @@ def edit_part(part_id):
             location_tuple = (loc_data['warehouse_id'], loc_data['location_code'].lower()) # Case-insensitive check for location code
             if location_tuple in seen_locations:
                 flash(f"儲存位置重複：倉庫ID {loc_data['warehouse_id']} 的位置代碼 '{loc_data['location_code']}' 已存在於提交的列表中。", 'error')
-                part = Part.get_by_id(part_id)
-                if part:
-                    part.name = name
-                    part.type = type
-                    part.description = description
-                    part.unit = unit
-                    part.quantity_per_box = quantity_per_box
-                    part.location_associations = [] # Clear existing associations for re-rendering
-                    for loc_data_re_render in locations_data:
-                        dummy_wh_loc = WarehouseLocation(loc_data_re_render['warehouse_id'], loc_data_re_render['location_code'])
-                        part.location_associations.append(DummyPartWarehouseLocation(dummy_wh_loc))
+                part.part_number = part_number
+                part.name = name
+                part.type = type
+                part.description = description
+                part.unit = unit
+                part.quantity_per_box = quantity_per_box
+                part.lead_time = lead_time # Preserve lead_time
+                part.location_associations = [] # Clear existing associations for re-rendering
+                for loc_data_re_render in locations_data:
+                    dummy_wh_loc = WarehouseLocation(loc_data_re_render['warehouse_id'], loc_data_re_render['location_code'])
+                    part.location_associations.append(DummyPartWarehouseLocation(dummy_wh_loc))
                 return render_template('part_form.html', part=part, edit_mode=True, warehouses=warehouses)
             seen_locations.add(location_tuple)
 
         try:
             quantity_per_box = int(quantity_per_box)
+            lead_time = int(lead_time) # Ensure lead_time is an integer
         except ValueError:
-            flash('每盒數量必須是數字', 'error')
-            part = Part.get_by_id(part_id)
-            if part:
-                part.part_number = part_number
-                part.name = name
-                part.description = description
-                part.unit = unit
-                part.quantity_per_box = quantity_per_box
-                part.location_associations = [] # Clear existing associations for re-rendering
-                for loc_data_re_render in locations_data:
-                    dummy_wh_loc = WarehouseLocation(loc_data_re_render['warehouse_id'], loc_data_re_render['location_code'])
-                    part.location_associations.append(DummyPartWarehouseLocation(dummy_wh_loc))
+            flash('每盒數量和採購前置期必須是數字', 'error')
+            part.part_number = part_number
+            part.name = name
+            part.description = description
+            part.unit = unit
+            part.quantity_per_box = quantity_per_box
+            part.lead_time = lead_time # Preserve lead_time
+            part.location_associations = [] # Clear existing associations for re-rendering
+            for loc_data_re_render in locations_data:
+                dummy_wh_loc = WarehouseLocation(loc_data_re_render['warehouse_id'], loc_data_re_render['location_code'])
+                part.location_associations.append(DummyPartWarehouseLocation(dummy_wh_loc))
             return render_template('part_form.html', part=part, edit_mode=True, warehouses=warehouses)
         
         # Corrected Part.update call: description is passed as a keyword argument
@@ -421,6 +435,7 @@ def edit_part(part_id):
             description=description, 
             unit=unit, 
             quantity_per_box=quantity_per_box, 
+            lead_time=lead_time, # Pass lead_time
             locations_data=locations_data
         )
         
@@ -441,14 +456,21 @@ def edit_part(part_id):
             else:
                 flash(str(result.get('error', '零件更新失敗')), 'error') # Ensure message is string
     
-    # Get existing part data for the form
-    part = Part.get_by_id(part_id)
     
-    if not part:
-        flash('找不到零件', 'error')
-        return redirect(url_for('web.parts'))
-    
-    return render_template('part_form.html', part=part, edit_mode=True, warehouses=warehouses)
+    # Fetch current inventory for each associated location's warehouse
+    part_locations_with_stock = []
+    for assoc in part.location_associations:
+        location_dict = assoc.warehouse_location.to_dict()
+        # Get stock for this part in this warehouse
+        stock_info = CurrentInventory.get_current_stock(part.id, location_dict['warehouse_id'])
+        location_dict['stock_quantity'] = stock_info['quantity_on_hand'] if stock_info else 0
+        part_locations_with_stock.append(location_dict)
+
+    # Create a dummy part object to pass to the template, including stock info
+    part_data_for_template = part.to_dict()
+    part_data_for_template['locations'] = part_locations_with_stock
+
+    return render_template('part_form.html', part=part_data_for_template, edit_mode=True, warehouses=warehouses)
 
 @web_bp.route('/parts/<int:part_id>/delete', methods=['POST'])
 def delete_part(part_id):
@@ -813,6 +835,7 @@ def add_parts_to_inventory():
                 quantity_per_box=1,  # 預設每箱數量
                 safety_stock=0,  # 預設安全庫存
                 reorder_point=0,  # 預設補貨點
+                lead_time=5, # Default lead_time
                 standard_cost=0,  # 預設成本
                 is_active=True  # 預設啟用
             )
@@ -892,6 +915,7 @@ def add_part_detailed():
             quantity_per_box=data.get('quantity_per_box', 1),
             safety_stock=data.get('safety_stock', 0),
             reorder_point=data.get('reorder_point', 0),
+            lead_time=data.get('lead_time', 5), # Include lead_time
             standard_cost=data.get('standard_cost', 0),
             is_active=True
         )

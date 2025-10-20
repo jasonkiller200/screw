@@ -103,6 +103,7 @@ class Part(db.Model):
     quantity_per_box = db.Column(db.Integer, nullable=False)
     safety_stock = db.Column(db.Integer, default=0)
     reorder_point = db.Column(db.Integer, default=0)
+    lead_time = db.Column(db.Integer, default=5, nullable=False, comment='採購前置期 (天)') # New field
     standard_cost = db.Column(db.Numeric(10, 2), default=0)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=get_taipei_time)
@@ -111,7 +112,7 @@ class Part(db.Model):
     location_associations = relationship("PartWarehouseLocation", back_populates="part", cascade="all, delete-orphan")
 
     def __init__(self, part_number, name, type=None, description=None, unit='個', quantity_per_box=1,
-                 safety_stock=0, reorder_point=0, standard_cost=0, is_active=True, created_at=None):
+                 safety_stock=0, reorder_point=0, lead_time=5, standard_cost=0, is_active=True, created_at=None): # Update __init__
         self.part_number = part_number
         self.name = name
         self.type = type
@@ -120,6 +121,7 @@ class Part(db.Model):
         self.quantity_per_box = quantity_per_box
         self.safety_stock = safety_stock
         self.reorder_point = reorder_point
+        self.lead_time = lead_time # Initialize new field
         self.standard_cost = standard_cost
         self.is_active = is_active
         self.created_at = created_at if created_at is not None else get_taipei_time()
@@ -127,14 +129,15 @@ class Part(db.Model):
     def to_dict(self, include_locations=False):
         data = {
             'id': self.id,
+            'part_number': self.part_number,
             'name': self.name,
             'type': self.type,
-            'remarks': self.description, # Renamed from description
-
+            'description': self.description,
             'unit': self.unit,
             'quantity_per_box': self.quantity_per_box,
             'safety_stock': self.safety_stock,
             'reorder_point': self.reorder_point,
+            'lead_time': self.lead_time, # Include new field in to_dict
             'standard_cost': float(self.standard_cost),
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None
@@ -164,7 +167,7 @@ class Part(db.Model):
         
         # Basic validation for sort_by
         valid_columns = ['part_number', 'name', 'description', 'unit', 'quantity_per_box', 
-                         'safety_stock', 'reorder_point', 'standard_cost', 'created_at']
+                         'safety_stock', 'reorder_point', 'lead_time', 'standard_cost', 'created_at'] # Update valid_columns
         if sort_by not in valid_columns:
             sort_by = 'part_number'
             
@@ -177,7 +180,7 @@ class Part(db.Model):
 
     @classmethod
     def create(cls, part_number, name, type, description, unit, quantity_per_box, locations_data, 
-               safety_stock=0, reorder_point=0, standard_cost=0, is_active=True):
+               safety_stock=0, reorder_point=0, lead_time=5, standard_cost=0, is_active=True): # Update create method signature
         
         if cls.query.filter_by(part_number=part_number).first():
             return {'success': False, 'error': '零件編號已存在'}
@@ -234,6 +237,7 @@ class Part(db.Model):
             quantity_per_box=quantity_per_box,
             safety_stock=safety_stock,
             reorder_point=reorder_point,
+            lead_time=lead_time, # Pass new field
             standard_cost=standard_cost,
             is_active=is_active
         )
@@ -266,7 +270,7 @@ class Part(db.Model):
 
     @classmethod
     def update(cls, part_id, part_number, name, type, description, unit, quantity_per_box, locations_data,
-               safety_stock=0, reorder_point=0, standard_cost=0, is_active=True):
+               safety_stock=0, reorder_point=0, lead_time=5, standard_cost=0, is_active=True): # Update update method signature
         
         part = cls.query.get(part_id)
         if not part:
@@ -328,6 +332,7 @@ class Part(db.Model):
         part.quantity_per_box = quantity_per_box
         part.safety_stock = safety_stock
         part.reorder_point = reorder_point
+        part.lead_time = lead_time # Update new field
         part.standard_cost = standard_cost
         part.is_active = is_active
 
@@ -358,6 +363,7 @@ class Part(db.Model):
                         db.session.add(assoc)
         
         db.session.commit()
+        cls._cleanup_unused_locations_and_warehouses() # Call cleanup after commit
         return {'success': True}
 
     @classmethod
@@ -366,6 +372,7 @@ class Part(db.Model):
         if part:
             db.session.delete(part)
             db.session.commit()
+            cls._cleanup_unused_locations_and_warehouses() # Call cleanup after commit
             return True
         return False
     
@@ -380,3 +387,30 @@ class Part(db.Model):
     @classmethod
     def get_warehouse_by_code(cls, code):
         return Warehouse.query.filter_by(code=code).first()
+
+    @classmethod
+    def _cleanup_unused_locations_and_warehouses(cls):
+        """
+        清理不再被任何零件使用的倉位，以及不再包含任何倉位的倉庫。
+        """
+        # 1. 清理不再被任何零件使用的 WarehouseLocation
+        unused_locations = db.session.query(WarehouseLocation).outerjoin(
+            PartWarehouseLocation,
+            WarehouseLocation.id == PartWarehouseLocation.warehouse_location_id
+        ).filter(PartWarehouseLocation.part_id == None).all()
+
+        for loc in unused_locations:
+            db.session.delete(loc)
+            
+        db.session.flush() # Flush to ensure deletions are processed before checking warehouses
+
+        # 2. 清理不再包含任何 WarehouseLocation 的 Warehouse
+        unused_warehouses = db.session.query(Warehouse).outerjoin(
+            WarehouseLocation,
+            Warehouse.id == WarehouseLocation.warehouse_id
+        ).filter(WarehouseLocation.warehouse_id == None).all()
+
+        for wh in unused_warehouses:
+            db.session.delete(wh)
+            
+        db.session.commit() # Commit the cleanup changes

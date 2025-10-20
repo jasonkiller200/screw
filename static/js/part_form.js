@@ -91,6 +91,14 @@ document.addEventListener('DOMContentLoaded', function() {
         locationInputsContainer.addEventListener('click', function(event) {
             const removeBtn = event.target.closest('.remove-location-btn');
             if (removeBtn) {
+                const stockQuantity = parseInt(removeBtn.dataset.stockQuantity || '0');
+                
+                if (stockQuantity > 0) {
+                    const confirmDelete = confirm(`此儲位所屬的倉庫中仍有 ${stockQuantity} 個零件庫存。您確定要刪除此儲位嗎？`);
+                    if (!confirmDelete) {
+                        return; // 如果用戶取消，則停止刪除
+                    }
+                }
                 removeBtn.closest('.location-input-group').remove();
             }
         });

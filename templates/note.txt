@@ -1,0 +1,15 @@
+開發注意事項：
+
+為了維持程式碼的整潔與可維護性，請遵循以下規範：
+
+1.  **JavaScript 分離**:
+    - 所有 JavaScript 程式碼都應該放在 `static/js/` 目錄下的獨立 `.js` 檔案中。
+    - 避免在 HTML 檔案中直接使用 `<script>...</script>` 標籤撰寫內嵌程式碼。
+    - 在 HTML 中應使用 `<script src="{{ url_for('static', filename='js/your-script.js') }}"></script>` 的方式引入。
+
+2.  **CSS 分離**:
+    - 所有 CSS 樣式都應該放在 `static/css/` 目錄下的獨立 `.css` 檔案中。
+    - 避免在 HTML 檔案中使用 `<style>...</style>` 標籤或 `style="..."` 行內樣式。
+    - 在 HTML 中應使用 `<link rel="stylesheet" href="{{ url_for('static', filename='css/your-style.css') }}">` 的方式引入。
+
+感謝您的合作！

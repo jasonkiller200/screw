@@ -4,6 +4,9 @@ const thirtyDaysAgo = new Date(today);
 thirtyDaysAgo.setDate(today.getDate() - 30);
 
 document.addEventListener('DOMContentLoaded', function() {
+    const body = document.body;
+    const TRANSACTIONS_URL = body.dataset.transactionsUrl;
+
     const dateFrom = document.getElementById('date_from');
     const dateTo = document.getElementById('date_to');
     
@@ -22,49 +25,49 @@ document.addEventListener('DOMContentLoaded', function() {
             loadTransactions();
         });
     }
+
+    // 載入異動記錄
+    window.loadTransactions = function(page = 1) {
+        const filterForm = document.getElementById('filterForm');
+        if (!filterForm) return;
+
+        const formData = new FormData(filterForm);
+        const params = new URLSearchParams();
+        
+        for (const [key, value] of formData.entries()) {
+            if (value) {
+                params.append(key, value);
+            }
+        }
+        params.append('page', page);
+        
+        // 重新載入頁面
+        if (TRANSACTIONS_URL) {
+            window.location.href = TRANSACTIONS_URL + '?' + params.toString();
+        } else {
+            console.error('TRANSACTIONS_URL is not defined.');
+        }
+    };
+
+    // 載入指定頁面
+    window.loadPage = function(page) {
+        loadTransactions(page);
+    };
+
+    // 匯出異動記錄
+    window.exportTransactions = function() {
+        const filterForm = document.getElementById('filterForm');
+        if (!filterForm) return;
+
+        const formData = new FormData(filterForm);
+        const params = new URLSearchParams();
+        
+        for (const [key, value] of formData.entries()) {
+            if (value) {
+                params.append(key, value);
+            }
+        }
+        
+        window.open('/api/inventory/transactions/export?' + params.toString(), '_blank');
+    };
 });
-
-// 載入異動記錄
-function loadTransactions(page = 1) {
-    const filterForm = document.getElementById('filterForm');
-    if (!filterForm) return;
-
-    const formData = new FormData(filterForm);
-    const params = new URLSearchParams();
-    
-    for (const [key, value] of formData.entries()) {
-        if (value) {
-            params.append(key, value);
-        }
-    }
-    params.append('page', page);
-    
-    // 重新載入頁面
-    if (typeof TRANSACTIONS_URL !== 'undefined') {
-        window.location.href = TRANSACTIONS_URL + '?' + params.toString();
-    } else {
-        console.error('TRANSACTIONS_URL is not defined.');
-    }
-}
-
-// 載入指定頁面
-function loadPage(page) {
-    loadTransactions(page);
-}
-
-// 匯出異動記錄
-function exportTransactions() {
-    const filterForm = document.getElementById('filterForm');
-    if (!filterForm) return;
-
-    const formData = new FormData(filterForm);
-    const params = new URLSearchParams();
-    
-    for (const [key, value] of formData.entries()) {
-        if (value) {
-            params.append(key, value);
-        }
-    }
-    
-    window.open('/api/inventory/transactions/export?' + params.toString(), '_blank');
-}

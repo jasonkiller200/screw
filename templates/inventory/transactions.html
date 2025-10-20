@@ -187,9 +187,12 @@
 </div>
 {% endblock %}
 
+{% endblock %}
+
 {% block extra_js %}
-<script>
-    const TRANSACTIONS_URL = "{{ url_for('web.inventory_transactions') }}";
-</script>
 <script src="{{ url_for('static', filename='js/inventory/transactions.js') }}" defer></script>
+{% endblock %}
+
+{% block body_attributes %}
+data-transactions-url="{{ url_for('web.inventory_transactions') }}"
 {% endblock %}
