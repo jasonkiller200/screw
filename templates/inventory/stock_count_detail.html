@@ -121,11 +121,36 @@
                     <table class="table table-hover">
                         <thead class="table-dark">
                             <tr>
-                                <th>零件編號</th>
-                                <th>零件名稱</th>
-                                <th>系統庫存</th>
-                                <th>實盤數量</th>
-                                <th>差異</th>
+                                <th>
+                                    <a href="{{ url_for('web.stock_count_detail', count_id=count_info.id, sort_by='part_number', sort_order='desc' if sort_by == 'part_number' and sort_order == 'asc' else 'asc') }}" class="text-white text-decoration-none">
+                                        零件編號 {% if sort_by == 'part_number' %}<i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('web.stock_count_detail', count_id=count_info.id, sort_by='part_name', sort_order='desc' if sort_by == 'part_name' and sort_order == 'asc' else 'asc') }}" class="text-white text-decoration-none">
+                                        零件名稱 {% if sort_by == 'part_name' %}<i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('web.stock_count_detail', count_id=count_info.id, sort_by='storage_location', sort_order='desc' if sort_by == 'storage_location' and sort_order == 'asc' else 'asc') }}" class="text-white text-decoration-none">
+                                        儲位 {% if sort_by == 'storage_location' %}<i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('web.stock_count_detail', count_id=count_info.id, sort_by='system_quantity', sort_order='desc' if sort_by == 'system_quantity' and sort_order == 'asc' else 'asc') }}" class="text-white text-decoration-none">
+                                        系統庫存 {% if sort_by == 'system_quantity' %}<i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('web.stock_count_detail', count_id=count_info.id, sort_by='counted_quantity', sort_order='desc' if sort_by == 'counted_quantity' and sort_order == 'asc' else 'asc') }}" class="text-white text-decoration-none">
+                                        實盤數量 {% if sort_by == 'counted_quantity' %}<i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('web.stock_count_detail', count_id=count_info.id, sort_by='variance_quantity', sort_order='desc' if sort_by == 'variance_quantity' and sort_order == 'asc' else 'asc') }}" class="text-white text-decoration-none">
+                                        差異 {% if sort_by == 'variance_quantity' %}<i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{% endif %}
+                                    </a>
+                                </th>
                                 <th>差異率</th>
                                 <th>盤點時間</th>
                                 {% if count_info.status == 'counting' %}
@@ -138,6 +163,15 @@
                             <tr>
                                 <td><strong>{{ detail.part_number }}</strong></td>
                                 <td>{{ detail.part_name }}</td>
+                                <td>
+                                    {% if detail.storage_locations %}
+                                        {% for location in detail.storage_locations %}
+                                            <span class="badge bg-secondary me-1">{{ location }}</span>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="text-muted">無儲位</span>
+                                    {% endif %}
+                                </td>
                                 <td class="text-end">{{ detail.system_quantity }}</td>
                                 <td class="text-end">
                                     {% if count_info.status == 'counting' %}

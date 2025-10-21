@@ -263,7 +263,7 @@ def stock_out():
             return jsonify({'error': 'Invalid quantity'}), 400
         
         # 驗證交易類型
-        valid_out_types = ['OUT_ISSUE', 'OUT_TRANSFER', 'OUT_SCRAP']
+        valid_out_types = ['OUT_ISSUE', 'OUT_WORK_ORDER', 'OUT_TRANSFER', 'OUT_SCRAP']
         if transaction_type not in valid_out_types:
             return jsonify({'error': 'Invalid transaction type for stock out'}), 400
         
@@ -596,7 +596,7 @@ def export_count_template(count_id):
     )
     
     # 寫入標題行
-    headers = ['零件編號', '零件名稱', '單位', '系統數量', '實盤數量', '備註']
+    headers = ['零件編號', '零件名稱', '儲位', '單位', '系統數量', '實盤數量', '備註']
     for col_num, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col_num)
         cell.value = header
@@ -617,20 +617,25 @@ def export_count_template(count_id):
         cell.value = detail['part_name']
         cell.border = border
         
-        # 單位
+        # 儲位
         cell = ws.cell(row=row_num, column=3)
+        cell.value = detail.get('storage_location_display', '無儲位')
+        cell.border = border
+        
+        # 單位
+        cell = ws.cell(row=row_num, column=4)
         cell.value = detail['unit']
         cell.alignment = Alignment(horizontal="center")
         cell.border = border
         
         # 系統數量
-        cell = ws.cell(row=row_num, column=4)
+        cell = ws.cell(row=row_num, column=5)
         cell.value = detail['system_quantity']
         cell.alignment = Alignment(horizontal="right")
         cell.border = border
         
         # 實盤數量（空白，待填入）
-        cell = ws.cell(row=row_num, column=5)
+        cell = ws.cell(row=row_num, column=6)
         cell.value = detail.get('counted_quantity', '')
         cell.alignment = Alignment(horizontal="right")
         cell.border = border
@@ -639,7 +644,7 @@ def export_count_template(count_id):
             cell.fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
         
         # 備註
-        cell = ws.cell(row=row_num, column=6)
+        cell = ws.cell(row=row_num, column=7)
         cell.value = detail.get('notes', '')
         cell.border = border
     

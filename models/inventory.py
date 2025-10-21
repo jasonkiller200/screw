@@ -246,8 +246,45 @@ class StockCount(db.Model):
         db.session.add(new_count)
         db.session.flush() # Flush to get new_count.id
 
-        # Auto-add stock count details (all items in current inventory for that warehouse)
-        inventory_items = CurrentInventory.query.filter_by(warehouse_id=warehouse_id).filter(CurrentInventory.quantity_on_hand > 0).all()
+        # Auto-add stock count details 
+        # 建立盤點項目：包含所有應該在該倉庫的零件
+        from sqlalchemy import or_
+        
+        # 收集應該盤點的零件ID集合
+        part_ids_to_count = set()
+        
+        # 1. 包含所有在該倉庫有儲存位置的零件
+        from .part import PartWarehouseLocation, WarehouseLocation
+        parts_with_locations = db.session.query(Part.id).join(PartWarehouseLocation).join(WarehouseLocation).filter(
+            WarehouseLocation.warehouse_id == warehouse_id
+        ).all()
+        part_ids_to_count.update([p[0] for p in parts_with_locations])
+        
+        # 2. 包含所有在該倉庫有庫存記錄的零件
+        parts_with_inventory = db.session.query(CurrentInventory.part_id).filter_by(warehouse_id=warehouse_id).all()
+        part_ids_to_count.update([p[0] for p in parts_with_inventory])
+        
+        # 根據盤點類型過濾
+        if count_type == 'spot':
+            # 抽點：只包含有庫存的零件
+            inventory_items = CurrentInventory.query.filter_by(warehouse_id=warehouse_id).filter(
+                CurrentInventory.quantity_on_hand > 0
+            ).all()
+        else:
+            # 全盤點和循環盤點：包含所有相關零件
+            # 為沒有庫存記錄的零件創建臨時庫存項目
+            inventory_items = []
+            for part_id in part_ids_to_count:
+                inventory = CurrentInventory.query.filter_by(part_id=part_id, warehouse_id=warehouse_id).first()
+                if inventory:
+                    inventory_items.append(inventory)
+                else:
+                    # 創建臨時庫存對象（不保存到資料庫）
+                    temp_inventory = type('TempInventory', (), {
+                        'part_id': part_id,
+                        'quantity_on_hand': 0
+                    })()
+                    inventory_items.append(temp_inventory)
         for item in inventory_items:
             detail = StockCountDetail(
                 stock_count_id=new_count.id,
@@ -330,10 +367,50 @@ class StockCount(db.Model):
         return False
 
     @classmethod
-    def get_count_details(cls, count_id):
-        details = StockCountDetail.query.join(Part).filter(
+    def get_count_details(cls, count_id, sort_by='part_number', sort_order='asc'):
+        from .part import PartWarehouseLocation, WarehouseLocation
+        
+        query = StockCountDetail.query.join(Part).filter(
             StockCountDetail.stock_count_id == count_id
-        ).order_by(Part.part_number).all()
+        )
+        
+        # 根據排序欄位決定排序方式
+        if sort_by == 'storage_location':
+            # 按儲位排序，需要JOIN儲位相關表
+            query = query.outerjoin(PartWarehouseLocation, Part.id == PartWarehouseLocation.part_id)\
+                         .outerjoin(WarehouseLocation, PartWarehouseLocation.warehouse_location_id == WarehouseLocation.id)
+            
+            if sort_order == 'desc':
+                query = query.order_by(db.desc(db.func.coalesce(WarehouseLocation.location_code, '')))
+            else:
+                query = query.order_by(db.func.coalesce(WarehouseLocation.location_code, ''))
+        elif sort_by == 'part_name':
+            if sort_order == 'desc':
+                query = query.order_by(db.desc(Part.name))
+            else:
+                query = query.order_by(Part.name)
+        elif sort_by == 'system_quantity':
+            if sort_order == 'desc':
+                query = query.order_by(db.desc(StockCountDetail.system_quantity))
+            else:
+                query = query.order_by(StockCountDetail.system_quantity)
+        elif sort_by == 'counted_quantity':
+            if sort_order == 'desc':
+                query = query.order_by(db.desc(StockCountDetail.counted_quantity))
+            else:
+                query = query.order_by(StockCountDetail.counted_quantity)
+        elif sort_by == 'variance_quantity':
+            if sort_order == 'desc':
+                query = query.order_by(db.desc(StockCountDetail.variance_quantity))
+            else:
+                query = query.order_by(StockCountDetail.variance_quantity)
+        else:  # 預設按零件編號排序
+            if sort_order == 'desc':
+                query = query.order_by(db.desc(Part.part_number))
+            else:
+                query = query.order_by(Part.part_number)
+                
+        details = query.all()
         return [detail.to_dict() for detail in details]
 
     @classmethod
@@ -431,13 +508,29 @@ class StockCountDetail(db.Model):
     __table_args__ = (db.UniqueConstraint('stock_count_id', 'part_id', name='_stock_count_part_uc'),)
 
     def to_dict(self):
+        # 獲取該零件在對應倉庫的儲位信息
+        storage_locations = []
+        if self.part:
+            # 獲取盤點所在的倉庫ID
+            stock_count = StockCount.query.get(self.stock_count_id)
+            if stock_count:
+                warehouse_id = stock_count.warehouse_id
+                from .part import PartWarehouseLocation, WarehouseLocation
+                locations = db.session.query(WarehouseLocation).join(PartWarehouseLocation).filter(
+                    PartWarehouseLocation.part_id == self.part_id,
+                    WarehouseLocation.warehouse_id == warehouse_id
+                ).all()
+                storage_locations = [loc.location_code for loc in locations]
+        
         return {
             'id': self.id,
             'stock_count_id': self.stock_count_id,
             'part_id': self.part_id,
             'part_number': self.part.part_number if self.part else None,
             'part_name': self.part.name if self.part else None,
-            'unit': self.part.unit if self.part else None,  # 使用 unit 而不是 part_unit
+            'unit': self.part.unit if self.part else None,
+            'storage_locations': storage_locations,  # 新增儲位信息
+            'storage_location_display': ', '.join(storage_locations) if storage_locations else '無儲位',
             'system_quantity': self.system_quantity,
             'counted_quantity': self.counted_quantity,
             'variance_quantity': self.variance_quantity,

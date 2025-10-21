@@ -114,3 +114,73 @@ function exportLowStock() {
 function showExportOptions() {
     alert('進階匯出選項功能將在下個版本中提供');
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const saveButtons = document.querySelectorAll('.save-stock-levels-btn');
+
+    saveButtons.forEach(button => {
+        button.addEventListener('click', (event) => {
+            const row = event.currentTarget.closest('.inventory-row');
+            const partId = row.dataset.partId;
+            
+            const safetyStockInput = row.querySelector('.safety-stock-input');
+            const reorderPointInput = row.querySelector('.reorder-point-input');
+
+            const safetyStock = safetyStockInput.value;
+            const reorderPoint = reorderPointInput.value;
+
+            if (!partId || safetyStock === '' || reorderPoint === '') {
+                alert('無法獲取零件ID或庫存值');
+                return;
+            }
+
+            // Add visual feedback that something is happening
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+            fetch(`/api/part/${partId}/stock-levels`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    safety_stock: safetyStock,
+                    reorder_point: reorderPoint,
+                }),
+            })
+            .then(response => {
+                if (!response.ok) {
+                    // If response is not OK, read the error message from JSON body
+                    return response.json().then(err => { throw new Error(err.error || '伺服器錯誤') });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Visual feedback for success
+                    row.style.transition = 'background-color 0.5s ease';
+                    row.style.backgroundColor = '#d4edda'; // Light green
+                    setTimeout(() => {
+                        row.style.backgroundColor = ''; // Reset background
+                    }, 2000);
+                } else {
+                    throw new Error(data.error || '更新失敗');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert(`更新失敗: ${error.message}`);
+                // Visual feedback for error
+                row.style.backgroundColor = '#f8d7da'; // Light red
+                setTimeout(() => {
+                    row.style.backgroundColor = ''; // Reset background
+                }, 2000);
+            })
+            .finally(() => {
+                // Restore button state
+                button.disabled = false;
+                button.innerHTML = '<i class="fas fa-save"></i>';
+            });
+        });
+    });
+});

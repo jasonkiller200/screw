@@ -4,8 +4,7 @@ const thirtyDaysAgo = new Date(today);
 thirtyDaysAgo.setDate(today.getDate() - 30);
 
 document.addEventListener('DOMContentLoaded', function() {
-    const body = document.body;
-    const TRANSACTIONS_URL = body.dataset.transactionsUrl;
+    const TRANSACTIONS_URL = window.TRANSACTIONS_URL;
 
     const dateFrom = document.getElementById('date_from');
     const dateTo = document.getElementById('date_to');

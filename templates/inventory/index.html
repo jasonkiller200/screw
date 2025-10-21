@@ -141,9 +141,9 @@
                                 <th>操作</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="inventory-table-body">
                             {% for inventory in inventories %}
-                            <tr class="{{ 'table-warning' if inventory.available_quantity <= inventory.reorder_point else '' }}">
+                            <tr class="inventory-row {{ 'table-warning' if inventory.available_quantity <= inventory.reorder_point else '' }}" data-part-id="{{ inventory.part_id }}">
                                 <td><strong>{{ inventory.part_number }}</strong></td>
                                 <td>{{ inventory.part_name }}</td>
                                 <td>
@@ -152,8 +152,12 @@
                                 </td>
                                 <td>{{ inventory.quantity_on_hand }}</td>
                                 <td>{{ inventory.available_quantity }}</td>
-                                <td>{{ inventory.safety_stock }}</td>
-                                <td>{{ inventory.reorder_point }}</td>
+                                <td>
+                                    <input type="number" class="form-control form-control-sm safety-stock-input" value="{{ inventory.safety_stock }}" style="width: 80px;">
+                                </td>
+                                <td>
+                                    <input type="number" class="form-control form-control-sm reorder-point-input" value="{{ inventory.reorder_point }}" style="width: 80px;">
+                                </td>
                                 <td>{{ inventory.unit }}</td>
                                 <td>
                                     {% if inventory.available_quantity <= 0 %}
@@ -166,6 +170,9 @@
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm" role="group">
+                                        <button class="btn btn-outline-primary save-stock-levels-btn" title="儲存變更">
+                                            <i class="fas fa-save"></i>
+                                        </button>
                                         <button class="btn btn-outline-success" 
                                                 onclick="quickStockIn('{{ inventory.part_number }}', {{ inventory.warehouse_id }})"
                                                 title="快速入庫">

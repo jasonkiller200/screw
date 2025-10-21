@@ -588,7 +588,24 @@ def inventory_transactions():
     if warehouse_id:
         transactions_query = transactions_query.filter(InventoryTransaction.warehouse_id == warehouse_id)
     if transaction_type:
-        transactions_query = transactions_query.filter(InventoryTransaction.transaction_type == transaction_type)
+        if transaction_type == 'IN':
+            # 篩選所有入庫類型
+            transactions_query = transactions_query.filter(
+                InventoryTransaction.transaction_type.in_(['IN_PURCHASE', 'IN_TRANSFER', 'IN_RETURN'])
+            )
+        elif transaction_type == 'OUT':
+            # 篩選所有出庫類型
+            transactions_query = transactions_query.filter(
+                InventoryTransaction.transaction_type.in_(['OUT_ISSUE', 'OUT_WORK_ORDER', 'OUT_SCRAP'])
+            )
+        elif transaction_type == 'TRANSFER':
+            # 篩選轉倉類型（可能包含 IN_TRANSFER 和 OUT_TRANSFER）
+            transactions_query = transactions_query.filter(
+                InventoryTransaction.transaction_type.in_(['IN_TRANSFER', 'OUT_TRANSFER', 'TRANSFER'])
+            )
+        elif transaction_type == 'ADJUST':
+            # 篩選調整類型
+            transactions_query = transactions_query.filter(InventoryTransaction.transaction_type == 'ADJUST')
     if date_from:
         try:
             from_date = datetime.strptime(date_from, '%Y-%m-%d')
@@ -1178,11 +1195,17 @@ def stock_count_detail(count_id):
         flash('找不到盤點記錄', 'error')
         return redirect(url_for('web.stock_counts'))
     
-    details = StockCount.get_count_details(count_id)
+    # 獲取排序參數
+    sort_by = request.args.get('sort_by', 'part_number')
+    sort_order = request.args.get('sort_order', 'asc')
+    
+    details = StockCount.get_count_details(count_id, sort_by, sort_order)
     
     return render_template('inventory/stock_count_detail.html', 
                          count_info=count_info, 
-                         details=details)
+                         details=details,
+                         sort_by=sort_by,
+                         sort_order=sort_order)
 
 @web_bp.route('/inventory/stock-counts/<int:count_id>/edit', methods=['GET', 'POST'])
 def edit_stock_count(count_id):

@@ -178,6 +178,9 @@ function submitImport() {
             const partNumberIdx = headers.findIndex(h => 
                 h === '零件編號' || h === 'part_number' || h === 'Part Number'
             );
+            const storageLocationIdx = headers.findIndex(h => 
+                h === '儲位' || h === 'storage_location' || h === 'Storage Location'
+            );
             const countedQtyIdx = headers.findIndex(h => 
                 h === '實盤數量' || h === 'counted_quantity' || h === 'Counted Quantity'
             );
@@ -202,6 +205,7 @@ function submitImport() {
                 if (!row || row.length === 0) continue;
                 
                 const partNumber = row[partNumberIdx];
+                const storageLocation = storageLocationIdx >= 0 ? (row[storageLocationIdx] || '') : '';
                 const countedQty = row[countedQtyIdx];
                 const notes = notesIdx >= 0 ? (row[notesIdx] || '') : '';
                 
@@ -212,6 +216,7 @@ function submitImport() {
                 
                 updates.push({
                     part_number: String(partNumber).trim(),
+                    storage_location: String(storageLocation).trim(),
                     counted_quantity: parseInt(countedQty),
                     notes: String(notes).trim()
                 });

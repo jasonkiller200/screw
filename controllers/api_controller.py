@@ -346,3 +346,26 @@ def export_inventory_transactions():
         as_attachment=True,
         download_name=filename
     )
+
+@api_bp.route('/part/<int:part_id>/stock-levels', methods=['POST'])
+def update_part_stock_levels(part_id):
+    """
+    Updates the safety stock and reorder point for a specific part.
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Invalid JSON'}), 400
+
+    safety_stock = data.get('safety_stock')
+    reorder_point = data.get('reorder_point')
+
+    if safety_stock is None or reorder_point is None:
+        return jsonify({'error': 'Missing safety_stock or reorder_point'}), 400
+
+    success = Part.update_stock_levels(part_id, safety_stock, reorder_point)
+
+    if success:
+        return jsonify({'success': True, 'message': 'Stock levels updated successfully.'}), 200
+    else:
+        return jsonify({'error': 'Failed to update stock levels. Part not found or invalid data.'}), 500
+

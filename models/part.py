@@ -156,8 +156,13 @@ class Part(db.Model):
     
     @classmethod
     def get_all(cls, search_term=None, sort_by='part_number', sort_order='asc', page=1, per_page=50):
-        from sqlalchemy import or_
+        from sqlalchemy import or_, func
+        
         query = cls.query
+        
+        # Join with location tables for sorting by storage location
+        if sort_by == 'storage_location':
+            query = query.outerjoin(PartWarehouseLocation).outerjoin(WarehouseLocation).outerjoin(Warehouse)
 
         if search_term:
             query = query.filter(or_(
@@ -166,15 +171,29 @@ class Part(db.Model):
             ))
         
         # Basic validation for sort_by
-        valid_columns = ['part_number', 'name', 'description', 'unit', 'quantity_per_box', 
-                         'safety_stock', 'reorder_point', 'lead_time', 'standard_cost', 'created_at'] # Update valid_columns
+        valid_columns = ['part_number', 'name', 'type', 'description', 'unit', 'quantity_per_box', 
+                         'safety_stock', 'reorder_point', 'lead_time', 'standard_cost', 'created_at', 'storage_location']
         if sort_by not in valid_columns:
             sort_by = 'part_number'
-            
-        if sort_order.lower() == 'desc':
-            query = query.order_by(db.desc(getattr(cls, sort_by)))
+        
+        # Handle sorting
+        if sort_by == 'storage_location':
+            # Sort by warehouse name first, then location code
+            if sort_order.lower() == 'desc':
+                query = query.order_by(
+                    db.desc(func.coalesce(Warehouse.name, '')),
+                    db.desc(func.coalesce(WarehouseLocation.location_code, ''))
+                )
+            else:
+                query = query.order_by(
+                    func.coalesce(Warehouse.name, ''),
+                    func.coalesce(WarehouseLocation.location_code, '')
+                )
         else:
-            query = query.order_by(getattr(cls, sort_by))
+            if sort_order.lower() == 'desc':
+                query = query.order_by(db.desc(getattr(cls, sort_by)))
+            else:
+                query = query.order_by(getattr(cls, sort_by))
         
         return query.paginate(page=page, per_page=per_page, error_out=False)
 
@@ -387,6 +406,23 @@ class Part(db.Model):
     @classmethod
     def get_warehouse_by_code(cls, code):
         return Warehouse.query.filter_by(code=code).first()
+
+    @classmethod
+    def update_stock_levels(cls, part_id, safety_stock, reorder_point):
+        part = cls.query.get(part_id)
+        if not part:
+            return False
+        try:
+            part.safety_stock = int(safety_stock)
+            part.reorder_point = int(reorder_point)
+            db.session.commit()
+            return True
+        except (ValueError, TypeError):
+            db.session.rollback()
+            return False
+        except Exception:
+            db.session.rollback()
+            return False
 
     @classmethod
     def _cleanup_unused_locations_and_warehouses(cls):

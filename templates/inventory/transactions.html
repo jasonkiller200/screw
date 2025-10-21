@@ -101,15 +101,15 @@
                             <tr>
                                 <td>{{ transaction.transaction_date }}</td>
                                 <td>
-                                    {% if transaction.transaction_type == 'IN' %}
+                                    {% if transaction.transaction_type.startswith('IN_') %}
                                         <span class="badge bg-success">
                                             <i class="fas fa-arrow-down me-1"></i>入庫
                                         </span>
-                                    {% elif transaction.transaction_type == 'OUT' %}
+                                    {% elif transaction.transaction_type.startswith('OUT_') %}
                                         <span class="badge bg-danger">
                                             <i class="fas fa-arrow-up me-1"></i>出庫
                                         </span>
-                                    {% elif transaction.transaction_type == 'TRANSFER' %}
+                                    {% elif transaction.transaction_type == 'TRANSFER' or 'TRANSFER' in transaction.transaction_type %}
                                         <span class="badge bg-info">
                                             <i class="fas fa-exchange-alt me-1"></i>轉倉
                                         </span>
@@ -129,7 +129,20 @@
                                         <span class="text-danger">{{ transaction.quantity }}</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ transaction.reference_type or '-' }}</td>
+                                <td>
+                                    {% set reference_type_map = {
+                                        'PURCHASE': '採購',
+                                        'TRANSFER': '轉倉',
+                                        'RETURN': '退料',
+                                        'ISSUE': '領料',
+                                        'WORK_ORDER': '工單',
+                                        'SCRAP': '報廢',
+                                        'MANUAL': '手動',
+                                        'COUNT': '盤點',
+                                        'ADJUST': '調整'
+                                    } %}
+                                    {{ reference_type_map.get(transaction.reference_type, transaction.reference_type) or '-' }}
+                                </td>
                                 <td>{{ transaction.reference_id or '-' }}</td>
                                 <td>{{ transaction.notes or '-' }}</td>
                             </tr>
@@ -187,12 +200,9 @@
 </div>
 {% endblock %}
 
-{% endblock %}
-
 {% block extra_js %}
+<script>
+    window.TRANSACTIONS_URL = "{{ url_for('web.inventory_transactions') }}";
+</script>
 <script src="{{ url_for('static', filename='js/inventory/transactions.js') }}" defer></script>
-{% endblock %}
-
-{% block body_attributes %}
-data-transactions-url="{{ url_for('web.inventory_transactions') }}"
 {% endblock %}
