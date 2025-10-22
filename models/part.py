@@ -101,8 +101,7 @@ class Part(db.Model):
     description = db.Column(db.Text, nullable=True, comment='備註')
     unit = db.Column(db.String(50), nullable=False, default='個')
     quantity_per_box = db.Column(db.Integer, nullable=False)
-    safety_stock = db.Column(db.Integer, default=0)
-    reorder_point = db.Column(db.Integer, default=0)
+
     lead_time = db.Column(db.Integer, default=5, nullable=False, comment='採購前置期 (天)') # New field
     standard_cost = db.Column(db.Numeric(10, 2), default=0)
     is_active = db.Column(db.Boolean, default=True)
@@ -112,15 +111,14 @@ class Part(db.Model):
     location_associations = relationship("PartWarehouseLocation", back_populates="part", cascade="all, delete-orphan")
 
     def __init__(self, part_number, name, type=None, description=None, unit='個', quantity_per_box=1,
-                 safety_stock=0, reorder_point=0, lead_time=5, standard_cost=0, is_active=True, created_at=None): # Update __init__
+                 lead_time=5, standard_cost=0, is_active=True, created_at=None): # Update __init__
         self.part_number = part_number
         self.name = name
         self.type = type
         self.description = description
         self.unit = unit
         self.quantity_per_box = quantity_per_box
-        self.safety_stock = safety_stock
-        self.reorder_point = reorder_point
+
         self.lead_time = lead_time # Initialize new field
         self.standard_cost = standard_cost
         self.is_active = is_active
@@ -135,8 +133,7 @@ class Part(db.Model):
             'description': self.description,
             'unit': self.unit,
             'quantity_per_box': self.quantity_per_box,
-            'safety_stock': self.safety_stock,
-            'reorder_point': self.reorder_point,
+
             'lead_time': self.lead_time, # Include new field in to_dict
             'standard_cost': float(self.standard_cost),
             'is_active': self.is_active,
@@ -172,7 +169,7 @@ class Part(db.Model):
         
         # Basic validation for sort_by
         valid_columns = ['part_number', 'name', 'type', 'description', 'unit', 'quantity_per_box', 
-                         'safety_stock', 'reorder_point', 'lead_time', 'standard_cost', 'created_at', 'storage_location']
+                         'lead_time', 'standard_cost', 'created_at', 'storage_location']
         if sort_by not in valid_columns:
             sort_by = 'part_number'
         
@@ -407,22 +404,7 @@ class Part(db.Model):
     def get_warehouse_by_code(cls, code):
         return Warehouse.query.filter_by(code=code).first()
 
-    @classmethod
-    def update_stock_levels(cls, part_id, safety_stock, reorder_point):
-        part = cls.query.get(part_id)
-        if not part:
-            return False
-        try:
-            part.safety_stock = int(safety_stock)
-            part.reorder_point = int(reorder_point)
-            db.session.commit()
-            return True
-        except (ValueError, TypeError):
-            db.session.rollback()
-            return False
-        except Exception:
-            db.session.rollback()
-            return False
+
 
     @classmethod
     def _cleanup_unused_locations_and_warehouses(cls):

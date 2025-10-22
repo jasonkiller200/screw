@@ -10,11 +10,13 @@
 
 ## 開發與驗證計畫
 
+- [x] **建立藍圖檔案**
+
 ### 階段一：資料庫重構
 
-- [ ] **1.1. 修改模型**:
-    - [ ] 從 `Part` 模型中移除 `reorder_point` 和 `safety_stock`。
-    - [ ] 在 `CurrentInventory` 模型中新增 `reorder_point` 和 `safety_stock`。
+- [x] **1.1. 修改模型**:
+    - [x] 從 `Part` 模型中移除 `reorder_point` 和 `safety_stock`。
+    - [x] 在 `CurrentInventory` 模型中新增 `reorder_point` 和 `safety_stock`。
 - [ ] **1.2. 產生遷移腳本**:
     - [ ] 執行 `flask db migrate` 產生腳本。
 - [ ] **1.3. 編輯遷移腳本**:

@@ -18,6 +18,8 @@ class CurrentInventory(db.Model):
     quantity_on_hand = db.Column(db.Integer, default=0)
     reserved_quantity = db.Column(db.Integer, default=0)
     available_quantity = db.Column(db.Integer, default=0)
+    safety_stock = db.Column(db.Integer, default=0, nullable=False)
+    reorder_point = db.Column(db.Integer, default=0, nullable=False)
     last_updated = db.Column(db.DateTime, default=get_taipei_time, onupdate=get_taipei_time)
 
     # Relationships
@@ -38,8 +40,8 @@ class CurrentInventory(db.Model):
             'part_number': self.part.part_number if self.part else None,
             'part_name': self.part.name if self.part else None,
             'unit': self.part.unit if self.part else None,
-            'safety_stock': self.part.safety_stock if self.part else None,
-            'reorder_point': self.part.reorder_point if self.part else None,
+            'safety_stock': self.safety_stock,
+            'reorder_point': self.reorder_point,
             'warehouse_name': self.warehouse.name if self.warehouse else None,
             'warehouse_code': self.warehouse.code if self.warehouse else None,
         }
@@ -66,7 +68,7 @@ class CurrentInventory(db.Model):
         query = cls.query.join(Part).join(Warehouse)
         if warehouse_id:
             query = query.filter(cls.warehouse_id == warehouse_id)
-        query = query.filter(cls.available_quantity <= Part.reorder_point)
+        query = query.filter(cls.available_quantity <= cls.reorder_point)
         items = query.order_by(cls.available_quantity - Part.reorder_point).all()
         return [item.to_dict() for item in items]
 
