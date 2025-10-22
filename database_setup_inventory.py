@@ -58,8 +58,7 @@ def setup_inventory_database():
         description TEXT NOT NULL,
         unit TEXT NOT NULL DEFAULT '個',
         quantity_per_box INTEGER NOT NULL,
-        safety_stock INTEGER DEFAULT 0,
-        reorder_point INTEGER DEFAULT 0,
+        lead_time INTEGER DEFAULT 5,
         standard_cost DECIMAL(10,2) DEFAULT 0,
         is_active BOOLEAN DEFAULT 1,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -211,9 +210,8 @@ def setup_inventory_database():
     description = f"螺絲 - 十字螺絲，尺寸：M6，適用於一般機械裝配"
     unit = random.choice(units)
     quantity_per_box = 100
-    safety_stock = 10
-    reorder_point = 20
-    standard_cost = 1.50
+        lead_time = 5
+        standard_cost = 0
     
     parts_to_insert.append((
         part_number, name, description, unit, quantity_per_box, 

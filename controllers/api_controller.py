@@ -347,25 +347,39 @@ def export_inventory_transactions():
         download_name=filename
     )
 
-@api_bp.route('/part/<int:part_id>/stock-levels', methods=['POST'])
-def update_part_stock_levels(part_id):
-    """
-    Updates the safety stock and reorder point for a specific part.
-    """
+@api_bp.route('/parts/<int:part_id>/update_inventory_policy', methods=['POST'])
+@login_required
+def update_inventory_policy(part_id):
     data = request.get_json()
-    if not data:
-        return jsonify({'error': 'Invalid JSON'}), 400
-
+    warehouse_id = data.get('warehouse_id')
     safety_stock = data.get('safety_stock')
     reorder_point = data.get('reorder_point')
 
-    if safety_stock is None or reorder_point is None:
-        return jsonify({'error': 'Missing safety_stock or reorder_point'}), 400
+    if not all([warehouse_id, safety_stock is not None, reorder_point is not None]):
+        return jsonify({'error': 'Missing warehouse_id, safety_stock or reorder_point'}), 400
 
-    success = Part.update_stock_levels(part_id, safety_stock, reorder_point)
+    current_inventory = CurrentInventory.query.filter_by(part_id=part_id, warehouse_id=warehouse_id).first()
 
-    if success:
-        return jsonify({'success': True, 'message': 'Stock levels updated successfully.'}), 200
+    if not current_inventory:
+        # If no existing inventory record, create one with default quantities
+        current_inventory = CurrentInventory(
+            part_id=part_id,
+            warehouse_id=warehouse_id,
+            quantity_on_hand=0,
+            reserved_quantity=0,
+            available_quantity=0,
+            safety_stock=safety_stock,
+            reorder_point=reorder_point
+        )
+        db.session.add(current_inventory)
     else:
-        return jsonify({'error': 'Failed to update stock levels. Part not found or invalid data.'}), 500
+        current_inventory.safety_stock = safety_stock
+        current_inventory.reorder_point = reorder_point
+    
+    try:
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Inventory policy updated successfully'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 

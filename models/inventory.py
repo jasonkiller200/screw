@@ -69,7 +69,7 @@ class CurrentInventory(db.Model):
         if warehouse_id:
             query = query.filter(cls.warehouse_id == warehouse_id)
         query = query.filter(cls.available_quantity <= cls.reorder_point)
-        items = query.order_by(cls.available_quantity - Part.reorder_point).all()
+        items = query.order_by(cls.available_quantity - cls.reorder_point).all()
         return [item.to_dict() for item in items]
 
     @classmethod
