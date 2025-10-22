@@ -25,7 +25,7 @@
     <div class="card-body">
         <form method="GET" action="{{ url_for('web.parts') }}" class="mb-0">
             <div class="input-group">
-                <input type="text" class="form-control" name="search" placeholder="依零件名稱搜尋..." value="{{ search_term or '' }}">
+                <input type="text" class="form-control" name="search" placeholder="搜尋零件名稱或零件號碼..." value="{{ search_term or '' }}">
                 <button class="btn btn-outline-secondary" type="submit"><i class="fas fa-search"></i> 搜尋</button>
                 {% if search_term %}
                 <a href="{{ url_for('web.parts') }}" class="btn btn-outline-danger"><i class="fas fa-times"></i> 清除</a>
