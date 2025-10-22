@@ -548,7 +548,7 @@ def inventory():
     """庫存管理首頁"""
     warehouse_id = request.args.get('warehouse_id', type=int)
     warehouses = Warehouse.get_all()
-    inventories = CurrentInventory.get_all_inventory(warehouse_id)
+    inventories = CurrentInventory.get_detailed_inventory_view(warehouse_id)
     low_stock_items = CurrentInventory.get_low_stock_items(warehouse_id)
     
     return render_template('inventory/index.html', 
@@ -844,16 +844,16 @@ def add_parts_to_inventory():
                 continue
             
             # 創建新零件
-                            new_part = Part(
-                                part_number=part_number,
-                                name=description or part_number,  # 如果沒有描述，使用零件編號作為名稱
-                                description=description,
-                                unit='個',  # 預設單位
-                                quantity_per_box=1,  # 預設每箱數量
-                                lead_time=5, # Default lead_time
-                                standard_cost=0,  # 預設成本
-                                is_active=True  # 預設啟用
-                            )            
+            new_part = Part(
+                part_number=part_number,
+                name=description or part_number,  # 如果沒有描述，使用零件編號作為名稱
+                description=description,
+                unit='個',  # 預設單位
+                quantity_per_box=1,  # 預設每箱數量
+                lead_time=5, # Default lead_time
+                standard_cost=0,  # 預設成本
+                is_active=True  # 預設啟用
+            )            
             try:
                 db.session.add(new_part)
                 db.session.flush()  # 確保取得ID
@@ -921,16 +921,16 @@ def add_part_detailed():
             })
         
         # 創建新零件
-                        new_part = Part(
-                            part_number=part_number,
-                            name=name,
-                            description=data.get('description', ''),
-                            unit=data.get('unit', '個'),
-                            quantity_per_box=data.get('quantity_per_box', 1),
-                            lead_time=data.get('lead_time', 5), # Include lead_time
-                            standard_cost=data.get('standard_cost', 0),
-                            is_active=True
-                        )        
+            new_part = Part(
+                part_number=part_number,
+                name=name,
+                description=data.get('description', ''),
+                unit=data.get('unit', '個'),
+                quantity_per_box=data.get('quantity_per_box', 1),
+                lead_time=data.get('lead_time', 5), # Include lead_time
+                standard_cost=data.get('standard_cost', 0),
+                is_active=True
+            )        
         db.session.add(new_part)
         db.session.commit()
         

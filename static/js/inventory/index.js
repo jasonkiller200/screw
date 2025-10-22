@@ -76,19 +76,15 @@ function exportInventory() {
     // 取得當前 URL 的查詢參數
     const currentUrl = new URL(window.location);
     const warehouseId = currentUrl.searchParams.get('warehouse_id');
-    const partNumber = currentUrl.searchParams.get('part_number');
-    const partName = currentUrl.searchParams.get('part_name');
     
     let exportUrl = '/api/inventory/stock/export?';
     const params = new URLSearchParams();
     
     if (warehouseId) params.append('warehouse_id', warehouseId);
-    if (partNumber) params.append('part_number', partNumber);
-    if (partName) params.append('part_name', partName);
     
     exportUrl += params.toString();
     
-    // 開啟新視窗下載 CSV 檔案
+    // 開啟新視窗下載 XLSX 檔案
     window.open(exportUrl, '_blank');
 }
 
@@ -138,12 +134,13 @@ document.addEventListener('DOMContentLoaded', () => {
             button.disabled = true;
             button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
-            fetch(`/api/part/${partId}/stock-levels`, {
+            fetch(`/api/parts/${partId}/update_inventory_policy`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
+                    warehouse_id: row.dataset.warehouseId, // Add warehouse_id
                     safety_stock: safetyStock,
                     reorder_point: reorderPoint,
                 }),

@@ -107,10 +107,10 @@
                         </button>
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="#" onclick="exportInventory()">
-                                <i class="fas fa-file-csv me-2"></i>匯出 CSV (當前篩選)
+                                <i class="fas fa-file-excel me-2"></i>匯出 XLSX (當前篩選)
                             </a></li>
                             <li><a class="dropdown-item" href="#" onclick="exportAllInventory()">
-                                <i class="fas fa-file-csv me-2"></i>匯出 CSV (所有倉庫)
+                                <i class="fas fa-file-excel me-2"></i>匯出 XLSX (所有倉庫)
                             </a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="#" onclick="exportLowStock()">
@@ -131,7 +131,7 @@
                             <tr>
                                 <th>零件編號</th>
                                 <th>零件名稱</th>
-                                <th>倉庫</th>
+                                <th>儲位</th>
                                 <th>現有庫存</th>
                                 <th>可用庫存</th>
                                 <th>安全庫存</th>
@@ -143,12 +143,14 @@
                         </thead>
                         <tbody id="inventory-table-body">
                             {% for inventory in inventories %}
-                            <tr class="inventory-row {{ 'table-warning' if inventory.available_quantity <= inventory.reorder_point else '' }}" data-part-id="{{ inventory.part_id }}">
+                            <tr class="inventory-row {{ 'table-warning' if inventory.available_quantity <= inventory.reorder_point else '' }}" 
+                                data-part-id="{{ inventory.part_id }}"
+                                data-warehouse-id="{{ inventory.warehouse_id }}"
+                                data-location-id="{{ inventory.location_id }}">
                                 <td><strong>{{ inventory.part_number }}</strong></td>
                                 <td>{{ inventory.part_name }}</td>
                                 <td>
-                                    <span class="badge bg-secondary">{{ inventory.warehouse_code }}</span>
-                                    {{ inventory.warehouse_name }}
+                                    {{ inventory.warehouse_name }} - {{ inventory.location_code }}
                                 </td>
                                 <td>{{ inventory.quantity_on_hand }}</td>
                                 <td>{{ inventory.available_quantity }}</td>

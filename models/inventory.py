@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime, timedelta
 from .part import Part, Warehouse # Import Part and Warehouse models
 import random
+import sqlalchemy as sa
 
 # Helper function to get current time in UTC+8
 def get_taipei_time():
@@ -54,6 +55,61 @@ class CurrentInventory(db.Model):
             return stock.to_dict() if stock else None
         stocks = query.all()
         return [stock.to_dict() for stock in stocks]
+
+    @classmethod
+    def get_detailed_inventory_view(cls, warehouse_id=None):
+        from models.part import Part, Warehouse, WarehouseLocation, PartWarehouseLocation
+        
+        # Start with all part-location associations
+        query = (db.session.query(
+            Part.id.label('part_id'),
+            Part.part_number,
+            Part.name.label('part_name'),
+            Part.unit,
+            Warehouse.id.label('warehouse_id'),
+            Warehouse.name.label('warehouse_name'),
+            Warehouse.code.label('warehouse_code'),
+            WarehouseLocation.id.label('location_id'),
+            WarehouseLocation.location_code,
+            cls.quantity_on_hand,
+            cls.reserved_quantity,
+            cls.available_quantity,
+            cls.safety_stock,
+            cls.reorder_point
+        )
+        .select_from(Part)
+        .join(PartWarehouseLocation, Part.id == PartWarehouseLocation.part_id)
+        .join(WarehouseLocation, PartWarehouseLocation.warehouse_location_id == WarehouseLocation.id)
+        .join(Warehouse, WarehouseLocation.warehouse_id == Warehouse.id)
+        .outerjoin(cls, sa.and_(Part.id == cls.part_id, Warehouse.id == cls.warehouse_id)))
+
+        if warehouse_id:
+            query = query.filter(Warehouse.id == warehouse_id)
+            
+        # Order by warehouse code, part number, and location code for consistent display
+        query = query.order_by(Warehouse.code, Part.part_number, WarehouseLocation.location_code)
+        
+        results = query.all()
+        
+        detailed_inventory = []
+        for row in results:
+            detailed_inventory.append({
+                'part_id': row.part_id,
+                'part_number': row.part_number,
+                'part_name': row.part_name,
+                'unit': row.unit,
+                'warehouse_id': row.warehouse_id,
+                'warehouse_name': row.warehouse_name,
+                'warehouse_code': row.warehouse_code,
+                'location_id': row.location_id,
+                'location_code': row.location_code,
+                'quantity_on_hand': row.quantity_on_hand if row.quantity_on_hand is not None else 0,
+                'reserved_quantity': row.reserved_quantity if row.reserved_quantity is not None else 0,
+                'available_quantity': row.available_quantity if row.available_quantity is not None else 0,
+                'safety_stock': row.safety_stock if row.safety_stock is not None else 0,
+                'reorder_point': row.reorder_point if row.reorder_point is not None else 0,
+            })
+        return detailed_inventory
 
     @classmethod
     def get_all_inventory(cls, warehouse_id=None):
