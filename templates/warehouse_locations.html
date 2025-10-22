@@ -40,14 +40,10 @@
                                         {% endif %}
                                     </div>
                                     <div class="btn-group btn-group-sm" role="group">
-                                        <button class="btn btn-outline-primary btn-sm" 
-                                                onclick="editWarehouse({{ warehouse['id'] }}, {{ warehouse['name']|tojson }}, {{ warehouse['code']|tojson }}, {{ (warehouse['description'] or '')|tojson }})"
-                                                title="編輯">
+                                        <button class="btn btn-outline-primary btn-sm" onclick="editWarehouse({{ warehouse['id'] }}, {{ warehouse['name']|tojson }}, {{ warehouse['code']|tojson }}, {{ (warehouse['description'] or '')|tojson }})" title="編輯">
                                             <i class="fas fa-edit"></i>
                                         </button>
-                                        <button class="btn btn-outline-danger btn-sm" 
-                                                onclick="deleteWarehouse({{ warehouse['id'] }}, {{ warehouse['name']|tojson }}, {{ warehouse['code']|tojson }})"
-                                                title="刪除">
+                                        <button class="btn btn-outline-danger btn-sm" onclick="deleteWarehouse({{ warehouse['id'] }}, {{ warehouse['name']|tojson }}, {{ warehouse['code']|tojson }})" title="刪除">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </div>
@@ -114,12 +110,10 @@
                                 <td><strong>{{ location.location_code }}</strong></td>
                                 <td>{{ location.description or '-' }}</td>
                                 <td class="text-end">
-                                    <button class="btn btn-sm btn-outline-primary" 
-                                            onclick="editLocation({{ location.id }}, {{ location.location_code|tojson }}, {{ (location.description or '')|tojson }})">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="editLocation({{ location.id }}, {{ location.location_code|tojson }}, {{ (location.description or '')|tojson }})">
                                         <i class="fas fa-edit"></i> 編輯
                                     </button>
-                                    <button class="btn btn-sm btn-outline-danger" 
-                                            onclick="deleteLocation({{ location.id }}, {{ location.warehouse_name|tojson }}, {{ location.location_code|tojson }})">
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteLocation({{ location.id }}, {{ location.warehouse_name|tojson }}, {{ location.location_code|tojson }})">
                                         <i class="fas fa-trash"></i> 刪除
                                     </button>
                                 </td>
