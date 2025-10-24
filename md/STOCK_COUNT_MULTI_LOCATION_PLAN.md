@@ -162,6 +162,7 @@
     *   **驗收標準：**
         *   透過 API 建立或更新訂單項目時，能夠成功指定並儲存 `warehouse_location_id`。
         *   若未提供有效的 `warehouse_location_id`，後端應有適當的錯誤處理或預設邏輯。
+    *   **進度與備註 (2025-10-24)：** 完成。已修改 `controllers/weekly_order_controller.py` 中的 `register_order()`、`batch_register()` 和 `batch_register_form()` 函式，以接收並儲存 `warehouse_location_id`。
 
 *   **User Story 4.2.2: 更新前端表單以允許儲位選擇**
     *   **描述：** 修改週訂單相關的前端表單 (`templates/weekly_orders/register.html`, `batch_register.html`)，新增儲位選擇功能。

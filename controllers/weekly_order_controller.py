@@ -63,12 +63,16 @@ def register_order():
             max_sequence = db.session.query(db.func.max(OrderRegistration.item_sequence)).filter_by(cycle_id=current_cycle.id).scalar()
             next_sequence = (max_sequence or 0) + 1
             
+            # Get warehouse_location_id from form
+            warehouse_location_id = request.form.get('warehouse_location_id', type=int) # New
+
             # 創建新的登記記錄
             registration = OrderRegistration(
                 cycle_id=current_cycle.id,
                 item_sequence=next_sequence,
                 part_number=request.form.get('part_number', '').strip(),
                 part_name=request.form.get('part_name', '').strip(),
+                warehouse_location_id=warehouse_location_id, # New
                 quantity=int(request.form.get('quantity', 0)),
                 unit=request.form.get('unit', '').strip(),
                 category=request.form.get('category', '').strip(),
@@ -119,12 +123,16 @@ def batch_register():
             max_sequence = db.session.query(db.func.max(OrderRegistration.item_sequence)).filter_by(cycle_id=current_cycle.id).scalar()
             next_sequence = (max_sequence or 0) + 1
             
+            # Get warehouse_location_id from part_data
+            warehouse_location_id = part_data.get('warehouse_location_id', type=int) # New
+
             # 創建新的登記記錄
             registration = OrderRegistration()
             registration.cycle_id = current_cycle.id
             registration.item_sequence = next_sequence
             registration.part_number = part_data.get('part_number', '').strip()
             registration.part_name = part_data.get('part_name', '').strip()
+            registration.warehouse_location_id = warehouse_location_id # New
             registration.quantity = int(part_data.get('quantity', 1))
             registration.unit = part_data.get('unit', '個').strip()
             registration.category = part_data.get('category', '').strip()
@@ -193,34 +201,35 @@ def batch_register_form():
             item_index = 0
             while f'items[{item_index}][part_number]' in request.form:
                 part_number = request.form.get(f'items[{item_index}][part_number]', '').strip()
-                part_name = request.form.get(f'items[{item_index}][part_name]', '').strip()
-                quantity_str = request.form.get(f'items[{item_index}][quantity]', '0')
+                                part_name = request.form.get(f'items[{item_index}][part_name]', '').strip()
+                                quantity_str = request.form.get(f'items[{item_index}][quantity]', '0')
+                                warehouse_location_id = request.form.get(f'items[{item_index}][warehouse_location_id]', type=int) # New
                 
-                if not part_number or not part_name:
-                    item_index += 1
-                    continue
+                                if not part_number or not part_name:
+                                    item_index += 1
+                                    continue
                 
-                try:
-                    quantity = int(quantity_str)
-                    if quantity <= 0:
-                        item_index += 1
-                        continue
-                except ValueError:
-                    item_index += 1
-                    continue
+                                try:
+                                    quantity = int(quantity_str)
+                                    if quantity <= 0:
+                                        item_index += 1
+                                        continue
+                                except ValueError:
+                                    item_index += 1
+                                    continue
                 
-                # 獲取下一個項次
-                max_sequence = db.session.query(db.func.max(OrderRegistration.item_sequence)).filter_by(cycle_id=current_cycle.id).scalar()
-                next_sequence = (max_sequence or 0) + 1
+                                # 獲取下一個項次
+                                max_sequence = db.session.query(db.func.max(OrderRegistration.item_sequence)).filter_by(cycle_id=current_cycle.id).scalar()
+                                next_sequence = (max_sequence or 0) + 1
                 
-                # 創建新的登記記錄
-                registration = OrderRegistration()
-                registration.cycle_id = current_cycle.id
-                registration.item_sequence = next_sequence
-                registration.part_number = part_number
-                registration.part_name = part_name
-                registration.quantity = quantity
-                registration.unit = request.form.get(f'items[{item_index}][unit]', '個').strip()
+                                # 創建新的登記記錄
+                                registration = OrderRegistration()
+                                registration.cycle_id = current_cycle.id
+                                registration.item_sequence = next_sequence
+                                registration.part_number = part_number
+                                registration.part_name = part_name
+                                registration.warehouse_location_id = warehouse_location_id # New
+                                registration.quantity = quantity                registration.unit = request.form.get(f'items[{item_index}][unit]', '個').strip()
                 registration.category = request.form.get(f'items[{item_index}][category]', '').strip()
                 registration.priority = request.form.get(f'items[{item_index}][priority]', 'normal').strip()
                 registration.purpose_notes = request.form.get(f'items[{item_index}][purpose_notes]', '').strip()

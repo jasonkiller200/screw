@@ -1,6 +1,7 @@
 from extensions import db
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import relationship
+from .part import WarehouseLocation # New import
 
 # Helper function to get current time in UTC+8
 def get_taipei_time():
@@ -126,6 +127,7 @@ class OrderRegistration(db.Model):
     item_sequence = db.Column(db.Integer, nullable=False, comment='項次')
     part_number = db.Column(db.String(100), nullable=False, comment='品號')
     part_name = db.Column(db.String(200), nullable=False, comment='品名')
+    warehouse_location_id = db.Column(db.Integer, db.ForeignKey('warehouse_locations.id'), nullable=True, comment='儲位ID') # New
     quantity = db.Column(db.Integer, nullable=False, comment='數量')
     unit = db.Column(db.String(20), nullable=False, comment='單位')
     category = db.Column(db.String(50), nullable=True, comment='種類')
@@ -142,6 +144,7 @@ class OrderRegistration(db.Model):
     
     # 關聯
     cycle = relationship("WeeklyOrderCycle", back_populates="registrations")
+    warehouse_location = relationship("WarehouseLocation") # New relationship
     
     def __repr__(self):
         return f'<OrderRegistration {self.part_number}: {self.part_name}>'
@@ -153,6 +156,8 @@ class OrderRegistration(db.Model):
             'item_sequence': self.item_sequence,
             'part_number': self.part_number,
             'part_name': self.part_name,
+            'warehouse_location_id': self.warehouse_location_id, # New
+            'location_code': self.warehouse_location.location_code if self.warehouse_location else None, # New
             'quantity': self.quantity,
             'unit': self.unit,
             'category': self.category,
