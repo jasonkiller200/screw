@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, jsonify, request, send_file, Response
 from models.part import Part, Warehouse
 from models.order import Order
 from models.inventory import CurrentInventory # Import CurrentInventory
@@ -6,6 +6,10 @@ from extensions import db # Import db
 from datetime import datetime, timedelta
 import pandas as pd
 from io import BytesIO
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+from urllib.parse import quote
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -34,6 +38,25 @@ def export_inventory_stock():
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, sheet_name='庫存數據', index=False)
+        
+        # 自動調整欄寬
+        worksheet = writer.sheets['庫存數據']
+        for column in worksheet.columns:
+            max_length = 0
+            column_name = column[0].value # Get column header
+            # Check length of header
+            if column_name:
+                max_length = max(max_length, len(str(column_name)))
+            
+            # Check length of data in column
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = (max_length + 2) # Add a little extra space
+            worksheet.column_dimensions[column[0].column_letter].width = adjusted_width
     output.seek(0)
     
     filename = f"庫存數據_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
@@ -70,6 +93,25 @@ def export_low_stock_items():
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, sheet_name='低庫存項目', index=False)
+        
+        # 自動調整欄寬
+        worksheet = writer.sheets['低庫存項目']
+        for column in worksheet.columns:
+            max_length = 0
+            column_name = column[0].value # Get column header
+            # Check length of header
+            if column_name:
+                max_length = max(max_length, len(str(column_name)))
+            
+            # Check length of data in column
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = (max_length + 2) # Add a little extra space
+            worksheet.column_dimensions[column[0].column_letter].width = adjusted_width
     output.seek(0)
     
     filename = f"低庫存項目_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
@@ -99,18 +141,9 @@ def get_part_details(part_number):
     order_history = Order.get_history_by_part_number(part_number)
     order_history_data = [order.to_dict() for order in order_history] if order_history else []
     
-    # Fetch inventory for the part from all warehouses
+    # Fetch inventory for the part from all warehouses by calling the correct to_dict() method
     inventories = CurrentInventory.query.filter_by(part_id=part.id).all()
-    inventory_data = []
-    for inv in inventories:
-        inventory_data.append({
-            'warehouse_id': inv.warehouse_id,
-            'warehouse_name': inv.warehouse.name if inv.warehouse else '未知',
-            'warehouse_code': inv.warehouse.code if inv.warehouse else '未知',
-            'quantity_on_hand': inv.quantity_on_hand,
-            'reserved_quantity': inv.reserved_quantity,
-            'available_quantity': inv.available_quantity
-        })
+    inventory_data = [inv.to_dict() for inv in inventories]
     
     # Combine the results into a single JSON response
     result = {
@@ -120,6 +153,26 @@ def get_part_details(part_number):
     }
     
     return jsonify(result)
+
+@api_bp.route('/part/<string:part_number>/locations', methods=['GET'])
+def get_part_locations(part_number):
+    """
+    Fetches all warehouse locations associated with a given part number.
+    """
+    part = Part.get_by_part_number(part_number)
+
+    if part is None:
+        return jsonify({'error': '找不到零件'}), 404
+
+    locations_data = []
+    for assoc in part.location_associations:
+        locations_data.append({
+            'id': assoc.warehouse_location.id,
+            'location_code': assoc.warehouse_location.location_code,
+            'warehouse_name': assoc.warehouse_location.warehouse.name
+        })
+
+    return jsonify({'locations': locations_data})
 
 @api_bp.route('/order', methods=['POST'])
 def place_order():
@@ -459,4 +512,111 @@ def update_inventory_policy(part_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/parts/export', methods=['GET'])
+def export_parts():
+    """匯出零件清單為 Excel 檔案"""
+    from sqlalchemy import or_, func
+    from models.part import PartWarehouseLocation, WarehouseLocation, Warehouse
+
+    search = request.args.get('search', '')
+    sort_by = request.args.get('sort_by', 'part_number')
+    sort_order = request.args.get('sort_order', 'asc')
+
+    # --- Replicate query logic from Part.get_all ---
+    query = Part.query
+    if sort_by == 'storage_location':
+        query = query.outerjoin(PartWarehouseLocation).outerjoin(WarehouseLocation).outerjoin(Warehouse)
+
+    if search:
+        query = query.filter(or_(
+            Part.name.ilike(f'%{search}%'),
+            Part.part_number.ilike(f'%{search}%')
+        ))
+    
+    valid_columns = ['part_number', 'name', 'type', 'description', 'unit', 'quantity_per_box', 'lead_time', 'storage_location']
+    if sort_by not in valid_columns:
+        sort_by = 'part_number'
+    
+    if sort_by == 'storage_location':
+        if sort_order.lower() == 'desc':
+            query = query.order_by(db.desc(func.coalesce(Warehouse.name, '')), db.desc(func.coalesce(WarehouseLocation.location_code, '')))
+        else:
+            query = query.order_by(func.coalesce(Warehouse.name, ''), func.coalesce(WarehouseLocation.location_code, ''))
+    else:
+        if sort_order.lower() == 'desc':
+            query = query.order_by(db.desc(getattr(Part, sort_by)))
+        else:
+            query = query.order_by(getattr(Part, sort_by))
+    # --- End of replicated logic ---
+
+    # Fetch ALL parts matching the criteria
+    parts = query.all()
+
+    # Create Excel workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "零件清單"
+
+    # Define styles
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+    header_alignment = Alignment(horizontal="center", vertical="center")
+    border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+    # Write headers
+    headers = ['零件編號', '名稱', '類型', '備註', '單位', '每盒數量', '採購前置期 (天)', '儲存位置']
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num)
+        cell.value = header
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+        cell.border = border
+
+    # Write data rows
+    for row_num, part in enumerate(parts, 2):
+        locations = ", ".join([f"{assoc.warehouse_location.warehouse.name}-{assoc.warehouse_location.location_code}" for assoc in part.location_associations]) if part.location_associations else "無"
+        
+        ws.cell(row=row_num, column=1, value=part.part_number).border = border
+        ws.cell(row=row_num, column=2, value=part.name).border = border
+        ws.cell(row=row_num, column=3, value=part.type).border = border
+        ws.cell(row=row_num, column=4, value=part.description).border = border
+        ws.cell(row=row_num, column=5, value=part.unit).border = border
+        ws.cell(row=row_num, column=6, value=part.quantity_per_box).border = border
+        ws.cell(row=row_num, column=7, value=part.lead_time).border = border
+        ws.cell(row=row_num, column=8, value=locations).border = border
+
+    # Auto-fit columns
+    for col_num, column_cells in enumerate(ws.columns, 1):
+        max_length = 0
+        column_letter = get_column_letter(col_num)
+        # Check header length
+        max_length = len(str(ws.cell(row=1, column=col_num).value))
+        for cell in column_cells:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = (max_length + 2)
+        ws.column_dimensions[column_letter].width = adjusted_width
+
+    # Save to memory
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    # Create response
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"零件清單_{timestamp}.xlsx"
+    encoded_filename = quote(filename)
+
+    return Response(
+        output.getvalue(),
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={
+            'Content-Disposition': f"attachment; filename*=UTF-8''{encoded_filename}"
+        }
+    )
 

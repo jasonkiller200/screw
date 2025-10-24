@@ -129,6 +129,7 @@ class OrderRegistration(db.Model):
     part_name = db.Column(db.String(200), nullable=False, comment='品名')
     warehouse_location_id = db.Column(db.Integer, db.ForeignKey('warehouse_locations.id'), nullable=True, comment='儲位ID') # New
     quantity = db.Column(db.Integer, nullable=False, comment='數量')
+    quantity_received = db.Column(db.Integer, nullable=False, default=0, comment='已入庫數量')
     unit = db.Column(db.String(20), nullable=False, comment='單位')
     category = db.Column(db.String(50), nullable=True, comment='種類')
     required_date = db.Column(db.DateTime, nullable=True, comment='需用日期')
@@ -137,7 +138,7 @@ class OrderRegistration(db.Model):
     applicant_name = db.Column(db.String(50), nullable=False, comment='申請人')
     applicant_id = db.Column(db.Integer, nullable=True, comment='申請人ID(未來用)')
     department = db.Column(db.String(100), nullable=True, comment='申請單位')
-    status = db.Column(db.String(20), nullable=False, default='registered', comment='狀態')
+    status = db.Column(db.String(20), nullable=False, default='registered', comment='狀態: registered, approved, partially_received, completed, rejected')
     admin_notes = db.Column(db.Text, nullable=True, comment='主管備註')
     created_at = db.Column(db.DateTime, default=get_taipei_time)
     updated_at = db.Column(db.DateTime, default=get_taipei_time, onupdate=get_taipei_time)
@@ -159,6 +160,7 @@ class OrderRegistration(db.Model):
             'warehouse_location_id': self.warehouse_location_id, # New
             'location_code': self.warehouse_location.location_code if self.warehouse_location else None, # New
             'quantity': self.quantity,
+            'quantity_received': self.quantity_received,
             'unit': self.unit,
             'category': self.category,
             'required_date': self.required_date.isoformat() if self.required_date else None,

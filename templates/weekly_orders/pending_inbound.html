@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}待入庫訂單{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- 頁面標題 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('web.index') }}">首頁</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('weekly_order.weekly_orders') }}">訂單管理</a></li>
+                    <li class="breadcrumb-item active">待入庫訂單</li>
+                </ol>
+            </nav>
+            <h2><i class="fas fa-box-open text-info"></i> 待入庫訂單</h2>
+            <p class="text-muted">此處顯示所有已核准並等待收貨入庫的申請項目。</p>
+        </div>
+    </div>
+
+    <!-- 待入庫清單 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">待入庫項目清單</h5>
+                    <button class="btn btn-primary" id="batchInboundBtn"><i class="fas fa-boxes-packing me-1"></i> 批量入庫</button>
+                </div>
+                <div class="card-body p-0">
+                    {% if items %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th><input type="checkbox" id="selectAll"></th>
+                                    <th>週期</th>
+                                    <th>品號</th>
+                                    <th>品名</th>
+                                    <th class="text-end">申請數量</th>
+                                    <th>單位</th>
+                                    <th>申請人</th>
+                                    <th>需用日期</th>
+                                    <th>指定儲位</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in items %}
+                                <tr data-item-id="{{ item.id }}">
+                                    <td><input type="checkbox" class="inbound-checkbox" value="{{ item.id }}"></td>
+                                    <td><a href="{{ url_for('weekly_order.review_cycle', cycle_id=item.cycle_id) }}">{{ item.cycle.cycle_name }}</a></td>
+                                    <td><strong>{{ item.part_number }}</strong></td>
+                                    <td>{{ item.part_name }}</td>
+                                    <td class="text-end">{{ item.quantity }}</td>
+                                    <td>{{ item.unit }}</td>
+                                    <td>{{ item.applicant_name }}</td>
+                                    <td>{{ item.required_date.strftime('%Y-%m-%d') if item.required_date else '-' }}</td>
+                                    <td>
+                                        {% if item.warehouse_location and item.warehouse_location.warehouse %}
+                                            <span class="badge bg-secondary">{{ item.warehouse_location.warehouse.name }} - {{ item.warehouse_location.location_code }}</span>
+                                        {% elif item.warehouse_location %}
+                                            <span class="badge bg-secondary">{{ item.warehouse_location.location_code }}</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">未指定</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-success" onclick="openInboundModal({{ item.id }}, {{ item.quantity }}, '{{ item.part_number }}')">
+                                            <i class="fas fa-sign-in-alt me-1"></i>入庫
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                        <h5 class="text-muted">沒有待入庫的項目</h5>
+                        <p class="text-muted">所有已核准的項目都已處理完畢。</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 入庫操作 Modal -->
+<div class="modal fade" id="inboundModal" tabindex="-1" aria-labelledby="inboundModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="inboundModalLabel">執行入庫</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p><strong>品號:</strong> <span id="modalPartNumber"></span></p>
+        <p><strong>申請數量:</strong> <span id="modalRequestedQuantity"></span></p>
+        <input type="hidden" id="modalItemId">
+        <div class="mb-3">
+          <label for="inboundQuantity" class="form-label">入庫數量 <span class="text-danger">*</span></label>
+          <input type="number" class="form-control" id="inboundQuantity" min="1" required>
+        </div>
+        <div class="mb-3">
+          <label for="inboundNotes" class="form-label">備註</label>
+          <textarea class="form-control" id="inboundNotes" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" onclick="confirmInbound()">確認入庫</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Batch Inbound Modal -->
+<div class="modal fade" id="batchInboundModal" tabindex="-1" aria-labelledby="batchInboundModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="batchInboundModalLabel">批量入庫確認</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>請確認以下各項目的入庫數量。</p>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>品號</th>
+                <th>品名</th>
+                <th class="text-end">申請數量</th>
+                <th>入庫數量</th>
+              </tr>
+            </thead>
+            <tbody id="batchInboundTableBody">
+              <!-- JS will populate this -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" onclick="confirmBatchInbound()">確認批量入庫</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/weekly_orders/pending_inbound.js') }}"></script>
+{% endblock %}

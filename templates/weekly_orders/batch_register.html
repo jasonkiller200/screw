@@ -106,11 +106,12 @@
                                         <th width="5%">#</th>
                                         <th width="12%">品號 <span class="text-danger">*</span></th>
                                         <th width="15%">品名 <span class="text-danger">*</span></th>
+                                        <th width="10%">儲位 <span class="text-danger">*</span></th>
                                         <th width="8%">數量 <span class="text-danger">*</span></th>
                                         <th width="8%">單位</th>
-                                        <th width="10%">類別</th>
+                                        <th width="10%">類型</th>
                                         <th width="10%">需用日期</th>
-                                        <th width="10%">申請類型</th>
+                                        <th width="10%">緊急程度</th>
                                         <th width="12%">台份用/備註</th>
                                         <th width="5%">操作</th>
                                     </tr>
@@ -150,6 +151,16 @@
             <input type="text" class="form-control form-control-sm" name="items[0][part_name]" required>
         </td>
         <td>
+            <select class="form-select form-select-sm" name="items[0][warehouse_location_id]" required>
+                <option value="">請選擇儲位</option>
+                {% for location in all_warehouse_locations %}
+                <option value="{{ location.id }}">
+                    {{ location.warehouse_name }} - {{ location.location_code }}
+                </option>
+                {% endfor %}
+            </select>
+        </td>
+        <td>
             <input type="number" class="form-control form-control-sm" name="items[0][quantity]" min="1" required>
         </td>
         <td>
@@ -165,9 +176,7 @@
             </select>
         </td>
         <td>
-            <select class="form-select form-select-sm" name="items[0][category]">
-                <option value="">請選擇類別</option>
-            </select>
+            <input type="text" class="form-control form-control-sm" name="items[0][part_type]" placeholder="自動帶入零件類型">
         </td>
         <td>
             <input type="date" class="form-control form-control-sm" name="items[0][required_date]">

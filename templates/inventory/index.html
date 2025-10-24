@@ -53,6 +53,10 @@
                     <a href="{{ url_for('web.stock_counts') }}" class="btn btn-info">
                         <i class="fas fa-clipboard-list me-1"></i>盤點
                     </a>
+                    {# TODO: Add admin role check here in the future #}
+                    <a href="{{ url_for('web.inventory_adjustment') }}" class="btn btn-danger">
+                        <i class="fas fa-sliders-h me-1"></i>庫存調整
+                    </a>
                     <a href="{{ url_for('web.inventory_transactions') }}" class="btn btn-secondary">
                         <i class="fas fa-history me-1"></i>記錄
                     </a>

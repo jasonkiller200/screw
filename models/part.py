@@ -196,7 +196,7 @@ class Part(db.Model):
 
     @classmethod
     def create(cls, part_number, name, type, description, unit, quantity_per_box, locations_data, 
-               safety_stock=0, reorder_point=0, lead_time=5, standard_cost=0, is_active=True): # Update create method signature
+               lead_time=5, standard_cost=0, is_active=True): # Update create method signature
         
         if cls.query.filter_by(part_number=part_number).first():
             return {'success': False, 'error': '零件編號已存在'}
@@ -251,8 +251,6 @@ class Part(db.Model):
             description=description,
             unit=unit,
             quantity_per_box=quantity_per_box,
-            safety_stock=safety_stock,
-            reorder_point=reorder_point,
             lead_time=lead_time, # Pass new field
             standard_cost=standard_cost,
             is_active=is_active
@@ -286,7 +284,7 @@ class Part(db.Model):
 
     @classmethod
     def update(cls, part_id, part_number, name, type, description, unit, quantity_per_box, locations_data,
-               safety_stock=0, reorder_point=0, lead_time=5, standard_cost=0, is_active=True): # Update update method signature
+               lead_time=5, standard_cost=0, is_active=True): # Update update method signature
         
         part = cls.query.get(part_id)
         if not part:
@@ -346,8 +344,6 @@ class Part(db.Model):
         part.description = description
         part.unit = unit
         part.quantity_per_box = quantity_per_box
-        part.safety_stock = safety_stock
-        part.reorder_point = reorder_point
         part.lead_time = lead_time # Update new field
         part.standard_cost = standard_cost
         part.is_active = is_active
@@ -423,12 +419,12 @@ class Part(db.Model):
         db.session.flush() # Flush to ensure deletions are processed before checking warehouses
 
         # 2. 清理不再包含任何 WarehouseLocation 的 Warehouse
-        unused_warehouses = db.session.query(Warehouse).outerjoin(
-            WarehouseLocation,
-            Warehouse.id == WarehouseLocation.warehouse_id
-        ).filter(WarehouseLocation.warehouse_id == None).all()
+        # unused_warehouses = db.session.query(Warehouse).outerjoin(
+        #     WarehouseLocation,
+        #     Warehouse.id == WarehouseLocation.warehouse_id
+        # ).filter(WarehouseLocation.warehouse_id == None).all()
 
-        for wh in unused_warehouses:
-            db.session.delete(wh)
+        # for wh in unused_warehouses:
+        #     db.session.delete(wh)
             
         db.session.commit() # Commit the cleanup changes

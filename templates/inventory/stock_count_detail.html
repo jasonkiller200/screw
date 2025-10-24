@@ -160,24 +160,20 @@
                         </thead>
                         <tbody>
                             {% for detail in details %}
-                            <tr>
+                            <tr id="row-{{ detail.id }}">
                                 <td><strong>{{ detail.part_number }}</strong></td>
                                 <td>{{ detail.part_name }}</td>
                                 <td>
-                                    {% if detail.storage_locations %}
-                                        {% for location in detail.storage_locations %}
-                                            <span class="badge bg-secondary me-1">{{ location }}</span>
-                                        {% endfor %}
-                                    {% else %}
-                                        <span class="text-muted">無儲位</span>
-                                    {% endif %}
+                                    <span class="badge bg-secondary">{{ detail.location_code }}</span>
                                 </td>
                                 <td class="text-end">{{ detail.system_quantity }}</td>
                                 <td class="text-end">
                                     {% if count_info.status == 'counting' %}
                                     <input type="number" class="form-control form-control-sm count-input" 
                                            value="{{ detail.counted_quantity or '' }}" 
+                                           data-detail-id="{{ detail.id }}"
                                            data-part-id="{{ detail.part_id }}"
+                                           data-location-id="{{ detail.warehouse_location_id }}"
                                            placeholder="輸入實盤數量">
                                     {% else %}
                                     {{ detail.counted_quantity or '-' }}
@@ -215,7 +211,7 @@
                                 {% if count_info.status == 'counting' %}
                                 <td>
                                     <button class="btn btn-outline-success btn-sm" 
-                                            onclick="saveCountItem({{ detail.part_id }})">
+                                            onclick="saveCountItem(this)">
                                         <i class="fas fa-save"></i>
                                     </button>
                                 </td>

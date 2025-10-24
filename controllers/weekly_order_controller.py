@@ -1,7 +1,10 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, send_file, make_response
 from extensions import db
 from models.weekly_order import WeeklyOrderCycle, OrderRegistration, OrderReviewLog, User
+from models.part import WarehouseLocation # Import for relationship loading
+from services.inventory_service import InventoryService # New import
 from datetime import datetime, timedelta
+from sqlalchemy.orm import joinedload
 import pandas as pd
 from io import BytesIO
 import os
@@ -31,19 +34,36 @@ def weekly_orders():
                          current_cycle=current_cycle,
                          historical_cycles=historical_cycles)
 
+@weekly_order_bp.route('/weekly-orders/pending-inbound')
+def pending_inbound_orders():
+    """顯示所有已核准待入庫的訂單項目"""
+    pending_items = OrderRegistration.query.options(
+        joinedload(OrderRegistration.warehouse_location).joinedload(WarehouseLocation.warehouse),
+        joinedload(OrderRegistration.cycle)
+    ).filter(
+        OrderRegistration.status == 'approved'
+    ).order_by(
+        OrderRegistration.required_date.asc(),
+        OrderRegistration.created_at.asc()
+    ).all()
+
+    return render_template('weekly_orders/pending_inbound.html', items=pending_items)
+
 @weekly_order_bp.route('/weekly-orders/register', methods=['GET', 'POST'])
 def register_order():
     """登記申請項目"""
+    from models.part import WarehouseLocation # New import
+
     current_cycle = WeeklyOrderCycle.get_current_cycle()
-    
+
     if not current_cycle:
         flash('目前沒有活躍的申請週期', 'error')
         return redirect(url_for('weekly_order.weekly_orders'))
-    
+
     if not current_cycle.is_active:
         flash('申請週期已截止，無法新增登記', 'error')
         return redirect(url_for('weekly_order.weekly_orders'))
-    
+
     # 檢查是否從其他頁面帶入預填資料
     prefill_data = {}
     if request.method == 'GET':
@@ -54,9 +74,12 @@ def register_order():
             'quantity': request.args.get('quantity', ''),
             'unit': request.args.get('unit', ''),
             'category': request.args.get('category', ''),
+            'category': request.args.get('category', ''),
             'source': request.args.get('source', '')  # 來源：shortage, lookup, manual
         }
-    
+        # Also prefill warehouse_location_id if available in URL args
+        prefill_data['warehouse_location_id'] = request.args.get('warehouse_location_id', type=int) # New
+
     if request.method == 'POST':
         try:
             # 獲取下一個項次
@@ -75,7 +98,7 @@ def register_order():
                 warehouse_location_id=warehouse_location_id, # New
                 quantity=int(request.form.get('quantity', 0)),
                 unit=request.form.get('unit', '').strip(),
-                category=request.form.get('category', '').strip(),
+                category=request.form.get('part_type', '').strip(),
                 required_date=datetime.strptime(request.form.get('required_date'), '%Y-%m-%d') if request.form.get('required_date') else None,
                 priority=request.form.get('priority', 'normal').strip(),
                 purpose_notes=request.form.get('purpose_notes', '').strip(),
@@ -93,10 +116,20 @@ def register_order():
             db.session.rollback()
             flash(f'登記失敗：{str(e)}', 'error')
     
-    return render_template('weekly_orders/register.html', 
-                         current_cycle=current_cycle,
-                         prefill_data=prefill_data)
+    all_warehouse_locations = []
+    # Fetch all warehouse locations with their warehouse names
+    locations = db.session.query(WarehouseLocation).join(WarehouseLocation.warehouse).all()
+    for loc in locations:
+        all_warehouse_locations.append({
+            'id': loc.id,
+            'location_code': loc.location_code,
+            'warehouse_name': loc.warehouse.name # Access warehouse name via relationship
+        })
 
+    return render_template('weekly_orders/register.html',
+                         current_cycle=current_cycle,
+                         prefill_data=prefill_data,
+                         all_warehouse_locations=all_warehouse_locations)
 @weekly_order_bp.route('/weekly_orders/batch_register', methods=['POST'])
 def batch_register():
     """批量登記申請項目（從其他系統匯入）"""
@@ -159,16 +192,28 @@ def batch_register():
 @weekly_order_bp.route('/weekly-orders/batch-register', methods=['GET', 'POST'])
 def batch_register_form():
     """批量申請表單頁面"""
+    from models.part import WarehouseLocation # New import
+
     current_cycle = WeeklyOrderCycle.get_current_cycle()
-    
+
     if not current_cycle:
         flash('目前沒有活躍的申請週期', 'error')
         return redirect(url_for('weekly_order.weekly_orders'))
-    
+
     if not current_cycle.is_active:
         flash('申請週期已截止，無法新增登記', 'error')
         return redirect(url_for('weekly_order.weekly_orders'))
-    
+
+    all_warehouse_locations = []
+    # Fetch all warehouse locations with their warehouse names
+    locations = db.session.query(WarehouseLocation).join(WarehouseLocation.warehouse).all()
+    for loc in locations:
+        all_warehouse_locations.append({
+            'id': loc.id,
+            'location_code': loc.location_code,
+            'warehouse_name': loc.warehouse.name # Access warehouse name via relationship
+        })
+
     if request.method == 'GET':
         # 檢查是否有預填資料（從庫存不足報告等來源）
         prefill_items = []
@@ -180,11 +225,12 @@ def batch_register_form():
             except (json.JSONDecodeError, TypeError):
                 flash('預填資料格式錯誤', 'warning')
                 prefill_items = []
-        
-        return render_template('weekly_orders/batch_register.html', 
+
+        return render_template('weekly_orders/batch_register.html',
                              current_cycle=current_cycle,
-                             prefill_items=prefill_items)
-    
+                             prefill_items=prefill_items,
+                             all_warehouse_locations=all_warehouse_locations) # New
+
     # POST 處理表單提交
     if request.method == 'POST':
         try:
@@ -201,41 +247,42 @@ def batch_register_form():
             item_index = 0
             while f'items[{item_index}][part_number]' in request.form:
                 part_number = request.form.get(f'items[{item_index}][part_number]', '').strip()
-                                part_name = request.form.get(f'items[{item_index}][part_name]', '').strip()
-                                quantity_str = request.form.get(f'items[{item_index}][quantity]', '0')
-                                warehouse_location_id = request.form.get(f'items[{item_index}][warehouse_location_id]', type=int) # New
-                
-                                if not part_number or not part_name:
-                                    item_index += 1
-                                    continue
-                
-                                try:
-                                    quantity = int(quantity_str)
-                                    if quantity <= 0:
-                                        item_index += 1
-                                        continue
-                                except ValueError:
-                                    item_index += 1
-                                    continue
-                
-                                # 獲取下一個項次
-                                max_sequence = db.session.query(db.func.max(OrderRegistration.item_sequence)).filter_by(cycle_id=current_cycle.id).scalar()
-                                next_sequence = (max_sequence or 0) + 1
-                
-                                # 創建新的登記記錄
-                                registration = OrderRegistration()
-                                registration.cycle_id = current_cycle.id
-                                registration.item_sequence = next_sequence
-                                registration.part_number = part_number
-                                registration.part_name = part_name
-                                registration.warehouse_location_id = warehouse_location_id # New
-                                registration.quantity = quantity                registration.unit = request.form.get(f'items[{item_index}][unit]', '個').strip()
-                registration.category = request.form.get(f'items[{item_index}][category]', '').strip()
+                part_name = request.form.get(f'items[{item_index}][part_name]', '').strip()
+                quantity_str = request.form.get(f'items[{item_index}][quantity]', '0')
+                warehouse_location_id = request.form.get(f'items[{item_index}][warehouse_location_id]', type=int) # New
+
+                if not part_number or not part_name:
+                    item_index += 1
+                    continue
+
+                try:
+                    quantity = int(quantity_str)
+                    if quantity <= 0:
+                        item_index += 1
+                        continue
+                except ValueError:
+                    item_index += 1
+                    continue
+
+                # 獲取下一個項次
+                max_sequence = db.session.query(db.func.max(OrderRegistration.item_sequence)).filter_by(cycle_id=current_cycle.id).scalar()
+                next_sequence = (max_sequence or 0) + 1
+
+                # 創建新的登記記錄
+                registration = OrderRegistration()
+                registration.cycle_id = current_cycle.id
+                registration.item_sequence = next_sequence
+                registration.part_number = part_number
+                registration.part_name = part_name
+                registration.warehouse_location_id = warehouse_location_id # New
+                registration.quantity = quantity
+                registration.unit = request.form.get(f'items[{item_index}][unit]', '個').strip()
+                registration.category = request.form.get(f'items[{item_index}][part_type]', '').strip()
                 registration.priority = request.form.get(f'items[{item_index}][priority]', 'normal').strip()
                 registration.purpose_notes = request.form.get(f'items[{item_index}][purpose_notes]', '').strip()
                 registration.applicant_name = applicant_name
                 registration.department = department
-                
+
                 # 處理需用日期
                 required_date_str = request.form.get(f'items[{item_index}][required_date]', '')
                 if required_date_str:
@@ -243,19 +290,19 @@ def batch_register_form():
                         registration.required_date = datetime.strptime(required_date_str, '%Y-%m-%d')
                     except ValueError:
                         pass
-                
+
                 db.session.add(registration)
                 added_count += 1
                 item_index += 1
-            
+
             if added_count == 0:
                 flash('沒有有效的申請項目', 'error')
                 return redirect(request.url)
-            
+
             db.session.commit()
             flash(f'成功提交 {added_count} 個申請項目', 'success')
             return redirect(url_for('weekly_order.weekly_orders'))
-            
+
         except Exception as e:
             db.session.rollback()
             flash(f'批量申請提交失敗：{str(e)}', 'error')
@@ -299,7 +346,9 @@ def manage_cycle(cycle_id):
             return jsonify({'success': False, 'error': str(e)})
     
     # GET request
-    registrations = OrderRegistration.query.filter_by(cycle_id=cycle_id).order_by(OrderRegistration.item_sequence).all()
+    registrations = OrderRegistration.query.options(
+        joinedload(OrderRegistration.warehouse_location).joinedload(WarehouseLocation.warehouse)
+    ).filter_by(cycle_id=cycle_id).order_by(OrderRegistration.item_sequence).all()
     review_logs = OrderReviewLog.query.filter_by(cycle_id=cycle_id).order_by(OrderReviewLog.created_at.desc()).all()
     
     return render_template('weekly_orders/cycle_detail.html', 
@@ -313,11 +362,9 @@ def review_cycle(cycle_id):
     cycle = WeeklyOrderCycle.query.get_or_404(cycle_id)
     
     # 檢查是否有審查權限（暫時開放給所有人，之後會加入權限控制）
-    if cycle.status not in ['active', 'reviewing']:
-        flash('此週期無法進行審查', 'error')
-        return redirect(url_for('weekly_order.view_cycle', cycle_id=cycle_id))
-    
-    registrations = OrderRegistration.query.filter_by(cycle_id=cycle_id).order_by(OrderRegistration.item_sequence).all()
+    from sqlalchemy.orm import joinedload
+
+    registrations = OrderRegistration.query.options(joinedload(OrderRegistration.warehouse_location).joinedload(WarehouseLocation.warehouse)).filter_by(cycle_id=cycle_id).order_by(OrderRegistration.item_sequence).all()
     
     return render_template('weekly_orders/review.html', 
                          cycle=cycle, 
@@ -346,21 +393,22 @@ def review_registration(registration_id):
         registration.admin_notes = notes
         
         # 記錄審查log
-        review_log = OrderReviewLog()
-        review_log.cycle_id = registration.cycle_id
-        review_log.registration_id = registration.id
-        review_log.reviewer_name = reviewer_name
-        review_log.action = action
-        review_log.old_status = old_status
-        review_log.new_status = registration.status
-        review_log.notes = notes
-        
+        review_log = OrderReviewLog(
+            cycle_id=registration.cycle_id,
+            registration_id=registration.id,
+            reviewer_name=reviewer_name,
+            action=action,
+            old_status=old_status,
+            new_status=registration.status,
+            notes=notes
+        )
         db.session.add(review_log)
+        
         db.session.commit()
         
         return jsonify({
             'success': True,
-            'message': f'項目已{"通過" if action == "approved" else "拒絕"}',
+            'message': f"項目已{'通過' if action == 'approved' else '拒絕'}",
             'new_status': registration.status
         })
         
@@ -385,15 +433,15 @@ def batch_review():
                 registration.status = action
                 
                 # 記錄審查log
-                review_log = OrderReviewLog()
-                review_log.cycle_id = registration.cycle_id
-                review_log.registration_id = registration.id
-                review_log.reviewer_name = reviewer_name
-                review_log.action = action
-                review_log.old_status = old_status
-                review_log.new_status = registration.status
-                review_log.notes = f'批量{action}'
-                
+                review_log = OrderReviewLog(
+                    cycle_id=registration.cycle_id,
+                    registration_id=registration.id,
+                    reviewer_name=reviewer_name,
+                    action=action,
+                    old_status=old_status,
+                    new_status=registration.status,
+                    notes=f'批量{action}'
+                )
                 db.session.add(review_log)
                 updated_count += 1
         
@@ -414,33 +462,140 @@ def get_registration_detail(registration_id):
     registration = OrderRegistration.query.get_or_404(registration_id)
     return jsonify(registration.to_dict())
 
+@weekly_order_bp.route('/api/weekly_orders/inbound_item', methods=['POST'])
+def inbound_item():
+    """處理單個訂單項目的入庫操作"""
+    data = request.get_json()
+    registration_id = data.get('registration_id')
+    quantity = data.get('quantity')
+    notes = data.get('notes', '')
+
+    if not all([registration_id, quantity]):
+        return jsonify({'success': False, 'error': '缺少必要參數 (registration_id, quantity)'}), 400
+
+    try:
+        inbound_quantity = int(quantity)
+        if inbound_quantity <= 0:
+            return jsonify({'success': False, 'error': '入庫數量必須為正整數'}), 400
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': '數量必須是有效的整數'}), 400
+
+    result = InventoryService.receive_stock(
+        registration_id=registration_id, 
+        inbound_quantity=inbound_quantity, 
+        notes=notes
+    )
+
+    if result.get('success'):
+        return jsonify(result)
+    else:
+        return jsonify(result), 500
+
+@weekly_order_bp.route('/api/weekly_orders/batch_inbound', methods=['POST'])
+def batch_inbound_items():
+    """處理批量訂單項目的入庫操作"""
+    data = request.get_json()
+    items = data.get('items')
+
+    if not items or not isinstance(items, list):
+        return jsonify({'success': False, 'error': '請求格式錯誤，需要一個項目列表'}), 400
+
+    success_count = 0
+    error_count = 0
+    errors = []
+
+    for item in items:
+        registration_id = item.get('registration_id')
+        quantity = item.get('quantity')
+
+        if not all([registration_id, quantity]):
+            error_count += 1
+            errors.append({'item': item, 'error': '缺少 registration_id 或 quantity'})
+            continue
+        
+        try:
+            inbound_quantity = int(quantity)
+            if inbound_quantity <= 0:
+                error_count += 1
+                errors.append({'item': item, 'error': '入庫數量必須為正整數'})
+                continue
+        except (ValueError, TypeError):
+            error_count += 1
+            errors.append({'item': item, 'error': '數量格式錯誤'})
+            continue
+
+        # Here we commit each transaction individually.
+        # For a more robust system, one might wrap the whole loop in a single transaction
+        # and rollback on any failure, but for this use case, processing them individually is acceptable.
+        result = InventoryService.receive_stock(
+            registration_id=registration_id, 
+            inbound_quantity=inbound_quantity, 
+            notes='批量入庫'
+        )
+
+        if result.get('success'):
+            success_count += 1
+        else:
+            error_count += 1
+            # Get registration details for a more informative error message
+            reg = OrderRegistration.query.get(registration_id)
+            error_item_info = f"品號 {reg.part_number}" if reg else f"ID {registration_id}"
+            errors.append({'item': error_item_info, 'error': result.get('error', '未知錯誤')})
+
+    response = {
+        'success': error_count == 0,
+        'message': f'批量入庫完成。成功: {success_count} 項, 失敗: {error_count} 項。',
+        'success_count': success_count,
+        'error_count': error_count,
+        'errors': errors
+    }
+
+    status_code = 200 if error_count == 0 else 400
+    return jsonify(response), status_code
+
 @weekly_order_bp.route('/weekly_orders/export_excel/<int:cycle_id>')
 def export_excel(cycle_id):
     """生成Excel申請單"""
     try:
         cycle = WeeklyOrderCycle.query.get_or_404(cycle_id)
-        registrations = OrderRegistration.query.filter_by(
-            cycle_id=cycle_id, 
-            status='approved'
+        # Optimize query to include related location and warehouse data
+        registrations = OrderRegistration.query.options(
+            joinedload(OrderRegistration.warehouse_location).joinedload(WarehouseLocation.warehouse)
+        ).filter(
+            OrderRegistration.cycle_id == cycle_id, 
+            OrderRegistration.status == 'approved'
         ).order_by(OrderRegistration.item_sequence).all()
         
         if not registrations:
-            return jsonify({'success': False, 'error': '沒有已核准的項目可生成申請單'})
+            flash('沒有已核准的項目可生成申請單', 'warning')
+            return redirect(url_for('weekly_order.review_cycle', cycle_id=cycle_id))
         
         # 準備Excel數據
         data = []
         for reg in registrations:
+            # Format location string
+            location_str = ''
+            if reg.warehouse_location and reg.warehouse_location.warehouse:
+                location_str = f"{reg.warehouse_location.warehouse.name} - {reg.warehouse_location.location_code}"
+            elif reg.warehouse_location:
+                location_str = reg.warehouse_location.location_code
+
+            # Format priority string
+            priority_str = '緊急' if reg.priority == 'urgent' else '一般'
+
             data.append({
                 '項次': reg.item_sequence,
                 '品號': reg.part_number,
                 '品名': reg.part_name,
+                '儲位': location_str,
+                '種類': reg.category or '',
                 '數量': reg.quantity,
                 '單位': reg.unit,
-                '種類': reg.category or '',
-                '需用日期': reg.required_date.strftime('%Y/%m/%d') if reg.required_date else '',
-                '台份用/備註': reg.purpose_notes or '',
                 '申請人': reg.applicant_name,
-                '申請單位': reg.department or ''
+                '申請單位': reg.department or '',
+                '緊急程度': priority_str,
+                '需用日期': reg.required_date.strftime('%Y-%m-%d') if reg.required_date else '',
+                '台份用/備註': reg.purpose_notes or ''
             })
         
         # 創建DataFrame
@@ -451,32 +606,32 @@ def export_excel(cycle_id):
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name='申請單', index=False)
             
-            # 設定欄位寬度
             worksheet = writer.sheets['申請單']
-            for idx, col in enumerate(df.columns):
-                max_length = max(
-                    df[col].astype(str).map(len).max(),
-                    len(col)
-                ) + 2
-                worksheet.column_dimensions[chr(65 + idx)].width = min(max_length, 50)
-        
+            # 自動調整欄位寬度
+            for idx, col in enumerate(df.columns, 1):
+                max_len = 0
+                # Get max length of header
+                max_len = max(max_len, len(str(col)))
+                # Get max length of column content
+                if not df[col].empty:
+                    max_len = max(max_len, df[col].astype(str).map(len).max())
+                
+                # Adjust width, adding a little padding
+                # For Chinese characters, width needs to be larger
+                adjusted_width = (max_len + 4) * 1.2 
+                worksheet.column_dimensions[chr(64 + idx)].width = adjusted_width
+
         output.seek(0)
         
-        # 儲存檔案路徑（可選）
-        filename = f"申請單_{cycle.cycle_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        filename = f"採購申請單_{cycle.cycle_name}_{get_taipei_time().strftime('%Y%m%d')}.xlsx"
         
-        # Do not change cycle status here, only log the export action
-        cycle.excel_generated = True
-        
-        # 記錄審查log
-        review_log = OrderReviewLog()
-        review_log.cycle_id = cycle.id
-        review_log.reviewer_name = '主管'
-        review_log.action = 'generate_excel'
-        review_log.old_status = 'reviewing'
-        review_log.new_status = 'completed'
-        review_log.notes = f'生成Excel申請單，包含{len(registrations)}個項目'
-        
+        # Log the export action
+        review_log = OrderReviewLog(
+            cycle_id=cycle.id,
+            reviewer_name='系統', # Or current user
+            action='export_excel',
+            notes=f'匯出Excel申請單，包含{len(registrations)}個項目'
+        )
         db.session.add(review_log)
         db.session.commit()
         
@@ -489,7 +644,8 @@ def export_excel(cycle_id):
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)})
+        flash(f"匯出失敗: {str(e)}", 'danger')
+        return redirect(url_for('weekly_order.review_cycle', cycle_id=cycle_id))
 
 @weekly_order_bp.route('/weekly-orders/api/cycle-summary')
 def cycle_summary():

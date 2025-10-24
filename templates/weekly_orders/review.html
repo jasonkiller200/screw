@@ -127,10 +127,12 @@
                                     </th>
                                     <th>品號</th>
                                     <th>品名</th>
+                                    <th>儲位</th>
                                     <th>數量</th>
                                     <th>單位</th>
                                     <th>類型</th>
                                     <th>申請人</th>
+                                    <th>緊急程度</th>
                                     <th>申請時間</th>
                                     <th>狀態</th>
                                     <th>操作</th>
@@ -147,8 +149,19 @@
                                     </td>
                                     <td><strong>{{ registration.part_number }}</strong></td>
                                     <td>{{ registration.part_name }}</td>
+                                    <td>
+                                        {% if registration.warehouse_location and registration.warehouse_location.warehouse %}
+                                            <span class="badge bg-secondary">{{ registration.warehouse_location.warehouse.name }} - {{ registration.warehouse_location.location_code }}</span>
+                                        {% elif registration.warehouse_location %}
+                                            <span class="badge bg-secondary">{{ registration.warehouse_location.location_code }}</span>
+                                        {% else %}
+                                            <span class="badge bg-dark">未指定</span>
+                                        {% endif %}
+                                    </td>
                                     <td class="text-end">{{ registration.quantity }}</td>
                                     <td>{{ registration.unit }}</td>
+                                    <td>{{ registration.category or '-' }}</td>
+                                    <td>{{ registration.applicant_name }}</td>
                                     <td>
                                         {% if registration.priority == 'urgent' %}
                                         <span class="badge bg-danger">緊急申請</span>
@@ -156,7 +169,6 @@
                                         <span class="badge bg-info">一般申請</span>
                                         {% endif %}
                                     </td>
-                                    <td>{{ registration.applicant_name }}</td>
                                     <td>{{ registration.created_at.strftime('%m-%d %H:%M') }}</td>
                                     <td>
                                         {% if registration.status == 'registered' %}

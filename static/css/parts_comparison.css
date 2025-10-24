@@ -137,3 +137,8 @@
     50% { transform: scale(1.05); }
     100% { transform: scale(1); }
 }
+
+.stats-card.info {
+    background: linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%); /* A blue gradient */
+    color: white;
+}

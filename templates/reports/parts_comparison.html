@@ -33,7 +33,7 @@
             <!-- 統計資訊 -->
             <div id="summaryDiv" class="mb-4" style="display: none;">
                 <div class="row g-4">
-                    <div class="col-lg-3 col-md-6">
+                    <div class="col-lg col-md-6">
                         <div class="stats-card primary">
                             <div class="stats-icon">
                                 <i class="fas fa-clipboard-list"></i>
@@ -41,14 +41,11 @@
                             <div class="stats-content">
                                 <div class="stats-number" id="workOrderPartsCount">-</div>
                                 <div class="stats-label">工單需求零件數</div>
-                                <div class="stats-description">待處理工單中的零件種類</div>
-                            </div>
-                            <div class="stats-trend">
-                                <i class="fas fa-arrow-up"></i>
+                                <div class="stats-description">工單中的零件種類</div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-lg-3 col-md-6">
+                    <div class="col-lg col-md-6">
                         <div class="stats-card success">
                             <div class="stats-icon">
                                 <i class="fas fa-warehouse"></i>
@@ -58,12 +55,9 @@
                                 <div class="stats-label">零件庫零件數</div>
                                 <div class="stats-description">庫存管理系統中的零件</div>
                             </div>
-                            <div class="stats-trend">
-                                <i class="fas fa-check-circle"></i>
-                            </div>
                         </div>
                     </div>
-                    <div class="col-lg-3 col-md-6">
+                    <div class="col-lg col-md-6">
                         <div class="stats-card warning">
                             <div class="stats-icon">
                                 <i class="fas fa-plus-circle"></i>
@@ -73,12 +67,9 @@
                                 <div class="stats-label">未建立零件</div>
                                 <div class="stats-description">工單需求零件未建立</div>
                             </div>
-                            <div class="stats-trend">
-                                <i class="fas fa-exclamation-triangle"></i>
-                            </div>
                         </div>
                     </div>
-                    <div class="col-lg-3 col-md-6">
+                    <div class="col-lg col-md-6">
                         <div class="stats-card danger">
                             <div class="stats-icon">
                                 <i class="fas fa-times-circle"></i>
@@ -88,8 +79,17 @@
                                 <div class="stats-label">缺貨零件</div>
                                 <div class="stats-description">庫存不足需要訂購</div>
                             </div>
-                            <div class="stats-trend">
-                                <i class="fas fa-arrow-down"></i>
+                        </div>
+                    </div>
+                    <div class="col-lg col-md-6">
+                        <div class="stats-card info">
+                            <div class="stats-icon">
+                                <i class="fas fa-map-pin"></i>
+                            </div>
+                            <div class="stats-content">
+                                <div class="stats-number" id="demandWithNoLocationCount">-</div>
+                                <div class="stats-label">待建立儲位</div>
+                                <div class="stats-description">有工單需求但未設儲位</div>
                             </div>
                         </div>
                     </div>
@@ -122,8 +122,8 @@
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="unused-tab" data-bs-toggle="tab" data-bs-target="#unused" type="button" role="tab">
-                            <i class="fas fa-archive text-info"></i> 未建立零件，無工單
+                        <button class="nav-link" id="no-location-tab" data-bs-toggle="tab" data-bs-target="#no-location" type="button" role="tab">
+                            <i class="fas fa-map-pin text-dark"></i> 工單需求但未設儲位
                         </button>
                     </li>
                 </ul>
@@ -167,7 +167,7 @@
                                                     <input type="checkbox" id="selectAllMissing" class="form-check-input">
                                                 </th>
                                                 <th>未建立零件編號</th>
-                                                <th>工單描述</th>
+                                                <th>零件名稱</th>
                                                 <th>需求數量</th>
                                                 <th>工單號碼</th>
                                                 <th>操作</th>
@@ -185,7 +185,7 @@
                         <div class="card mt-3">
                             <div class="card-header">
                                 <h5><i class="fas fa-times-circle text-danger"></i> 庫存不足零件</h5>
-                                <p class="mb-0 text-muted">未建立零件庫存不足以滿足工單需求</p>
+                                <p class="mb-0 text-muted">零件庫存不足以滿足工單需求</p>
                             </div>
                             <div class="card-body">
                                 <!-- 搜尋工具-->
@@ -194,7 +194,7 @@
                                         <div class="input-group">
                                             <span class="input-group-text"><i class="fas fa-search"></i></span>
                                             <input type="text" class="form-control" id="shortageSearchInput" 
-                                                   placeholder="搜尋未建立零件編號..." onkeyup="searchShortageParts()">
+                                                   placeholder="搜尋零件編號..." onkeyup="searchShortageParts()">
                                             <button class="btn btn-outline-secondary" type="button" onclick="clearShortageSearch()">
                                                 <i class="fas fa-times"></i> 清除
                                             </button>
@@ -202,7 +202,7 @@
                                     </div>
                                     <div class="col-md-6 text-end">
                                         <button id="addToWeeklyOrderBtn" class="btn btn-success" disabled>
-                                            <i class="fas fa-calendar-plus"></i> 加入週期申請
+                                            <i class="fas fa-calendar-plus"></i> 加入訂單申請
                                         </button>
                                     </div>
                                 </div>
@@ -214,14 +214,12 @@
                                                 <th>
                                                     <input type="checkbox" id="selectAllShortage" class="form-check-input">
                                                 </th>
-                                                <th>未建立零件編號</th>
-                                                <th>未建立零件名稱</th>
-                                                <th>操作</th>
+                                                <th>零件編號</th>
+                                                <th>零件名稱</th>
                                                 <th>需求數量</th>
                                                 <th>庫存數量</th>
-                                                <th>可用庫存</th>
                                                 <th class="text-danger">缺貨數量</th>
-                                                <th>建議訂購量</th>
+                                                <th>單位</th>
                                                 <th>工單號碼</th>
                                                 <th>操作</th>
                                             </tr>
@@ -262,68 +260,28 @@
                         </div>
                     </div>
 
-                    <!-- 未建立零件，無工單-->
-                    <div class="tab-pane fade" id="unused" role="tabpanel">
+                    <!-- 工單需求但未設儲位 -->
+                    <div class="tab-pane fade" id="no-location" role="tabpanel">
                         <div class="card mt-3">
                             <div class="card-header">
-                                <h5><i class="fas fa-archive text-info"></i> 未建立零件，無工單需求未建立零件</h5>
-                                <p class="mb-0 text-muted">零件庫零件數量，零件倉中存在，但工單中無需求</p>
+                                <h5><i class="fas fa-map-marker-slash text-info"></i> 工單需求零件但未建立儲位</h5>
+                                <p class="mb-0 text-muted">以下零件存在於零件庫且有工單需求，但尚未被指派任何儲存位置。</p>
                             </div>
                             <div class="card-body">
-                                <!-- 篩選工具 -->
-                                <div class="row mb-3">
-                                    <div class="col-md-6">
-                                        <div class="input-group">
-                                            <span class="input-group-text"><i class="fas fa-search"></i></span>
-                                            <input type="text" class="form-control" id="unusedSearchInput" 
-                                                   placeholder="搜尋未建立零件編號..." onkeyup="searchUnusedParts()">
-                                            <button class="btn btn-outline-secondary" type="button" onclick="clearUnusedSearch()">
-                                                <i class="fas fa-times"></i> 清除
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <select class="form-select" id="unusedPageSize" onchange="changeUnusedPageSize()">
-                                            <option value="10">每頁 10 筆</option>
-                                            <option value="25" selected>每頁 25 筆</option>
-                                            <option value="50">每頁 50 筆</option>
-                                            <option value="100">每頁 100 筆</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <div class="text-muted small pt-2">
-                                            顯示 <span id="unusedResultInfo">0</span> 筆
-                                        </div>
-                                    </div>
-                                </div>
-
                                 <div class="table-responsive">
-                                    <table class="table table-striped table-hover" id="unusedTable">
+                                    <table class="table table-striped table-hover" id="noLocationTable">
                                         <thead class="table-info">
                                             <tr>
-                                                <th>未建立零件編號</th>
-                                                <th>未建立零件名稱</th>
+                                                <th>零件編號</th>
+                                                <th>零件名稱</th>
+                                                <th>總需求數量</th>
+                                                <th>相關工單</th>
                                                 <th>操作</th>
-                                                <th>庫存數量</th>
-                                                <th>可用庫存</th>
-                                                <th>建議動作</th>
                                             </tr>
                                         </thead>
                                         <tbody></tbody>
                                     </table>
                                 </div>
-
-                                <!-- 分頁控制 -->
-                                <nav aria-label="未使用零件分頁">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <div class="text-muted small">
-                                            第 <span id="unusedCurrentPage">1</span> 頁，共 <span id="unusedTotalPages">1</span> 頁
-                                        </div>
-                                        <ul class="pagination pagination-sm mb-0" id="unusedPagination">
-                                            <!-- 分頁按鈕將由JavaScript生成 -->
-                                        </ul>
-                                    </div>
-                                </nav>
                             </div>
                         </div>
                     </div>

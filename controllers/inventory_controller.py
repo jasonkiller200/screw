@@ -702,3 +702,49 @@ def export_count_template(count_id):
             'Content-Disposition': f"attachment; filename*=UTF-8''{encoded_filename}"
         }
     )
+
+@inventory_api_bp.route('/adjust-stock', methods=['POST'])
+def adjust_stock():
+    """即時庫存調整"""
+    data = request.get_json()
+    
+    part_id = data.get('part_id')
+    location_id = data.get('location_id')
+    new_quantity = data.get('new_quantity')
+    notes = data.get('notes', '手動庫存調整')
+
+    if not all([part_id, location_id, new_quantity is not None]):
+        return jsonify({'error': '缺少必要參數 (part_id, location_id, new_quantity)'}), 400
+
+    try:
+        new_quantity = int(new_quantity)
+        if new_quantity < 0:
+            raise ValueError("New quantity cannot be negative")
+    except (ValueError, TypeError):
+        return jsonify({'error': '無效的新庫存數量'}), 400
+
+    # Get current stock
+    stock_item = CurrentInventory.query.filter_by(
+        part_id=part_id,
+        warehouse_location_id=location_id
+    ).first()
+
+    current_quantity = stock_item.quantity_on_hand if stock_item else 0
+    quantity_change = new_quantity - current_quantity
+
+    if quantity_change == 0:
+        return jsonify({'success': True, 'message': '庫存與系統相符，無需調整'})
+
+    # Call update_stock with the calculated change
+    success = CurrentInventory.update_stock(
+        part_id=part_id,
+        warehouse_location_id=location_id,
+        quantity_change=quantity_change,
+        transaction_type='ADJUST',
+        notes=notes
+    )
+
+    if success:
+        return jsonify({'success': True, 'message': f'庫存調整成功。數量由 {current_quantity} 變為 {new_quantity} (差異: {quantity_change})'})
+    else:
+        return jsonify({'error': '庫存調整失敗'}), 500

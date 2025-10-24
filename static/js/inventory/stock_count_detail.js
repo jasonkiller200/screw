@@ -95,33 +95,59 @@ function submitAddItem() {
 }
 
 // 儲存盤點項目
-function saveCountItem(partId) {
+function saveCountItem(buttonElement) {
+    const row = buttonElement.closest('tr');
+    const input = row.querySelector('.count-input');
     const countId = document.getElementById('stock-count-card').dataset.countId;
-    const input = document.querySelector(`input[data-part-id="${partId}"]`);
-    const actualQty = input.value;
     
-    if (!actualQty || actualQty < 0) {
-        alert('請輸入有效的實盤數量');
+    const detailId = input.dataset.detailId;
+    const actualQty = input.value;
+
+    if (actualQty === '' || actualQty < 0) {
+        alert('請輸入有效的實盤數量（大於等於0）');
         return;
     }
-    
-    fetch(`/api/inventory/stock-counts/${countId}/items/${partId}`, {
+
+    // Provide user feedback
+    buttonElement.disabled = true;
+    buttonElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+    fetch(`/api/inventory/stock-counts/${countId}/details/${detailId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            counted_quantity: parseInt(actualQty)
+            counted_quantity: parseInt(actualQty, 10)
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            // Try to parse error message from backend
+            return response.json().then(err => { throw new Error(err.error || '伺服器錯誤') });
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
-            alert('盤點數量已更新');
-            location.reload();
+            // Maybe a more subtle success indicator instead of an alert
+            const originalIcon = '<i class="fas fa-save"></i>';
+            buttonElement.innerHTML = '<i class="fas fa-check"></i>';
+            // Briefly show success, then revert button
+            setTimeout(() => {
+                buttonElement.innerHTML = originalIcon;
+                buttonElement.disabled = false;
+                // Optionally, reload the whole page or just update the specific row's data
+                // location.reload(); // This is a bit heavy
+            }, 1500);
         } else {
-            alert('更新失敗：' + data.error);
+            throw new Error(data.error || '更新失敗');
         }
     })
-    .catch(err => alert('網路錯誤：' + err.message));
+    .catch(err => {
+        alert('更新失敗：' + err.message);
+        // Revert button on error
+        buttonElement.innerHTML = '<i class="fas fa-save"></i>';
+        buttonElement.disabled = false;
+    });
 }
 
 // 顯示匯入模態框

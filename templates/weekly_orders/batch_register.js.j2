@@ -110,11 +110,16 @@ function fillItemData(index, data) {
     const row = document.querySelectorAll('#batchItemsBody tr')[index];
     if (!row) return;
     
-    if (data.part_number) row.querySelector('input[name*="[part_number]"]').value = data.part_number;
+    if (data.part_number) {
+        const partNumberInput = row.querySelector('input[name*="[part_number]"]');
+        partNumberInput.value = data.part_number;
+        autoFillRow(partNumberInput); // Trigger auto-fill logic
+    }
     if (data.part_name) row.querySelector('input[name*="[part_name]"]').value = data.part_name;
+    if (data.warehouse_location_id) row.querySelector('select[name*="[warehouse_location_id]"]').value = data.warehouse_location_id; // New
     if (data.quantity) row.querySelector('input[name*="[quantity]"]').value = data.quantity;
     if (data.unit) row.querySelector('select[name*="[unit]"]').value = data.unit;
-    if (data.category) row.querySelector('input[name*="[category]"]').value = data.category;
+    if (data.part_type) row.querySelector('input[name*="[part_type]"]').value = data.part_type; // New
     if (data.priority) row.querySelector('select[name*="[priority]"]').value = data.priority;
     if (data.purpose_notes) row.querySelector('input[name*="[purpose_notes]"]').value = data.purpose_notes;
 }
@@ -140,22 +145,27 @@ function autoFillRow(partNumberInput) {
                 if (data.part_info) {
                     // Fill current row
                     row.querySelector('input[name*="[part_name]"]').value = data.part_info.name || '';
+                    row.querySelector('input[name*="[part_type]"]').value = data.part_info.type || ''; // New: populate part_type input
                     row.querySelector('select[name*="[unit]"]').value = data.part_info.unit || '';
-                    
-                    const categorySelect = row.querySelector('select[name*="[category]"]');
-                    const category = data.part_info.type || '';
-                    let optionExists = false;
-                    for (let i = 0; i < categorySelect.options.length; i++) {
-                        if (categorySelect.options[i].value === category) {
-                            optionExists = true;
-                            break;
-                        }
-                    }
-                    if (!optionExists && category) {
-                        const newOption = new Option(category, category, true, true);
-                        categorySelect.add(newOption);
-                    }
-                    categorySelect.value = category;
+
+                    // Fetch and populate warehouse locations for the part
+                    fetch(`/api/part/${partNumber}/locations`)
+                        .then(response => response.json())
+                        .then(locationData => {
+                            const locationSelect = row.querySelector('select[name*="[warehouse_location_id]"]');
+                            locationSelect.innerHTML = '<option value="">請選擇儲位</option>'; // Clear existing options
+                            if (locationData.locations && locationData.locations.length > 0) {
+                                locationData.locations.forEach(loc => {
+                                    const option = new Option(`${loc.warehouse_name} - ${loc.location_code}`, loc.id);
+                                    locationSelect.add(option);
+                                });
+                                // If only one location, auto-select it
+                                if (locationData.locations.length === 1) {
+                                    locationSelect.value = locationData.locations[0].id;
+                                }
+                            }
+                        })
+                        .catch(error => console.error('Error fetching part locations:', error));
 
                     // Add a new row and focus it for the next scan
                     addNewItem();
@@ -164,70 +174,36 @@ function autoFillRow(partNumberInput) {
                     if (lastRow) {
                         lastRow.querySelector('input[name*="[part_number]"]').focus();
                     }
+                } else {
+                    // Clear fields if part not found
+                    row.querySelector('input[name*="[part_name]"]').value = '';
+                    row.querySelector('input[name*="[part_type]"]').value = '';
+                    row.querySelector('select[name*="[unit]"]').value = '';
+                    const locationSelect = row.querySelector('select[name*="[warehouse_location_id]"]');
+                    locationSelect.innerHTML = '<option value="">請選擇儲位</option>';
+                    const option = new Option('無可用儲位', '', true, true);
+                    option.disabled = true;
+                    locationSelect.add(option);
                 }
             })
             .catch(error => {
-                console.error('Error:', error.message);
-                // Clear fields if part is not found
+                console.error('Error fetching part details:', error);
+                // Clear fields on error
                 row.querySelector('input[name*="[part_name]"]').value = '';
+                row.querySelector('input[name*="[part_type]"]').value = '';
                 row.querySelector('select[name*="[unit]"]').value = '';
-                row.querySelector('select[name*="[category]"]').value = '';
+                const locationSelect = row.querySelector('select[name*="[warehouse_location_id]"]');
+                locationSelect.innerHTML = '<option value="">請選擇儲位</option>';
+                const option = new Option('無可用儲位', '', true, true);
+                option.disabled = true;
+                locationSelect.add(option);
             });
-    }
-}
-
-// 更新剩餘時間
-function updateTimeRemaining() {
-    {% if current_cycle.is_active %}
-    const deadline = new Date('{{ current_cycle.deadline.isoformat() }}');
-    const now = new Date();
-    const timeDiff = deadline - now;
-    
-    if (timeDiff > 0) {
-        const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
-        
-        document.getElementById('timeRemaining').innerHTML = 
-            `<i class="fas fa-clock text-warning"></i> 剩餘時間：${days}天 ${hours}小時 ${minutes}分鐘`;
     } else {
-        document.getElementById('timeRemaining').innerHTML = 
-            '<i class="fas fa-exclamation-triangle text-danger"></i> 申請已截止';
+        // Clear fields if part number is empty
+        row.querySelector('input[name*="[part_name]"]').value = '';
+        row.querySelector('input[name*="[part_type]"]').value = '';
+        row.querySelector('select[name*="[unit]"]').value = '';
+        const locationSelect = row.querySelector('select[name*="[warehouse_location_id]"]');
+        locationSelect.innerHTML = '<option value="">請選擇儲位</option>';
     }
-    {% endif %}
 }
-
-// 表單提交前驗證
-document.getElementById('batchOrderForm').addEventListener('submit', function(e) {
-    const rows = document.querySelectorAll('#batchItemsBody tr');
-    if (rows.length === 0) {
-        e.preventDefault();
-        alert('請至少添加一個申請項目');
-        return;
-    }
-    
-    // 檢查必填欄位
-    let hasEmpty = false;
-    rows.forEach(row => {
-        const requiredInputs = row.querySelectorAll('input[required], select[required]');
-        requiredInputs.forEach(input => {
-            if (!input.value.trim()) {
-                hasEmpty = true;
-                input.classList.add('is-invalid');
-            } else {
-                input.classList.remove('is-invalid');
-            }
-        });
-    });
-    
-    if (hasEmpty) {
-        e.preventDefault();
-        alert('請填寫所有必填欄位（已標示為紅色）');
-        return;
-    }
-    
-    // 確認提交
-    if (!confirm(`確定要提交 ${rows.length} 個申請項目嗎？`)) {
-        e.preventDefault();
-    }
-});

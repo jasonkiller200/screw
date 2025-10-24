@@ -90,6 +90,22 @@
                         </div>
 
                         <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="warehouse_location_id" class="form-label">儲位 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="warehouse_location_id" name="warehouse_location_id" required>
+                                    <option value="">請選擇儲位</option>
+                                    {% for location in all_warehouse_locations %}
+                                    <option value="{{ location.id }}" 
+                                            {% if prefill_data and prefill_data.warehouse_location_id == location.id %}selected{% endif %}>
+                                        {{ location.warehouse_name }} - {{ location.location_code }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">選擇零件的儲存位置</div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
                             <div class="col-md-4">
                                 <label for="quantity" class="form-label">數量 <span class="text-danger">*</span></label>
                                 <input type="number" class="form-control" id="quantity" name="quantity" min="1" 
@@ -111,11 +127,8 @@
                                 </select>
                             </div>
                             <div class="col-md-4">
-                                <label for="category" class="form-label">類別</label>
-                                <select class="form-select" id="category" name="category">
-                                    <option value="">請選擇類別</option>
-                                    <!-- Options will be populated dynamically -->
-                                </select>
+                                <label for="part_type" class="form-label">類型</label>
+                                <input type="text" class="form-control" id="part_type" name="part_type" placeholder="自動帶入零件類型">
                                 <div class="form-text">如：ZROM</div>
                             </div>
                         </div>
@@ -126,7 +139,7 @@
                                 <input type="date" class="form-control" id="required_date" name="required_date">
                             </div>
                             <div class="col-md-4">
-                                <label for="priority" class="form-label">申請類型 <span class="text-danger">*</span></label>
+                                <label for="priority" class="form-label">緊急程度 <span class="text-danger">*</span></label>
                                 <select class="form-select" id="priority" name="priority" required>
                                     <option value="normal" {{ 'selected' if not prefill_data or prefill_data.priority != 'urgent' else '' }}>一般申請</option>
                                     <option value="urgent" {{ 'selected' if prefill_data and prefill_data.priority == 'urgent' else '' }}>緊急申請</option>

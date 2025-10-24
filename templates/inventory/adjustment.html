@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}庫存調整{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-10 mx-auto">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-sliders-h me-2"></i>即時庫存調整</h2>
+                <a href="{{ url_for('web.inventory') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>返回庫存主頁
+                </a>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    調整作業
+                </div>
+                <div class="card-body">
+                    <!-- Step 1: Search for Part -->
+                    <div class="mb-3">
+                        <label for="part-search" class="form-label"><b>步驟 1: 搜尋零件</b></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input type="text" class="form-control" id="part-search" placeholder="輸入零件編號或名稱進行搜尋...">
+                        </div>
+                        <div id="part-search-results" class="list-group mt-1" style="display: none; position: absolute; z-index: 1000; width: calc(100% - 3rem);"></div>
+                    </div>
+
+                    <!-- Step 2: Select Location and Adjust -->
+                    <div id="adjustment-form" style="display: none;">
+                        <hr>
+                        <div class="mb-3">
+                            <label class="form-label"><b>步驟 2: 選擇儲位並輸入新數量</b></label>
+                            <div class="p-3 border rounded bg-light">
+                                <h5 id="selected-part-name"></h5>
+                                <p class="text-muted mb-0" id="selected-part-number"></p>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="location-select" class="form-label">儲位</label>
+                                <select id="location-select" class="form-select"></select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="current-quantity" class="form-label">目前系統數量</label>
+                                <input type="text" id="current-quantity" class="form-control" readonly>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="new-quantity" class="form-label">新的正確數量</label>
+                                <input type="number" id="new-quantity" class="form-control" placeholder="輸入盤點後的正確數量">
+                            </div>
+                             <div class="col-md-6 mb-3">
+                                <label for="quantity-diff" class="form-label">調整差異</label>
+                                <input type="text" id="quantity-diff" class="form-control" readonly>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="adjustment-notes" class="form-label">調整原因/備註</label>
+                            <textarea id="adjustment-notes" class="form-control" rows="2" placeholder="請簡要說明調整原因"></textarea>
+                        </div>
+                        
+                        <input type="hidden" id="selected-part-id">
+
+                        <div class="d-grid">
+                            <button id="submit-adjustment" class="btn btn-primary">
+                                <i class="fas fa-check me-1"></i>確認調整
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/inventory/adjustment.js') }}" defer></script>
+{% endblock %}
