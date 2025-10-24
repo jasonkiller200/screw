@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 from .part import Part # Import Part model for relationships
 from .part import Warehouse # Import Warehouse model for relationships
+from .part import WarehouseLocation # Import WarehouseLocation model for relationships
 
 # Helper function to get current time in UTC+8
 def get_taipei_time():
@@ -15,7 +16,7 @@ class Order(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     part_id = db.Column(db.Integer, db.ForeignKey('parts.id'), nullable=False)
     warehouse_id = db.Column(db.Integer, db.ForeignKey('warehouses.id'), default=1) # Assuming default warehouse_id 1
-    location_code = db.Column(db.String(100), nullable=True) # 儲位代碼
+    warehouse_location_id = db.Column(db.Integer, db.ForeignKey('warehouse_locations.id'), nullable=True) # 儲位ID
     order_date = db.Column(db.DateTime, default=get_taipei_time, nullable=False)
     quantity_ordered = db.Column(db.Integer, nullable=False)
     quantity_received = db.Column(db.Integer, default=0)
@@ -30,6 +31,7 @@ class Order(db.Model):
     # Relationships
     part = relationship("Part", backref="order_history")
     warehouse = relationship("Warehouse", backref="orders")
+    warehouse_location = relationship("WarehouseLocation", backref="orders") # New relationship
 
     def to_dict(self):
         return {
@@ -39,7 +41,8 @@ class Order(db.Model):
             'part_name': self.part.name if self.part else None,
             'warehouse_id': self.warehouse_id,
             'warehouse_name': self.warehouse.name if self.warehouse else None,
-            'location_code': self.location_code,
+            'warehouse_location_id': self.warehouse_location_id, # New
+            'location_code': self.warehouse_location.location_code if self.warehouse_location else None, # New
             'order_date': self.order_date.isoformat() if self.order_date else None,
             'quantity_ordered': self.quantity_ordered,
             'quantity_received': self.quantity_received,
@@ -53,7 +56,7 @@ class Order(db.Model):
         }
 
     @classmethod
-    def create(cls, part_number, quantity_ordered, status='pending', warehouse_id=1, location_code=None,
+    def create(cls, part_number, quantity_ordered, status='pending', warehouse_id=1, warehouse_location_id=None,
                quantity_received=0, unit_cost=0, supplier=None, expected_date=None, received_date=None, notes=None):
         
         part = Part.query.filter_by(part_number=part_number).first()
@@ -63,7 +66,7 @@ class Order(db.Model):
         new_order = cls(
             part_id=part.id,
             warehouse_id=warehouse_id,
-            location_code=location_code,
+            warehouse_location_id=warehouse_location_id,
             quantity_ordered=quantity_ordered,
             status=status,
             quantity_received=quantity_received,
