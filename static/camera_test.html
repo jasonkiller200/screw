@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>相機測試</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .camera-info { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        button { margin: 5px; padding: 10px 15px; }
+        video { width: 100%; max-width: 400px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h2>相機設備測試</h2>
+    <div id="camera-list"></div>
+    <button onclick="listCameras()">列出所有相機</button>
+    <button onclick="testBackCamera()">嘗試後置相機</button>
+    
+    <div id="camera-preview">
+        <video id="video" autoplay playsinline style="display: none;"></video>
+        <div id="status"></div>
+    </div>
+
+    <script>
+    async function listCameras() {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(device => device.kind === 'videoinput');
+            
+            const listDiv = document.getElementById('camera-list');
+            listDiv.innerHTML = '<h3>發現的相機設備:</h3>';
+            
+            videoDevices.forEach((device, index) => {
+                const info = document.createElement('div');
+                info.className = 'camera-info';
+                info.innerHTML = `
+                    <strong>相機 ${index + 1}:</strong><br>
+                    設備ID: ${device.deviceId}<br>
+                    標籤: ${device.label || '未知'}<br>
+                    群組ID: ${device.groupId}
+                `;
+                listDiv.appendChild(info);
+            });
+            
+            console.log('相機設備:', videoDevices);
+        } catch (error) {
+            console.error('列出相機設備失敗:', error);
+            document.getElementById('status').textContent = '列出相機設備失敗: ' + error.message;
+        }
+    }
+    
+    async function testBackCamera() {
+        const video = document.getElementById('video');
+        const status = document.getElementById('status');
+        
+        try {
+            // 嘗試使用後置相機約束
+            const constraints = {
+                video: {
+                    facingMode: { ideal: 'environment' },
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }
+            };
+            
+            status.textContent = '正在請求後置相機...';
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            
+            video.srcObject = stream;
+            video.style.display = 'block';
+            
+            // 獲取實際使用的設備信息
+            const track = stream.getVideoTracks()[0];
+            const settings = track.getSettings();
+            
+            status.innerHTML = `
+                ✅ 相機已啟動<br>
+                解析度: ${settings.width}x${settings.height}<br>
+                朝向: ${settings.facingMode || '未知'}<br>
+                設備ID: ${settings.deviceId || '未知'}
+            `;
+            
+            console.log('相機設定:', settings);
+            
+        } catch (error) {
+            console.error('啟動後置相機失敗:', error);
+            status.textContent = '啟動後置相機失敗: ' + error.message;
+            
+            // 如果後置相機失敗，嘗試任何可用相機
+            try {
+                status.textContent += '\\n嘗試任何可用相機...';
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                video.style.display = 'block';
+                status.textContent += '\\n✅ 使用預設相機成功';
+            } catch (fallbackError) {
+                status.textContent += '\\n❌ 完全無法啟動相機: ' + fallbackError.message;
+            }
+        }
+    }
+    
+    // 頁面載入時自動列出相機
+    window.addEventListener('load', listCameras);
+    </script>
+</body>
+</html>

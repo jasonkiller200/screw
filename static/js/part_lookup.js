@@ -26,6 +26,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // 條碼掃描功能
     let codeReader = null;
     let controls = null;
+    let currentCameraIndex = 0; // 追蹤當前使用的相機索引
+    let videoInputDevices = []; // 存儲所有可用的相機設備
 
     document.getElementById('toggleScanner').addEventListener('click', function() {
         startScanner();
@@ -35,13 +37,76 @@ document.addEventListener('DOMContentLoaded', function () {
         stopScanner();
     });
 
-    // 注意：切換相機在 @zxing/browser 中由 `decodeFromVideoDevice` 自動處理，
-    // 但我們可以保留按鈕來重新啟動掃描以選擇不同相機。
-    // 實際的相機切換邏輯需要更複雜的UI，此處簡化為重啟。
+    // 切換相機功能
     document.getElementById('switchCamera').addEventListener('click', function() {
-        stopScanner();
-        setTimeout(() => startScanner(), 100);
+        switchCamera();
     });
+
+    async function switchCamera() {
+        if (videoInputDevices.length <= 1) {
+            alert('只找到一個相機設備，無法切換');
+            return;
+        }
+
+        // 切換到下一個相機
+        currentCameraIndex = (currentCameraIndex + 1) % videoInputDevices.length;
+        
+        // 停止當前掃描
+        if (controls) {
+            controls.stop();
+            controls = null;
+        }
+
+        // 使用新的相機重新開始掃描
+        const selectedDeviceId = videoInputDevices[currentCameraIndex].deviceId;
+        const selectedDeviceLabel = videoInputDevices[currentCameraIndex].label || `相機 ${currentCameraIndex + 1}`;
+        
+        const status = document.getElementById('scanner-status');
+        status.textContent = `正在切換到: ${selectedDeviceLabel}`;
+        status.className = 'alert alert-info mt-2';
+
+        try {
+            // 使用新的相機設備開始掃描
+            controls = await codeReader.decodeFromVideoDevice(selectedDeviceId, 'scanner-video', (result, err) => {
+                if (result) {
+                    console.log('✅ 掃描成功!', result.text);
+                    status.textContent = `✅ 掃描成功！條碼: ${result.text} (使用: ${selectedDeviceLabel})`;
+                    status.className = 'alert alert-success mt-2';
+                    document.getElementById('partNumber').value = result.text;
+
+                    if (navigator.vibrate) {
+                        navigator.vibrate([200, 100, 200]);
+                    }
+                    
+                    // 停止掃描並搜尋
+                    stopScanner();
+                    searchPart(result.text);
+                }
+
+                if (err) {
+                    // Ignore common, non-fatal errors that happen during scanning
+                    const ignoredErrors = ['NotFoundException', 'ChecksumException', 'FormatException'];
+                    if (!ignoredErrors.includes(err.name)) {
+                        console.error('掃描錯誤:', err);
+                        status.textContent = `❌ 掃描出錯: ${err.message}`;
+                        status.className = 'alert alert-danger mt-2';
+                    }
+                }
+            });
+
+            status.textContent = `✅ 已切換到: ${selectedDeviceLabel}`;
+            status.className = 'alert alert-success mt-2';
+            
+            // 更新按鈕狀態
+            const switchButton = document.getElementById('switchCamera');
+            switchButton.innerHTML = `<i class="fas fa-sync-alt me-1"></i>切換相機 (${currentCameraIndex + 1}/${videoInputDevices.length})`;
+            
+        } catch (err) {
+            console.error('切換相機失敗:', err);
+            status.textContent = `❌ 切換失敗: ${err.message}`;
+            status.className = 'alert alert-danger mt-2';
+        }
+    }
 
     async function startScanner() {
         const container = document.getElementById('scanner-container');
@@ -60,15 +125,78 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             // 查找所有可用的視訊輸入設備
-            const videoInputDevices = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
+            videoInputDevices = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
             if (videoInputDevices.length < 1) {
                 throw new Error("找不到相機裝置。");
             }
 
-            // 預設使用第一個相機
-            const selectedDeviceId = videoInputDevices[0].deviceId;
+            console.log('發現的相機設備:', videoInputDevices.map(device => ({
+                id: device.deviceId,
+                label: device.label
+            })));
+
+            // 優先選擇後置相機（環境相機）
+            let selectedDeviceIndex = 0;
             
-            status.textContent = '✅ 相機已就緒！請將條碼對準畫面中央';
+            // 首先嘗試使用 facingMode 信息（如果可用）
+            const backCameraByFacing = videoInputDevices.findIndex(device => {
+                // 某些瀏覽器可能在 capabilities 中提供 facingMode 信息
+                return device.getCapabilities && 
+                       device.getCapabilities().facingMode && 
+                       device.getCapabilities().facingMode.includes('environment');
+            });
+            
+            // 其次通過標籤名稱搜索後置相機
+            const backCameraByLabel = videoInputDevices.findIndex(device => {
+                const label = device.label.toLowerCase();
+                return label.includes('back') || 
+                       label.includes('rear') || 
+                       label.includes('environment') ||
+                       label.includes('後') ||
+                       label.includes('环境') ||
+                       label.includes('facing back') ||
+                       label.includes('camera 1') || // 某些設備後置相機標為camera 1
+                       (label.includes('camera') && label.includes('0')); // 某些設備後置相機為camera 0
+            });
+            
+            if (backCameraByFacing !== -1) {
+                selectedDeviceIndex = backCameraByFacing;
+                currentCameraIndex = backCameraByFacing;
+                console.log('通過 facingMode 找到後置相機:', videoInputDevices[selectedDeviceIndex].label);
+            } else if (backCameraByLabel !== -1) {
+                selectedDeviceIndex = backCameraByLabel;
+                currentCameraIndex = backCameraByLabel;
+                console.log('通過標籤找到後置相機:', videoInputDevices[selectedDeviceIndex].label);
+            } else if (videoInputDevices.length > 1) {
+                // 如果有多個相機但找不到明確的後置相機，優先選擇第二個（通常是後置）
+                selectedDeviceIndex = 1;
+                currentCameraIndex = 1;
+                console.log('多個相機設備，優先使用第二個:', videoInputDevices[1].label);
+            } else {
+                // 如果只有一個相機，使用第一個設備
+                currentCameraIndex = 0;
+                console.log('只有一個相機設備，使用:', videoInputDevices[0].label);
+            }
+
+            const selectedDeviceId = videoInputDevices[selectedDeviceIndex].deviceId;
+            const selectedDeviceLabel = videoInputDevices[selectedDeviceIndex].label || `相機 ${selectedDeviceIndex + 1}`;
+            
+            // 更新狀態顯示可用相機數量
+            const cameraInfo = videoInputDevices.length > 1 ? 
+                ` (${videoInputDevices.length} 個相機可用)` : 
+                ' (僅1個相機)';
+                
+            // 更新切換按鈕狀態
+            const switchButton = document.getElementById('switchCamera');
+            if (videoInputDevices.length > 1) {
+                switchButton.disabled = false;
+                switchButton.innerHTML = `<i class="fas fa-sync-alt me-1"></i>切換相機 (${currentCameraIndex + 1}/${videoInputDevices.length})`;
+            } else {
+                switchButton.disabled = true;
+                switchButton.innerHTML = `<i class="fas fa-sync-alt me-1"></i>僅1個相機`;
+            }
+                
+            status.textContent = `✅ 相機已就緒：${selectedDeviceLabel}${cameraInfo}`;
             status.className = 'alert alert-success mt-2';
             console.log(`Started continuous decode from camera with id ${selectedDeviceId}`);
 
@@ -118,6 +246,11 @@ document.addEventListener('DOMContentLoaded', function () {
         if (container) {
             container.style.display = 'none';
         }
+        
+        // 重置按鈕狀態
+        const switchButton = document.getElementById('switchCamera');
+        switchButton.innerHTML = `<i class="fas fa-sync-alt me-1"></i>切換相機`;
+        switchButton.disabled = false;
     }
 
     // 搜尋零件

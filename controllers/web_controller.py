@@ -680,6 +680,11 @@ def parts_comparison_report():
     """零件差異分析報告頁面"""
     return render_template('reports/parts_comparison.html')
 
+@web_bp.route('/reports/ai-query')
+def ai_query_report():
+    """AI資料庫查詢頁面"""
+    return render_template('reports/ai_query.html')
+
 def _get_parts_comparison_report_data():
 
     from models.work_order import WorkOrderDemand

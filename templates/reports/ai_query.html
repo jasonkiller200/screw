@@ -1,0 +1,648 @@
+{% extends "base.html" %}
+
+{% block title %}AI 資料庫查詢{% endblock %}
+
+{% block extra_css %}
+<style>
+.ai-chat-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.chat-history {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 20px;
+    max-height: 500px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    border: 1px solid #dee2e6;
+}
+
+.message {
+    margin-bottom: 15px;
+    padding: 12px;
+    border-radius: 8px;
+    max-width: 85%;
+}
+
+.user-message {
+    background: #007bff;
+    color: white;
+    margin-left: auto;
+    text-align: right;
+}
+
+.ai-message {
+    background: white;
+    border: 1px solid #dee2e6;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.ai-message .message-header {
+    font-weight: bold;
+    color: #28a745;
+    margin-bottom: 8px;
+}
+
+.query-input-area {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    border: 1px solid #dee2e6;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.suggested-questions {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid #dee2e6;
+}
+
+.suggestion-btn {
+    margin: 5px;
+    padding: 8px 15px;
+    background: #e9ecef;
+    border: 1px solid #ced4da;
+    border-radius: 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-block;
+    font-size: 0.9em;
+}
+
+.suggestion-btn:hover {
+    background: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+.status-indicator {
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+}
+
+.status-connected {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.status-disconnected {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.error-message {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #f5c6cb;
+    margin: 10px 0;
+}
+
+.sql-query {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    padding: 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    margin: 10px 0;
+}
+
+.results-count {
+    color: #6c757d;
+    font-size: 0.9em;
+    margin: 5px 0;
+}
+
+.model-selector {
+    margin-bottom: 15px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid ai-chat-container">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-robot"></i> AI 資料庫查詢助手</h2>
+                <button id="refreshStatusBtn" class="btn btn-outline-primary">
+                    <i class="fas fa-sync-alt"></i> 檢查連接狀態
+                </button>
+            </div>
+
+            <!-- 連接狀態 -->
+            <div id="statusIndicator" class="status-indicator" style="display: none;">
+                <div id="statusMessage"></div>
+            </div>
+
+            <!-- 模型選擇 -->
+            <div class="suggested-questions">
+                <h5><i class="fas fa-cog"></i> 模型設定</h5>
+                <div class="model-selector">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <select id="modelSelect" class="form-select">
+                                <option value="">載入中...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <button id="setModelBtn" class="btn btn-primary" disabled>
+                                <i class="fas fa-save"></i> 設定模型
+                            </button>
+                            <button id="refreshModelsBtn" class="btn btn-outline-secondary ms-2">
+                                <i class="fas fa-sync-alt"></i> 重新載入
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle"></i> 
+                            只顯示已下載的可用模型
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 建議問題 -->
+            <div class="suggested-questions">
+                <h5><i class="fas fa-lightbulb"></i> 建議查詢問題</h5>
+                <p class="text-muted mb-3">點擊下方問題快速開始查詢：</p>
+                <div id="suggestedQuestions">
+                    <!-- 建議問題將由JavaScript載入 -->
+                </div>
+            </div>
+
+            <!-- 聊天歷史 -->
+            <div id="chatHistory" class="chat-history">
+                <div class="text-center text-muted">
+                    <i class="fas fa-comments fa-2x mb-3"></i>
+                    <p>歡迎使用AI資料庫查詢助手！<br>您可以用自然語言查詢庫存、零件、工單等資料。</p>
+                    <p class="small">
+                        <i class="fas fa-brain"></i> <strong>新功能：對話記憶</strong><br>
+                        AI現在可以記住之前的對話，支援延續性問題！
+                    </p>
+                </div>
+            </div>
+
+            <!-- 查詢輸入區域 -->
+            <div class="query-input-area">
+                <div class="row">
+                    <div class="col-md-10">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-question-circle"></i></span>
+                            <input type="text" id="questionInput" class="form-control" 
+                                   placeholder="輸入您的問題，例如：有哪些零件庫存不足？" 
+                                   onkeypress="handleEnterKey(event)">
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button id="queryBtn" class="btn btn-primary w-100" onclick="submitQuery()">
+                            <i class="fas fa-paper-plane"></i> 查詢
+                        </button>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle"></i> 
+                            提示：您可以查詢零件庫存、工單需求、採購訂單、庫存異動等資訊
+                        </small>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <small class="text-muted me-3">
+                            <i class="fas fa-comments"></i> 
+                            會話ID: <span id="sessionDisplay">新會話</span>
+                        </small>
+                        <button id="clearHistoryBtn" class="btn btn-sm btn-outline-warning">
+                            <i class="fas fa-broom"></i> 清除歷史
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 載入中模態框 -->
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center">
+                <div class="loading-spinner mb-3"></div>
+                <p>AI正在分析您的問題...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let chatHistory = [];
+let currentSessionId = null;
+
+// 生成新的會話ID
+function generateSessionId() {
+    const timestamp = new Date().toISOString().replace(/[-:T]/g, '').split('.')[0];
+    return `session_${timestamp}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// 頁面載入時檢查狀態
+document.addEventListener('DOMContentLoaded', function() {
+    currentSessionId = generateSessionId();
+    updateSessionDisplay();
+    checkAIStatus();
+    loadSuggestedQuestions();
+    loadAvailableModels();
+});
+
+// 更新會話顯示
+function updateSessionDisplay() {
+    const sessionDisplay = document.getElementById('sessionDisplay');
+    const shortId = currentSessionId.substring(currentSessionId.length - 8);
+    sessionDisplay.textContent = shortId;
+}
+
+// 載入可用模型
+function loadAvailableModels() {
+    const modelSelect = document.getElementById('modelSelect');
+    const setModelBtn = document.getElementById('setModelBtn');
+    
+    // 可以使用專門的模型端點，或者使用狀態端點
+    fetch('/ai/status')
+        .then(response => response.json())
+        .then(data => {
+            modelSelect.innerHTML = '';
+            
+            if (data.success && data.available_models && data.available_models.length > 0) {
+                // 添加可用模型到選單
+                data.available_models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    option.textContent = formatModelName(model);
+                    
+                    // 如果是當前使用的模型，標記為選中
+                    if (model === data.current_model || model.startsWith(data.current_model)) {
+                        option.selected = true;
+                    }
+                    
+                    modelSelect.appendChild(option);
+                });
+                
+                setModelBtn.disabled = false;
+                
+                // 如果沒有選中的模型，選擇第一個
+                if (modelSelect.selectedIndex === -1 && data.available_models.length > 0) {
+                    modelSelect.selectedIndex = 0;
+                }
+            } else {
+                // 沒有可用模型
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = data.success ? '沒有可用模型，請先下載模型' : '無法連接到Ollama服務';
+                modelSelect.appendChild(option);
+                
+                setModelBtn.disabled = true;
+            }
+        })
+        .catch(error => {
+            console.error('載入模型清單失敗:', error);
+            modelSelect.innerHTML = '<option value="">載入失敗</option>';
+            setModelBtn.disabled = true;
+        });
+}
+
+// 格式化模型名稱顯示
+function formatModelName(modelName) {
+    // 將模型名稱格式化為更友好的顯示名稱
+    const modelDisplayNames = {
+        'llama3.1:8b': 'Llama 3.1 8B (推薦)',
+        'llama3:8b': 'Llama 3 8B',
+        'llama2:7b': 'Llama 2 7B',
+        'llama2:13b': 'Llama 2 13B',
+        'gemma:7b': 'Gemma 7B',
+        'gemma:2b': 'Gemma 2B',
+        'qwen:7b': 'Qwen 7B',
+        'qwen:4b': 'Qwen 4B',
+        'mistral:7b': 'Mistral 7B',
+        'codellama:7b': 'Code Llama 7B',
+        'codellama:13b': 'Code Llama 13B'
+    };
+    
+    return modelDisplayNames[modelName] || modelName;
+}
+
+// 檢查AI服務狀態
+function checkAIStatus() {
+    fetch('/ai/status')
+        .then(response => response.json())
+        .then(data => {
+            updateStatusIndicator(data);
+        })
+        .catch(error => {
+            updateStatusIndicator({
+                success: false,
+                error: '無法連接到AI服務'
+            });
+        });
+}
+
+// 更新狀態指示器
+function updateStatusIndicator(status) {
+    const indicator = document.getElementById('statusIndicator');
+    const message = document.getElementById('statusMessage');
+    
+    indicator.style.display = 'block';
+    
+    if (status.success) {
+        indicator.className = 'status-indicator status-connected';
+        let statusText = '<i class="fas fa-check-circle"></i> AI服務已連接';
+        
+        if (status.available_models && status.available_models.length > 0) {
+            statusText += ` | 可用模型: ${status.available_models.length} 個`;
+            
+            if (status.model_available && status.current_model) {
+                statusText += ` | 當前模型: ${formatModelName(status.current_model)}`;
+            } else if (status.current_model) {
+                statusText += ` | ⚠️ 當前模型 ${status.current_model} 不可用`;
+            }
+        } else {
+            statusText += ` | ⚠️ 沒有可用模型，請先下載模型`;
+        }
+        
+        message.innerHTML = statusText;
+    } else {
+        indicator.className = 'status-indicator status-disconnected';
+        message.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${status.error || status.message}`;
+    }
+}
+
+// 載入建議問題
+function loadSuggestedQuestions() {
+    fetch('/ai/suggestions')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const container = document.getElementById('suggestedQuestions');
+                container.innerHTML = '';
+                
+                data.suggestions.forEach(question => {
+                    const btn = document.createElement('span');
+                    btn.className = 'suggestion-btn';
+                    btn.textContent = question;
+                    btn.onclick = () => selectSuggestedQuestion(question);
+                    container.appendChild(btn);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('載入建議問題失敗:', error);
+        });
+}
+
+// 選擇建議問題
+function selectSuggestedQuestion(question) {
+    document.getElementById('questionInput').value = question;
+    submitQuery();
+}
+
+// 處理回車鍵
+function handleEnterKey(event) {
+    if (event.key === 'Enter') {
+        submitQuery();
+    }
+}
+
+// 提交查詢
+function submitQuery() {
+    const questionInput = document.getElementById('questionInput');
+    const question = questionInput.value.trim();
+    
+    if (!question) {
+        alert('請輸入查詢問題');
+        return;
+    }
+    
+    // 添加用戶消息到聊天歷史
+    addMessageToHistory('user', question);
+    
+    // 顯示載入中
+    const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    loadingModal.show();
+    
+    // 禁用查詢按鈕
+    const queryBtn = document.getElementById('queryBtn');
+    queryBtn.disabled = true;
+    queryBtn.innerHTML = '<span class="loading-spinner"></span> 處理中...';
+    
+    // 發送查詢請求
+    fetch('/ai/query', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+            question: question,
+            session_id: currentSessionId 
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        loadingModal.hide();
+        
+        if (data.success) {
+            // 添加AI回應到聊天歷史
+            addMessageToHistory('ai', data.answer, data.sql_query, data.result_count);
+        } else {
+            // 添加錯誤消息
+            addMessageToHistory('error', data.error);
+        }
+    })
+    .catch(error => {
+        loadingModal.hide();
+        addMessageToHistory('error', '查詢請求失敗: ' + error.message);
+    })
+    .finally(() => {
+        // 重置查詢按鈕
+        queryBtn.disabled = false;
+        queryBtn.innerHTML = '<i class="fas fa-paper-plane"></i> 查詢';
+        
+        // 清空輸入框
+        questionInput.value = '';
+    });
+}
+
+// 添加消息到聊天歷史
+function addMessageToHistory(type, content, sqlQuery = null, resultCount = null) {
+    const chatHistory = document.getElementById('chatHistory');
+    const messageDiv = document.createElement('div');
+    
+    if (type === 'user') {
+        messageDiv.className = 'message user-message';
+        messageDiv.innerHTML = `<strong>您:</strong> ${content}`;
+    } else if (type === 'ai') {
+        messageDiv.className = 'message ai-message';
+        let html = '<div class="message-header"><i class="fas fa-robot"></i> AI助手:</div>';
+        html += `<div>${content.replace(/\n/g, '<br>')}</div>`;
+        
+        if (resultCount !== null) {
+            html += `<div class="results-count">查詢結果: ${resultCount} 筆記錄</div>`;
+        }
+        
+        if (sqlQuery) {
+            html += '<div class="mt-2">';
+            html += '<button class="btn btn-sm btn-outline-secondary" onclick="toggleSqlQuery(this)">顯示SQL查詢</button>';
+            html += `<div class="sql-query" style="display: none;">${sqlQuery}</div>`;
+            html += '</div>';
+        }
+        
+        messageDiv.innerHTML = html;
+    } else if (type === 'error') {
+        messageDiv.className = 'message ai-message';
+        messageDiv.innerHTML = `<div class="error-message"><i class="fas fa-exclamation-triangle"></i> 錯誤: ${content}</div>`;
+    }
+    
+    chatHistory.appendChild(messageDiv);
+    
+    // 滾動到底部
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+}
+
+// 切換顯示SQL查詢
+function toggleSqlQuery(button) {
+    const sqlDiv = button.nextElementSibling;
+    if (sqlDiv.style.display === 'none') {
+        sqlDiv.style.display = 'block';
+        button.textContent = '隱藏SQL查詢';
+    } else {
+        sqlDiv.style.display = 'none';
+        button.textContent = '顯示SQL查詢';
+    }
+}
+
+// 重新檢查狀態
+document.getElementById('refreshStatusBtn').onclick = function() {
+    checkAIStatus();
+    loadAvailableModels();
+};
+
+// 重新載入模型清單
+document.getElementById('refreshModelsBtn').onclick = function() {
+    this.disabled = true;
+    this.innerHTML = '<span class="loading-spinner"></span> 載入中...';
+    
+    loadAvailableModels();
+    
+    setTimeout(() => {
+        this.disabled = false;
+        this.innerHTML = '<i class="fas fa-sync-alt"></i> 重新載入';
+    }, 1000);
+};
+
+// 設定模型
+document.getElementById('setModelBtn').onclick = function() {
+    const modelSelect = document.getElementById('modelSelect');
+    const selectedModel = modelSelect.value;
+    
+    if (!selectedModel) {
+        alert('請選擇模型');
+        return;
+    }
+    
+    this.disabled = true;
+    this.innerHTML = '<span class="loading-spinner"></span> 設定中...';
+    
+    fetch('/ai/set-model', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ model: selectedModel })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            updateStatusIndicator(data.status);
+            addMessageToHistory('ai', `模型已設定為: ${formatModelName(selectedModel)}`);
+        } else {
+            alert('設定模型失敗: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('設定模型失敗: ' + error.message);
+    })
+    .finally(() => {
+        this.disabled = false;
+        this.innerHTML = '<i class="fas fa-save"></i> 設定模型';
+    });
+};
+
+// 清除對話歷史
+document.getElementById('clearHistoryBtn').onclick = function() {
+    if (!confirm('確定要清除當前會話的對話歷史嗎？')) {
+        return;
+    }
+    
+    this.disabled = true;
+    this.innerHTML = '<span class="loading-spinner"></span> 清除中...';
+    
+    fetch('/ai/conversation/clear', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ session_id: currentSessionId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 清除聊天歷史顯示
+            const chatHistory = document.getElementById('chatHistory');
+            chatHistory.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-comments fa-2x mb-3"></i>
+                    <p>對話歷史已清除！<br>您可以開始新的對話。</p>
+                </div>
+            `;
+            
+            // 生成新的會話ID
+            currentSessionId = generateSessionId();
+            updateSessionDisplay();
+            
+            addMessageToHistory('ai', '對話歷史已清除，開始新的會話。');
+        } else {
+            alert('清除歷史失敗: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('清除歷史失敗: ' + error.message);
+    })
+    .finally(() => {
+        this.disabled = false;
+        this.innerHTML = '<i class="fas fa-broom"></i> 清除歷史';
+    });
+};
+</script>
+{% endblock %}
