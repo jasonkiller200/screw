@@ -3,19 +3,74 @@
 document.addEventListener('DOMContentLoaded', function () {
     console.log('🚀 零件查詢頁面已載入');
     
-    // 搜尋功能
     const searchForm = document.getElementById('searchForm');
-    if (!searchForm) {
-        console.error('❌ 找不到 searchForm 元素');
+    const partNumberInput = document.getElementById('partNumber');
+    const autocompleteResults = document.getElementById('autocomplete-results');
+
+    if (!searchForm || !partNumberInput || !autocompleteResults) {
+        console.error('❌ 找不到必要的搜尋表單、輸入框或自動完成結果容器');
         return;
     }
-    
-    console.log('✅ 找到 searchForm，綁定事件監聽器');
+
+    // 當使用者在輸入框中輸入時觸發
+    partNumberInput.addEventListener('input', function() {
+        const query = partNumberInput.value.trim();
+        
+        // 清除舊的詳細結果
+        document.getElementById('results').style.display = 'none';
+        document.getElementById('error').style.display = 'none';
+
+        if (query.length < 1) {
+            autocompleteResults.innerHTML = '';
+            autocompleteResults.style.display = 'none';
+            return;
+        }
+
+        fetch(`/api/parts/autocomplete?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                autocompleteResults.innerHTML = '';
+                if (data.length > 0) {
+                    autocompleteResults.style.display = 'block';
+                    data.forEach(part => {
+                        const item = document.createElement('a');
+                        item.href = '#';
+                        item.classList.add('list-group-item', 'list-group-item-action');
+                        item.innerHTML = `${part.part_number} <small class="text-muted">(${part.name})</small>`;
+                        item.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            partNumberInput.value = part.part_number;
+                            autocompleteResults.innerHTML = '';
+                            autocompleteResults.style.display = 'none';
+                            searchPart(part.part_number); // 觸發詳細搜尋
+                        });
+                        autocompleteResults.appendChild(item);
+                    });
+                } else {
+                    autocompleteResults.style.display = 'none';
+                }
+            })
+            .catch(error => {
+                console.error('❌ 自動完成搜尋錯誤:', error);
+                autocompleteResults.innerHTML = '';
+                autocompleteResults.style.display = 'none';
+            });
+    });
+
+    // 點擊頁面其他地方時隱藏建議列表
+    document.addEventListener('click', function(e) {
+        if (!partNumberInput.contains(e.target) && !autocompleteResults.contains(e.target)) {
+            autocompleteResults.innerHTML = '';
+            autocompleteResults.style.display = 'none';
+        }
+    });
+
+    // 保留原有的表單提交功能作為備用 (例如使用者按 Enter)
     searchForm.addEventListener('submit', function(e) {
         e.preventDefault();
-        console.log('📝 表單提交事件觸發');
-        const partNumber = document.getElementById('partNumber').value.trim();
-        console.log('🔍 查詢零件編號:', partNumber);
+        const partNumber = partNumberInput.value.trim();
+        autocompleteResults.innerHTML = '';
+        autocompleteResults.style.display = 'none';
         if (partNumber) {
             searchPart(partNumber);
         } else {
@@ -326,27 +381,29 @@ document.addEventListener('DOMContentLoaded', function () {
         
         // 顯示各倉庫庫存（包含倉位信息）
         let inventoryHtml = '';
-        if (inventories.length > 0) {
-            inventoryHtml = inventories.map(inv => {
-                // 找出該倉庫的倉位
-                const warehouseLocations = part?.locations ? // 使用可選鏈接
-                    part.locations.filter(loc => loc.warehouse_id === inv.warehouse_id) : [];
-                const locationStr = warehouseLocations.length > 0 ? 
-                    warehouseLocations.map(loc => loc.location_code).join(', ') : 
-                    '<span class="text-muted">未設定</span>';
-                
+        const all_locations = part?.locations || [];
+
+        if (all_locations.length > 0) {
+            inventoryHtml = all_locations.map(loc => {
+                // 從 inventories 陣列中尋找此位置的庫存記錄
+                const inv = inventories.find(i => i.warehouse_id === loc.warehouse_id);
+
+                const quantity_on_hand = inv ? inv.quantity_on_hand : 0;
+                const reserved_quantity = inv ? inv.reserved_quantity : 0;
+                const available_quantity = inv ? inv.available_quantity : 0;
+
                 return `
                     <tr>
-                        <td>${inv.warehouse_name} (${inv.warehouse_code})</td>
-                        <td>${locationStr}</td>
-                        <td>${inv.quantity_on_hand || 0}</td>
-                        <td>${inv.reserved_quantity || 0}</td>
-                        <td><strong>${inv.available_quantity || 0}</strong></td>
+                        <td>${loc.warehouse_name} (${loc.warehouse_code})</td>
+                        <td>${loc.location_code}</td>
+                        <td>${quantity_on_hand}</td>
+                        <td>${reserved_quantity}</td>
+                        <td><strong>${available_quantity}</strong></td>
                     </tr>
                 `;
             }).join('');
         } else {
-            inventoryHtml = '<tr><td colspan="5" class="text-center text-muted">暫無庫存資訊</td></tr>';
+            inventoryHtml = '<tr><td colspan="5" class="text-center text-muted">此零件未設定儲位</td></tr>';
         }
         
         results.innerHTML = `
@@ -354,8 +411,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">零件資訊</h5>
                     <div>
-                        <button class="btn btn-success btn-sm" onclick="addToWeeklyOrder('${part?.part_number || ''}', '${part?.name || ''}', '${part?.unit || ''}')">
-                            <i class="fas fa-calendar-plus me-1"></i>加入週期申請
+                        <button class="btn btn-success btn-sm" id="showWeeklyOrderModalBtn" 
+                                data-part-number="${part?.part_number || ''}" 
+                                data-part-name="${part?.name || ''}" 
+                                data-part-unit="${part?.unit || ''}"
+                                data-part-type="${part?.type || ''}"
+                                data-part-locations='${JSON.stringify(part?.locations || [])}'>
+                            <i class="fas fa-calendar-plus me-1"></i>加入申請
                         </button>
                     </div>
                 </div>
@@ -417,6 +479,19 @@ document.addEventListener('DOMContentLoaded', function () {
         `;
         
         results.style.display = 'block';
+
+        // 為新的"加入申請"按鈕動態綁定事件
+        const weeklyOrderBtn = document.getElementById('showWeeklyOrderModalBtn');
+        if (weeklyOrderBtn) {
+            weeklyOrderBtn.addEventListener('click', function() {
+                const partNumber = this.dataset.partNumber;
+                const partName = this.dataset.partName;
+                const unit = this.dataset.partUnit;
+                const type = this.dataset.partType;
+                const locations = this.dataset.partLocations;
+                addToWeeklyOrder(partNumber, partName, unit, type, locations);
+            });
+        }
     }
 
     function showError(message) {
@@ -466,67 +541,116 @@ document.addEventListener('DOMContentLoaded', function () {
             alert('網路錯誤：' + err.message);
         });
     });
-});
 
-// 加入週期申請
-function addToWeeklyOrder(partNumber, partName, unit) {
-    // 顯示優先級選擇彈窗
-    const modalHtml = `
-        <div class="modal fade" id="priorityModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">選擇申請類型</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <p>零件：<strong>${partName}</strong> (${partNumber})</p>
-                        <div class="mb-3">
-                            <label class="form-label">申請類型</label>
-                            <select class="form-select" id="prioritySelect">
-                                <option value="normal">一般申請</option>
-                                <option value="urgent">緊急申請</option>
-                            </select>
-                            <div class="form-text">緊急申請將優先處理</div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                        <button type="button" class="btn btn-primary" onclick="confirmAddToWeeklyOrder('${partNumber}', '${partName}', '${unit}')">確認加入</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // 移除現有的模態框（如果存在）
-    const existingModal = document.getElementById('priorityModal');
-    if (existingModal) {
-        existingModal.remove();
+    // 加入週期申請 (新版：使用獨立模態視窗)
+    function addToWeeklyOrder(partNumber, partName, unit, partType, locationsString) {
+        // 填充模態視窗中的零件資訊
+        document.getElementById('weeklyOrderPartNumber').value = partNumber;
+        document.getElementById('weeklyOrderPartName').value = partName;
+        document.getElementById('weeklyOrderUnit').value = unit;
+        document.getElementById('weeklyOrderPartType').value = partType; // Store part type
+        document.getElementById('weeklyOrderPartDisplay').textContent = `${partNumber} (${partName})`;
+
+        // 清除舊的錯誤訊息並重設表單
+        document.getElementById('weeklyOrderError').style.display = 'none';
+        document.getElementById('weeklyOrderForm').reset();
+
+        // 動態填充並處理儲位下拉選單
+        const locationDropdown = document.getElementById('weeklyOrderLocation');
+        locationDropdown.innerHTML = ''; // 清空現有選項
+        locationDropdown.disabled = false; // 確保選單是啟用的
+
+        try {
+            const locations = JSON.parse(locationsString);
+            
+            // 加入預設選項
+            locationDropdown.add(new Option('請選擇儲位...', ''));
+
+            if (locations && locations.length > 0) {
+                locations.forEach(loc => {
+                    // 從 part.locations 來的資料沒有 .text 屬性，需要自己組合
+                    const optionText = `${loc.warehouse_name} - ${loc.location_code}`;
+                    locationDropdown.add(new Option(optionText, loc.id));
+                });
+
+                // 如果只有一個儲位，自動選取
+                if (locations.length === 1) {
+                    locationDropdown.value = locations[0].id;
+                }
+            } else {
+                 // 如果沒有可用儲位，可以選擇禁用下拉選單或顯示提示
+                 locationDropdown.options[0].textContent = '此零件未設定儲位';
+                 locationDropdown.disabled = true;
+            }
+
+        } catch (e) {
+            console.error("解析儲位資料失敗:", e);
+            locationDropdown.innerHTML = '<option value="">讀取儲位失敗</option>';
+            locationDropdown.disabled = true;
+        }
+
+        // 顯示模態視窗
+        const weeklyOrderModal = new bootstrap.Modal(document.getElementById('weeklyOrderModal'));
+        weeklyOrderModal.show();
     }
-    
-    // 添加模態框到頁面
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    
-    // 顯示模態框
-    const modal = new bootstrap.Modal(document.getElementById('priorityModal'));
-    modal.show();
-}
 
-// 確認加入週期申請
-function confirmAddToWeeklyOrder(partNumber, partName, unit) {
-    const priority = document.getElementById('prioritySelect').value;
-    
-    // 跳轉到週期申請頁面，並預填資料
-    const params = new URLSearchParams({
-        part_number: partNumber,
-        part_name: partName,
-        unit: unit,
-        quantity: '1',
-        material_nature: '採購品',
-        priority: priority,
-        source: 'lookup'
+    // 提交週期訂單申請
+    document.getElementById('submitWeeklyOrder').addEventListener('click', function() {
+        const errorDiv = document.getElementById('weeklyOrderError');
+        const submitButton = this;
+
+        // 收集表單數據
+        const data = {
+            part_number: document.getElementById('weeklyOrderPartNumber').value,
+            part_name: document.getElementById('weeklyOrderPartName').value,
+            unit: document.getElementById('weeklyOrderUnit').value,
+            category: document.getElementById('weeklyOrderPartType').value,
+            quantity: document.getElementById('weeklyOrderQuantity').value,
+            warehouse_location_id: document.getElementById('weeklyOrderLocation').value,
+            applicant_name: document.getElementById('weeklyOrderApplicant').value,
+            priority: document.getElementById('weeklyOrderPriority').value,
+            required_date: document.getElementById('weeklyOrderRequiredDate').value,
+            purpose_notes: document.getElementById('weeklyOrderNotes').value
+        };
+
+        // 前端驗證
+        if (!data.quantity || !data.warehouse_location_id || !data.applicant_name || !data.required_date) {
+            errorDiv.textContent = '標有 * 的欄位為必填項目。';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        errorDiv.style.display = 'none';
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 正在提交...';
+
+        fetch('/api/weekly-orders/register', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                alert(result.message || '申請成功！');
+                const weeklyOrderModal = bootstrap.Modal.getInstance(document.getElementById('weeklyOrderModal'));
+                if (weeklyOrderModal) {
+                    weeklyOrderModal.hide();
+                }
+            } else {
+                errorDiv.textContent = result.message || '發生未知錯誤';
+                errorDiv.style.display = 'block';
+            }
+        })
+        .catch(err => {
+            errorDiv.textContent = '網路錯誤，請稍後再試。 ' + err.message;
+            errorDiv.style.display = 'block';
+        })
+        .finally(() => {
+            submitButton.disabled = false;
+            submitButton.innerHTML = '確認申請';
+        });
     });
-    
-    window.location.href = `/weekly-orders/register?${params.toString()}`;
-}
+});

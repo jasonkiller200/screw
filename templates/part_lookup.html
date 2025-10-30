@@ -184,12 +184,14 @@
             <div class="card-body">
                 <form id="searchForm">
                     <div class="input-group mb-3">
-                        <input type="text" class="form-control" id="partNumber" placeholder="輸入零件編號">
+                        <input type="text" class="form-control" id="partNumber" placeholder="輸入零件編號或名稱" autocomplete="off">
                         <button class="btn btn-primary" type="submit">
                             <i class="fas fa-search"></i> 查詢
                         </button>
                     </div>
                 </form>
+                <div id="autocomplete-results" class="list-group" style="position: absolute; z-index: 1000; width: calc(100% - 3rem);"></div>
+
                 
                 <button class="btn btn-secondary mb-3" id="toggleScanner">
                     <i class="fas fa-camera me-1"></i>開啟條碼掃描
@@ -299,6 +301,76 @@
         </div>
     </div>
 </div>
+
+<!-- 週期訂單申請模態框 -->
+<div class="modal fade" id="weeklyOrderModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">加入週期申請</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="weeklyOrderForm">
+                    <input type="hidden" id="weeklyOrderPartNumber">
+                    <input type="hidden" id="weeklyOrderPartName">
+                    <input type="hidden" id="weeklyOrderUnit">
+                    <input type="hidden" id="weeklyOrderPartType">
+
+                    <div class="alert alert-info">
+                        <p class="mb-1"><strong>零件:</strong> <span id="weeklyOrderPartDisplay"></span></p>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="weeklyOrderQuantity" class="form-label">申請數量 <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="weeklyOrderQuantity" value="1" min="1" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="weeklyOrderLocation" class="form-label">目標儲位 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="weeklyOrderLocation" required>
+                                <option value="" selected>請選擇儲位...</option>
+                                {% for loc in all_warehouse_locations %}
+                                <option value="{{ loc.id }}">{{ loc.text }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="weeklyOrderApplicant" class="form-label">申請人 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="weeklyOrderApplicant" required>
+                        </div>
+
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="weeklyOrderPriority" class="form-label">緊急程度 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="weeklyOrderPriority" required>
+                                <option value="normal" selected>一般申請</option>
+                                <option value="urgent">緊急申請</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="weeklyOrderRequiredDate" class="form-label">需用日期 <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="weeklyOrderRequiredDate" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="weeklyOrderNotes" class="form-label">用途/備註</label>
+                        <textarea class="form-control" id="weeklyOrderNotes" rows="2"></textarea>
+                    </div>
+                    <div id="weeklyOrderError" class="alert alert-danger" style="display: none;"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="submitWeeklyOrder">確認申請</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}

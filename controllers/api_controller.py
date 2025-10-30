@@ -247,6 +247,24 @@ def get_warehouses():
     warehouses = Warehouse.get_all() # This already returns a list of dicts
     return jsonify(warehouses)
 
+@api_bp.route('/parts/autocomplete', methods=['GET'])
+def parts_autocomplete():
+    """Provides autocomplete suggestions for part numbers and names."""
+    from sqlalchemy import or_
+    query = request.args.get('q', '').strip()
+    if not query or len(query) < 1: # 至少需要1個字元才觸發搜尋
+        return jsonify([])
+
+    parts = Part.query.filter(
+        or_(
+            Part.part_number.ilike(f'%{query}%'),
+            Part.name.ilike(f'%{query}%')
+        )
+    ).limit(10).all()
+
+    results = [{'part_number': part.part_number, 'name': part.name} for part in parts]
+    return jsonify(results)
+
 @api_bp.route('/parts/search', methods=['GET'])
 def search_parts():
     """Searches for parts by part_number or name."""

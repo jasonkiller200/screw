@@ -219,7 +219,17 @@ def import_work_order_demands():
 @web_bp.route('/part_lookup')
 def part_lookup():
     """Part lookup page for barcode scanning."""
-    return render_template('part_lookup.html')
+    # Fetch all warehouse locations for the modal dropdown
+    all_locations = db.session.query(WarehouseLocation).join(WarehouseLocation.warehouse).order_by(Warehouse.name, WarehouseLocation.location_code).all()
+    
+    locations_for_modal = []
+    for loc in all_locations:
+        locations_for_modal.append({
+            'id': loc.id,
+            'text': f"{loc.warehouse.name} - {loc.location_code}"
+        })
+
+    return render_template('part_lookup.html', all_warehouse_locations=locations_for_modal)
 
 @web_bp.route('/parts/new', methods=['GET', 'POST'])
 def new_part():

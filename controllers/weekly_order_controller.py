@@ -715,3 +715,55 @@ def create_new_cycle():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)})
+
+@weekly_order_bp.route('/api/weekly-orders/register', methods=['POST'])
+def api_register_order():
+    """API endpoint to register a new order, typically from a modal."""
+    current_cycle = WeeklyOrderCycle.get_current_cycle()
+    if not current_cycle or not current_cycle.is_active:
+        return jsonify({'success': False, 'message': '目前沒有活躍的申請週期或週期已截止'}), 400
+
+    data = request.get_json()
+    required_fields = ['part_number', 'part_name', 'quantity', 'unit', 'applicant_name', 'priority', 'warehouse_location_id', 'required_date']
+    if not all(data.get(field) for field in required_fields):
+        return jsonify({'success': False, 'message': '缺少必要欄位'}), 400
+
+    try:
+        quantity = int(data['quantity'])
+        if quantity <= 0:
+            raise ValueError("數量必須為正數")
+
+        warehouse_location_id = int(data['warehouse_location_id'])
+        required_date = datetime.strptime(data['required_date'], '%Y-%m-%d')
+
+    except (ValueError, TypeError) as e:
+        return jsonify({'success': False, 'message': f'欄位格式錯誤，請檢查數量、儲位或日期: {str(e)}'}), 400
+
+    try:
+        max_sequence = db.session.query(db.func.max(OrderRegistration.item_sequence)).filter_by(cycle_id=current_cycle.id).scalar()
+        next_sequence = (max_sequence or 0) + 1
+
+        registration = OrderRegistration(
+            cycle_id=current_cycle.id,
+            item_sequence=next_sequence,
+            part_number=data['part_number'].strip(),
+            part_name=data['part_name'].strip(),
+            warehouse_location_id=warehouse_location_id,
+            quantity=quantity,
+            unit=data['unit'].strip(),
+            category=data.get('category', '').strip(),
+            required_date=required_date,
+            priority=data['priority'].strip(),
+            purpose_notes=data.get('purpose_notes', '').strip(),
+            applicant_name=data['applicant_name'].strip(),
+            department=data.get('department', '').strip()
+        )
+        
+        db.session.add(registration)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': f'項目 #{next_sequence} 登記成功'}), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'登記失敗：{str(e)}'}), 500

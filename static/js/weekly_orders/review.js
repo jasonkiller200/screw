@@ -216,26 +216,29 @@ function showPartDetails(partNumber) {
             }
 
             let inventoryHtml = '';
-            if (inventories.length > 0) {
-                inventoryHtml = inventories.map(inv => {
-                    const warehouseLocations = part?.locations ? 
-                        part.locations.filter(loc => loc.warehouse_id === inv.warehouse_id) : [];
-                    const locationStr = warehouseLocations.length > 0 ? 
-                        warehouseLocations.map(loc => loc.location_code).join(', ') : 
-                        '<span class="text-muted">未設定</span>';
-                    
+            const all_locations = part?.locations || [];
+
+            if (all_locations.length > 0) {
+                inventoryHtml = all_locations.map(loc => {
+                    // 從 inventories 陣列中尋找此位置的庫存記錄
+                    const inv = inventories.find(i => i.warehouse_id === loc.warehouse_id);
+
+                    const quantity_on_hand = inv ? inv.quantity_on_hand : 0;
+                    const reserved_quantity = inv ? inv.reserved_quantity : 0;
+                    const available_quantity = inv ? inv.available_quantity : 0;
+
                     return `
                         <tr>
-                            <td>${inv.warehouse_name} (${inv.warehouse_code})</td>
-                            <td>${locationStr}</td>
-                            <td>${inv.quantity_on_hand || 0}</td>
-                            <td>${inv.reserved_quantity || 0}</td>
-                            <td><strong>${inv.available_quantity || 0}</strong></td>
+                            <td>${loc.warehouse_name} (${loc.warehouse_code})</td>
+                            <td>${loc.location_code}</td>
+                            <td>${quantity_on_hand}</td>
+                            <td>${reserved_quantity}</td>
+                            <td><strong>${available_quantity}</strong></td>
                         </tr>
                     `;
                 }).join('');
             } else {
-                inventoryHtml = '<tr><td colspan="5" class="text-center text-muted">暫無庫存資訊</td></tr>';
+                inventoryHtml = '<tr><td colspan="5" class="text-center text-muted">此零件未設定儲位</td></tr>';
             }
 
             detailContent.innerHTML = `
