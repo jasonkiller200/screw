@@ -52,10 +52,10 @@ class CurrentInventory(db.Model):
         }
 
     @classmethod
-    def get_current_stock(cls, part_id, warehouse_id=None):
+    def get_current_stock(cls, part_id, warehouse_location_id=None):
         query = cls.query.filter_by(part_id=part_id)
-        if warehouse_id:
-            stock = query.filter_by(warehouse_id=warehouse_id).first()
+        if warehouse_location_id:
+            stock = query.filter_by(warehouse_location_id=warehouse_location_id).first()
             return stock.to_dict() if stock else None
         stocks = query.all()
         return [stock.to_dict() for stock in stocks]

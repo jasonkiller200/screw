@@ -182,85 +182,23 @@ document.getElementById('quantity').addEventListener('input', function() {
     }
 });
 
-// 監聽出庫類型變更
-document.getElementById('transaction_type').addEventListener('change', function() {
-    const workOrderSection = document.getElementById('workOrderSection');
-    const workOrderSelect = document.getElementById('work_order_id');
-    
-    if (this.value === 'OUT_WORK_ORDER') {
-        workOrderSection.style.display = 'block';
-        loadWorkOrders();
-    } else {
-        workOrderSection.style.display = 'none';
-        workOrderSelect.innerHTML = '<option value="">選擇工單...</option>';
-    }
-});
-
-// 載入工單列表
-async function loadWorkOrders() {
-    try {
-        const response = await fetch('/api/work-orders/orders');
-        const data = await response.json();
-        const workOrderSelect = document.getElementById('work_order_id');
-        
-        workOrderSelect.innerHTML = '<option value="">選擇工單...</option>';
-        
-        data.orders.forEach(orderId => {
-            const option = document.createElement('option');
-            option.value = orderId;
-            option.textContent = orderId;
-            workOrderSelect.appendChild(option);
-        });
-    } catch (error) {
-        console.error('載入工單失敗:', error);
-    }
-}
-
-// 監聽工單選擇變更
-document.getElementById('work_order_id').addEventListener('change', async function() {
-    const orderId = this.value;
-    const workOrderInfo = document.getElementById('workOrderInfo');
-    const workOrderDetails = document.getElementById('workOrderDetails');
-    
-    if (!orderId) {
-        workOrderInfo.style.display = 'none';
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/api/work-orders/${orderId}`);
-        const data = await response.json();
-        
-        if (data.error) {
-            workOrderDetails.innerHTML = `<span class="text-danger">錯誤: ${data.error}</span>`;
+document.addEventListener('DOMContentLoaded', function() {
+    // Function to check and toggle the work order section visibility
+    function toggleWorkOrderSection() {
+        const transactionType = document.getElementById('transaction_type').value;
+        const workOrderSection = document.getElementById('workOrderSection');
+        if (transactionType === 'OUT_WORK_ORDER') {
+            workOrderSection.style.display = 'block';
         } else {
-            const partNumber = document.getElementById('part_number').value.trim();
-            const relevantItem = data.demands.find(d => d.part_number === partNumber);
-            
-            if (relevantItem) {
-                workOrderDetails.innerHTML = `
-                    <strong>需求數量:</strong> ${relevantItem.required_quantity}<br>
-                    <strong>需求日期:</strong> ${new Date(relevantItem.required_date).toLocaleDateString()}<br>
-                    <strong>物料說明:</strong> ${relevantItem.material_description || '無'}
-                `;
-                
-                // 自動填入建議數量
-                document.getElementById('quantity').value = relevantItem.required_quantity;
-            } else {
-                workOrderDetails.innerHTML = `
-                    <span class="text-warning">此工單不包含當前選擇的零件</span><br>
-                    <strong>工單總項目:</strong> ${data.total_items}<br>
-                    <strong>工單總數量:</strong> ${data.total_quantity}
-                `;
-            }
+            workOrderSection.style.display = 'none';
         }
-        
-        workOrderInfo.style.display = 'block';
-    } catch (error) {
-        console.error('載入工單詳情失敗:', error);
-        workOrderDetails.innerHTML = `<span class="text-danger">載入工單詳情失敗</span>`;
-        workOrderInfo.style.display = 'block';
     }
+
+    // Add event listener for transaction type change
+    document.getElementById('transaction_type').addEventListener('change', toggleWorkOrderSection);
+
+    // Initial check on page load
+    toggleWorkOrderSection();
 });
 
 // 表單驗證

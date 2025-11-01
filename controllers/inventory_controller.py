@@ -33,14 +33,18 @@ def get_part_stock(part_number):
         return jsonify({'error': 'Part not found'}), 404
     
     # 取得庫存資訊
-    stock_info = CurrentInventory.get_current_stock(part['id'], warehouse_id)
+    stock_info = CurrentInventory.get_current_stock(part.id, warehouse_id)
     
     if not stock_info:
-        return jsonify({'error': 'No stock information found'}), 404
+        return jsonify({
+            'part_info': part.to_dict(include_locations=True),
+            'stock_info': None,
+            'error': 'No stock information found'
+        }), 404
     
     return jsonify({
-        'part_info': part,
-        'stock_info': stock_info if warehouse_id else stock_info
+        'part_info': part.to_dict(include_locations=True),
+        'stock_info': stock_info
     })
 
 @inventory_api_bp.route('/low-stock', methods=['GET'])
@@ -183,114 +187,39 @@ def get_transaction_summary(part_id):
 def stock_in():
     """入庫作業"""
     data = request.get_json()
+    result = InventoryService.perform_stock_in_from_api(data)
     
-    required_fields = ['part_number', 'warehouse_id', 'quantity', 'transaction_type']
-    for field in required_fields:
-        if field not in data:
-            return jsonify({'error': f'Missing required field: {field}'}), 400
-    
-    part_number = data['part_number']
-    warehouse_id = data['warehouse_id']
-    quantity = data['quantity']
-    transaction_type = data['transaction_type']  # 'IN_PURCHASE', 'IN_TRANSFER', 'IN_RETURN'
-    reference_type = data.get('reference_type', 'MANUAL')
-    reference_id = data.get('reference_id')
-    notes = data.get('notes', '')
-    
-    # 驗證零件是否存在
-    part = Part.get_by_part_number(part_number)
-    if not part:
-        return jsonify({'error': 'Part not found'}), 404
-    
-    # 驗證數量
-    try:
-        quantity = int(quantity)
-        if quantity <= 0:
-            raise ValueError("Quantity must be positive")
-    except (ValueError, TypeError):
-        return jsonify({'error': 'Invalid quantity'}), 400
-    
-    # 驗證交易類型
-    valid_in_types = ['IN_PURCHASE', 'IN_TRANSFER', 'IN_RETURN']
-    if transaction_type not in valid_in_types:
-        return jsonify({'error': 'Invalid transaction type for stock in'}), 400
-    
-    # 執行入庫
-    success = CurrentInventory.update_stock(
-        part.id, warehouse_id, quantity, transaction_type,
-        reference_type, reference_id, notes
-    )
-    
-    if success:
-        return jsonify({
-            'success': True,
-            'message': f'{part_number} 入庫 {quantity} {part.unit} 成功'
-        }), 201
+    if result['success']:
+        return jsonify(result), 201
     else:
-        return jsonify({'error': 'Stock in operation failed'}), 500
+        # Determine status code based on error message
+        error_msg = result.get('error', '')
+        if 'Missing required field' in error_msg or 'Invalid' in error_msg:
+            status_code = 400
+        elif 'not found' in error_msg or '沒有指定的儲位' in error_msg:
+            status_code = 404
+        else:
+            status_code = 500
+        return jsonify(result), status_code
 
 # 出庫 API
 @inventory_api_bp.route('/stock-out', methods=['POST'])
 def stock_out():
     """出庫作業"""
     data = request.get_json()
+    result = InventoryService.perform_stock_out_from_api(data)
     
-    required_fields = ['part_number', 'warehouse_id', 'quantity', 'transaction_type']
-    for field in required_fields:
-        if field not in data:
-            return jsonify({'error': f'Missing required field: {field}'}), 400
-    
-    part_number = data['part_number']
-    warehouse_id = data['warehouse_id']
-    quantity = data['quantity']
-    transaction_type = data['transaction_type']  # 'OUT_ISSUE', 'OUT_TRANSFER', 'OUT_SCRAP'
-    reference_type = data.get('reference_type', 'MANUAL')
-    reference_id = data.get('reference_id')
-    notes = data.get('notes', '')
-    
-    try:
-        # 驗證零件是否存在
-        part = Part.get_by_part_number(part_number)
-        if not part:
-            return jsonify({'error': 'Part not found'}), 404
-        
-        # 驗證數量
-        try:
-            quantity = int(quantity)
-            if quantity <= 0:
-                raise ValueError("Quantity must be positive")
-        except (ValueError, TypeError):
-            return jsonify({'error': 'Invalid quantity'}), 400
-        
-        # 驗證交易類型
-        valid_out_types = ['OUT_ISSUE', 'OUT_WORK_ORDER', 'OUT_TRANSFER', 'OUT_SCRAP']
-        if transaction_type not in valid_out_types:
-            return jsonify({'error': 'Invalid transaction type for stock out'}), 400
-        
-        # 檢查庫存是否足夠
-        current_stock = CurrentInventory.get_current_stock(part.id, warehouse_id)
-        if not current_stock or current_stock['available_quantity'] < quantity:
-            return jsonify({
-                'error': f'Insufficient stock. Available: {current_stock["available_quantity"] if current_stock else 0}'
-            }), 400
-        
-        # 執行出庫（負數量）
-        success = CurrentInventory.update_stock(
-            part.id, warehouse_id, -quantity, transaction_type,
-            reference_type, reference_id, notes
-        )
-        
-        if success:
-            return jsonify({
-                'success': True,
-                'message': f'{part_number} 出庫 {quantity} {part.unit} 成功'
-            }), 201
+    if result.get('success'):
+        return jsonify(result), 201
+    else:
+        error_msg = result.get('error', '')
+        if 'Missing' in error_msg or 'Invalid' in error_msg or 'Insufficient' in error_msg:
+            status_code = 400
+        elif 'not found' in error_msg or '沒有指定的儲位' in error_msg:
+            status_code = 404
         else:
-            return jsonify({'error': 'Stock out operation failed'}), 500
-    except Exception as e:
-        # Log the exception for debugging purposes (in a real app, use a proper logger)
-        print(f"Error during stock out: {e}")
-        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+            status_code = 500
+        return jsonify(result), status_code
 
 # 盤點管理 API
 @inventory_api_bp.route('/stock-counts', methods=['GET'])

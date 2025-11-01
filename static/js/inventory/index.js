@@ -8,6 +8,11 @@ function quickStockIn(partNumber, warehouseId) {
     document.getElementById('actionQuantity').value = '';
     document.getElementById('actionNotes').value = '';
     
+    // Show/Hide relevant sections
+    document.getElementById('transactionTypeInGroup').style.display = 'block';
+    document.getElementById('transactionTypeOutGroup').style.display = 'none';
+    document.getElementById('workOrderGroup').style.display = 'none';
+
     const modal = new bootstrap.Modal(document.getElementById('quickActionModal'));
     modal.show();
 }
@@ -21,10 +26,32 @@ function quickStockOut(partNumber, warehouseId) {
     document.getElementById('displayPartNumber').value = partNumber;
     document.getElementById('actionQuantity').value = '';
     document.getElementById('actionNotes').value = '';
+
+    // Show/Hide relevant sections
+    document.getElementById('transactionTypeInGroup').style.display = 'none';
+    document.getElementById('transactionTypeOutGroup').style.display = 'block';
     
+    // Trigger change event to show/hide work order field based on default selection
+    const transactionTypeOut = document.getElementById('actionTransactionTypeOut');
+    if (transactionTypeOut.value === 'OUT_WORK_ORDER') {
+        document.getElementById('workOrderGroup').style.display = 'block';
+    } else {
+        document.getElementById('workOrderGroup').style.display = 'none';
+    }
+
     const modal = new bootstrap.Modal(document.getElementById('quickActionModal'));
     modal.show();
 }
+
+// Listen for changes on the stock-out transaction type dropdown
+document.getElementById('actionTransactionTypeOut').addEventListener('change', function() {
+    const workOrderGroup = document.getElementById('workOrderGroup');
+    if (this.value === 'OUT_WORK_ORDER') {
+        workOrderGroup.style.display = 'block';
+    } else {
+        workOrderGroup.style.display = 'none';
+    }
+});
 
 // 提交快速操作
 document.getElementById('submitQuickAction').addEventListener('click', function() {
@@ -39,21 +66,47 @@ document.getElementById('submitQuickAction').addEventListener('click', function(
         return;
     }
     
-    const url = actionType === 'IN' ? '/api/inventory/stock-in' : '/api/inventory/stock-out';
-    const transactionType = actionType === 'IN' ? 'IN_PURCHASE' : 'OUT_ISSUE';
+    let url, payload;
+    if (actionType === 'IN') {
+        url = '/api/inventory/stock-in';
+        const transactionType = document.getElementById('actionTransactionTypeIn').value;
+        if (!transactionType) {
+            alert('請選擇一個有效的入庫類型');
+            return;
+        }
+        payload = {
+            part_number: partNumber,
+            warehouse_id: parseInt(warehouseId),
+            quantity: parseInt(quantity),
+            transaction_type: transactionType,
+            notes: notes
+        };
+    } else { // OUT
+        url = '/api/inventory/stock-out';
+        const transactionType = document.getElementById('actionTransactionTypeOut').value;
+        if (!transactionType) {
+            alert('請選擇一個有效的出庫類型');
+            return;
+        }
+        payload = {
+            part_number: partNumber,
+            warehouse_id: parseInt(warehouseId),
+            quantity: parseInt(quantity),
+            transaction_type: transactionType,
+            notes: notes
+        };
+        // If work order, add work_order_id to payload
+        if (transactionType === 'OUT_WORK_ORDER') {
+            payload.work_order_id = document.getElementById('actionWorkOrderId').value;
+        }
+    }
     
     fetch(url, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-            part_number: partNumber,
-            warehouse_id: parseInt(warehouseId),
-            quantity: parseInt(quantity),
-            transaction_type: transactionType,
-            notes: notes
-        })
+        body: JSON.stringify(payload)
     })
     .then(response => response.json())
     .then(data => {

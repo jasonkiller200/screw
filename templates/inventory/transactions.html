@@ -89,7 +89,7 @@
                                 <th>異動類型</th>
                                 <th>零件編號</th>
                                 <th>零件名稱</th>
-                                <th>倉庫</th>
+                                <th>倉庫 / 儲位</th>
                                 <th>數量變化</th>
                                 <th>參考類型</th>
                                 <th>參考編號</th>
@@ -100,51 +100,20 @@
                             {% for transaction in transactions %}
                             <tr>
                                 <td>{{ transaction.transaction_date }}</td>
-                                <td>
-                                    {% if transaction.transaction_type.startswith('IN_') %}
-                                        <span class="badge bg-success">
-                                            <i class="fas fa-arrow-down me-1"></i>入庫
-                                        </span>
-                                    {% elif transaction.transaction_type.startswith('OUT_') %}
-                                        <span class="badge bg-danger">
-                                            <i class="fas fa-arrow-up me-1"></i>出庫
-                                        </span>
-                                    {% elif transaction.transaction_type == 'TRANSFER' or 'TRANSFER' in transaction.transaction_type %}
-                                        <span class="badge bg-info">
-                                            <i class="fas fa-exchange-alt me-1"></i>轉倉
-                                        </span>
-                                    {% else %}
-                                        <span class="badge bg-warning">
-                                            <i class="fas fa-edit me-1"></i>調整
-                                        </span>
-                                    {% endif %}
-                                </td>
+                                <td><span class="badge bg-secondary">{{ transaction_type_map.get(transaction.transaction_type, transaction.transaction_type) }}</span></td>
                                 <td><strong>{{ transaction.part_number }}</strong></td>
                                 <td>{{ transaction.part_name }}</td>
-                                <td>{{ transaction.warehouse_name }}</td>
-                                <td class="text-end">
+                                <td>{{ transaction.warehouse_name }} / {{ transaction.location_code }}</td>
+                                <td>
                                     {% if transaction.quantity > 0 %}
-                                        <span class="text-success">+{{ transaction.quantity }}</span>
+                                        <span class="text-success fw-bold">+{{ transaction.quantity }}</span>
                                     {% else %}
-                                        <span class="text-danger">{{ transaction.quantity }}</span>
+                                        <span class="text-danger fw-bold">{{ transaction.quantity }}</span>
                                     {% endif %}
                                 </td>
-                                <td>
-                                    {% set reference_type_map = {
-                                        'PURCHASE': '採購',
-                                        'TRANSFER': '轉倉',
-                                        'RETURN': '退料',
-                                        'ISSUE': '領料',
-                                        'WORK_ORDER': '工單',
-                                        'SCRAP': '報廢',
-                                        'MANUAL': '手動',
-                                        'COUNT': '盤點',
-                                        'ADJUST': '調整'
-                                    } %}
-                                    {{ reference_type_map.get(transaction.reference_type, transaction.reference_type) or '-' }}
-                                </td>
-                                <td>{{ transaction.reference_id or '-' }}</td>
-                                <td>{{ transaction.notes or '-' }}</td>
+                                <td>{{ reference_type_map.get(transaction.reference_type, transaction.reference_type or 'N/A') }}</td>
+                                <td>{{ transaction.reference_id or 'N/A' }}</td>
+                                <td>{{ transaction.notes }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

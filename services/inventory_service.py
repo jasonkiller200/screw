@@ -3,8 +3,327 @@ from models.weekly_order import OrderRegistration
 from models.part import Part, WarehouseLocation
 from extensions import db
 from sqlalchemy.exc import SQLAlchemyError
+import pandas as pd # Added import
+from io import BytesIO # Added import
+from datetime import datetime # Added import
 
 class InventoryService:
+    @staticmethod
+    def export_low_stock_items_excel(warehouse_id=None):
+        """匯出低庫存項目為 Excel 檔案"""
+        low_stock_items = CurrentInventory.get_low_stock_items(warehouse_id)
+        
+        export_data = []
+        for item in low_stock_items:
+            export_data.append({
+                '零件編號': item['part_number'],
+                '零件名稱': item['part_name'],
+                '儲位': f"{item['warehouse_name']} - {item['location_code']}",
+                '現有庫存': item['quantity_on_hand'],
+                '可用庫存': item['available_quantity'],
+                '安全庫存': item['safety_stock'],
+                '補貨點': item['reorder_point'],
+                '單位': item['unit'],
+            })
+        
+        df = pd.DataFrame(export_data)
+        
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='低庫存項目', index=False)
+            
+            worksheet = writer.sheets['低庫存項目']
+            for column in worksheet.columns:
+                max_length = 0
+                column_name = column[0].value
+                if column_name:
+                    max_length = max(max_length, len(str(column_name)))
+                
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = (max_length + 2)
+                worksheet.column_dimensions[column[0].column_letter].width = adjusted_width
+        output.seek(0)
+        
+        filename = f"低庫存項目_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        
+        return output.getvalue(), filename
+
+    @staticmethod
+    def export_inventory_stock_excel(warehouse_id=None):
+        """匯出庫存數據為 Excel 檔案"""
+        inventories = CurrentInventory.get_detailed_inventory_view(warehouse_id)
+        
+        export_data = []
+        for item in inventories:
+            export_data.append({
+                '零件編號': item['part_number'],
+                '零件名稱': item['part_name'],
+                '儲位': f"{item['warehouse_name']} - {item['location_code']}",
+                '現有庫存': item['quantity_on_hand'],
+                '可用庫存': item['available_quantity'],
+                '安全庫存': item['safety_stock'],
+                '補貨點': item['reorder_point'],
+                '單位': item['unit'],
+            })
+        
+        df = pd.DataFrame(export_data)
+        
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='庫存數據', index=False)
+            
+            worksheet = writer.sheets['庫存數據']
+            for column in worksheet.columns:
+                max_length = 0
+                column_name = column[0].value
+                if column_name:
+                    max_length = max(max_length, len(str(column_name)))
+                
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = max(max_length, len(str(cell.value)))
+                    except:
+                        pass
+                adjusted_width = (max_length + 2)
+                worksheet.column_dimensions[column[0].column_letter].width = adjusted_width
+        output.seek(0)
+        
+        filename = f"庫存數據_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        
+        return output.getvalue(), filename
+
+    @staticmethod
+    def perform_stock_out_from_api(data):
+        """Handles the business logic for stocking out from an API request."""
+        required_fields = ['part_number', 'warehouse_id', 'quantity', 'transaction_type']
+        for field in required_fields:
+            if field not in data:
+                return {'success': False, 'error': f'Missing required field: {field}'}
+
+        part_number = data['part_number']
+        warehouse_id = data['warehouse_id']
+        quantity = data['quantity']
+        transaction_type = data['transaction_type']
+        reference_type = data.get('reference_type', 'MANUAL')
+        reference_id = data.get('reference_id')
+        notes = data.get('notes', '')
+
+        part = Part.get_by_part_number(part_number)
+        if not part:
+            return {'success': False, 'error': 'Part not found'}
+
+        try:
+            quantity = int(quantity)
+            if quantity <= 0:
+                raise ValueError("Quantity must be positive")
+        except (ValueError, TypeError):
+            return {'success': False, 'error': 'Invalid quantity'}
+
+        valid_out_types = ['OUT_ISSUE', 'OUT_WORK_ORDER', 'OUT_TRANSFER', 'OUT_SCRAP']
+        if transaction_type not in valid_out_types:
+            return {'success': False, 'error': 'Invalid transaction type for stock out'}
+
+        # Find warehouse_location_id from warehouse_id
+        target_location = None
+        if part.location_associations:
+            for assoc in part.location_associations:
+                if assoc.warehouse_location.warehouse_id == warehouse_id:
+                    target_location = assoc.warehouse_location
+                    break
+        
+        if not target_location:
+            return {'success': False, 'error': f'零件 {part.part_number} 在所選倉庫中沒有指定的儲位，無法出庫。'}
+        
+        warehouse_location_id = target_location.id
+
+        current_stock = CurrentInventory.get_current_stock(part.id, warehouse_location_id)
+        if not current_stock or current_stock['available_quantity'] < quantity:
+            available = current_stock["available_quantity"] if current_stock else 0
+            return {'success': False, 'error': f'Insufficient stock. Available: {available}'}
+
+        success = CurrentInventory.update_stock(
+            part.id, warehouse_location_id, -quantity, transaction_type,
+            reference_type, reference_id, notes
+        )
+        
+        if success:
+            return {'success': True, 'message': f'{part_number} 出庫 {quantity} {part.unit} 成功'}
+        else:
+            return {'success': False, 'error': 'Stock out operation failed'}
+
+    @staticmethod
+    def perform_stock_in_from_api(data):
+        """Handles the business logic for stocking in from an API request."""
+        required_fields = ['part_number', 'warehouse_id', 'quantity', 'transaction_type']
+        for field in required_fields:
+            if field not in data:
+                return {'success': False, 'error': f'Missing required field: {field}'}
+
+        part_number = data['part_number']
+        warehouse_id = data['warehouse_id']
+        quantity = data['quantity']
+        transaction_type = data['transaction_type']
+        reference_type = data.get('reference_type', 'MANUAL')
+        reference_id = data.get('reference_id')
+        notes = data.get('notes', '')
+
+        part = Part.get_by_part_number(part_number)
+        if not part:
+            return {'success': False, 'error': 'Part not found'}
+
+        try:
+            quantity = int(quantity)
+            if quantity <= 0:
+                raise ValueError("Quantity must be positive")
+        except (ValueError, TypeError):
+            return {'success': False, 'error': 'Invalid quantity'}
+
+        valid_in_types = ['IN_PURCHASE', 'IN_TRANSFER', 'IN_RETURN']
+        if transaction_type not in valid_in_types:
+            return {'success': False, 'error': 'Invalid transaction type for stock in'}
+
+        # Find warehouse_location_id from warehouse_id
+        target_location = None
+        if part.location_associations:
+            for assoc in part.location_associations:
+                if assoc.warehouse_location.warehouse_id == warehouse_id:
+                    target_location = assoc.warehouse_location
+                    break
+        
+        if not target_location:
+            return {'success': False, 'error': f'零件 {part.part_number} 在所選倉庫中沒有指定的儲位，無法入庫。'}
+        
+        warehouse_location_id = target_location.id
+
+        success = CurrentInventory.update_stock(
+            part.id, warehouse_location_id, quantity, transaction_type,
+            reference_type, reference_id, notes
+        )
+        
+        if success:
+            return {'success': True, 'message': f'{part_number} 入庫 {quantity} {part.unit} 成功'}
+        else:
+            return {'success': False, 'error': 'Stock in operation failed'}
+
+    @staticmethod
+    def perform_stock_out_from_form(form_data):
+        """Handles the business logic for stocking out from a web form."""
+        part_number = form_data.get('part_number')
+        warehouse_id_str = form_data.get('warehouse_id')
+        quantity_str = form_data.get('quantity')
+        transaction_type = form_data.get('transaction_type')
+        work_order_id = form_data.get('work_order_id')
+        notes = form_data.get('notes', '')
+
+        if not all([part_number, warehouse_id_str, quantity_str, transaction_type]):
+            return {'success': False, 'message': '所有欄位都是必填的'}
+
+        if transaction_type == 'OUT_WORK_ORDER' and not work_order_id:
+            return {'success': False, 'message': '工單領用必須選擇工單編號'}
+
+        part = Part.get_by_part_number(part_number)
+        if not part:
+            return {'success': False, 'message': f'找不到零件編號: {part_number}'}
+
+        try:
+            warehouse_id = int(warehouse_id_str)
+            quantity = int(quantity_str)
+            if quantity <= 0:
+                raise ValueError("數量必須大於0")
+        except (ValueError, TypeError):
+            return {'success': False, 'message': '請輸入有效的數量'}
+
+        # Find warehouse_location_id from warehouse_id
+        target_location = None
+        if part.location_associations:
+            for assoc in part.location_associations:
+                if assoc.warehouse_location.warehouse_id == warehouse_id:
+                    target_location = assoc.warehouse_location
+                    break
+        
+        if not target_location:
+            return {'success': False, 'message': f'零件 {part.part_number} 在所選倉庫中沒有指定的儲位，無法出庫。'}
+        
+        warehouse_location_id = target_location.id
+
+        current_stock = CurrentInventory.get_current_stock(part.id, warehouse_location_id)
+        if not current_stock or current_stock.get('available_quantity', 0) < quantity:
+            available = current_stock.get('available_quantity', 0) if current_stock else 0
+            return {'success': False, 'message': f'庫存不足。可用數量: {available}'}
+
+        final_notes = notes
+        if transaction_type == 'OUT_WORK_ORDER' and work_order_id:
+            final_notes = f"工單領用 - 工單編號: {work_order_id}"
+            if notes:
+                final_notes += f"\n備註: {notes}"
+
+        success = CurrentInventory.update_stock(
+            part.id, warehouse_location_id, -quantity, transaction_type,
+            'MANUAL', None, final_notes
+        )
+
+        if success:
+            success_msg = f'{part_number} 出庫 {quantity} {part.unit} 成功'
+            if transaction_type == 'OUT_WORK_ORDER':
+                success_msg += f' (工單: {work_order_id})'
+            return {'success': True, 'message': success_msg}
+        else:
+            return {'success': False, 'message': '出庫作業失敗'}
+
+    @staticmethod
+    def perform_stock_in_from_form(form_data):
+        """Handles the business logic for stocking in from a web form."""
+        part_number = form_data.get('part_number')
+        warehouse_id_str = form_data.get('warehouse_id')
+        quantity_str = form_data.get('quantity')
+        transaction_type = form_data.get('transaction_type')
+        notes = form_data.get('notes', '')
+
+        if not all([part_number, warehouse_id_str, quantity_str, transaction_type]):
+            return {'success': False, 'message': '所有欄位都是必填的'}
+
+        part = Part.get_by_part_number(part_number)
+        if not part:
+            return {'success': False, 'message': f'找不到零件編號: {part_number}'}
+
+        try:
+            warehouse_id = int(warehouse_id_str)
+            quantity = int(quantity_str)
+            if quantity <= 0:
+                raise ValueError("數量必須大於0")
+        except (ValueError, TypeError):
+            return {'success': False, 'message': '請輸入有效的數量'}
+
+        # --- NEW LOGIC: Find warehouse_location_id from warehouse_id ---
+        target_location = None
+        if part.location_associations:
+            for assoc in part.location_associations:
+                if assoc.warehouse_location.warehouse_id == warehouse_id:
+                    target_location = assoc.warehouse_location
+                    break
+        
+        if not target_location:
+            return {'success': False, 'message': f'零件 {part.part_number} 在所選倉庫中沒有指定的儲位，無法入庫。'}
+        
+        warehouse_location_id = target_location.id
+        # --- END NEW LOGIC ---
+
+        success = CurrentInventory.update_stock(
+            part.id, warehouse_location_id, quantity, transaction_type,
+            'MANUAL', None, notes
+        )
+
+        if success:
+            return {'success': True, 'message': f'{part_number} 入庫 {quantity} {part.unit} 成功'}
+        else:
+            return {'success': False, 'message': '入庫作業失敗'}
+
     @staticmethod
     def receive_stock(registration_id, inbound_quantity, notes=''):
         """

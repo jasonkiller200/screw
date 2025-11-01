@@ -231,14 +231,37 @@
                         <input type="text" class="form-control" id="displayPartNumber" readonly>
                     </div>
                     
-                    <div class="mb-3">
-                        <label for="actionQuantity" class="form-label">數量</label>
-                        <input type="number" class="form-control" id="actionQuantity" min="1" required>
-                    </div>
+                                        <div class="mb-3">
+                                            <label for="actionQuantity" class="form-label">數量</label>
+                                            <input type="number" class="form-control" id="actionQuantity" min="1" required>
+                                        </div>
                     
-                    <div class="mb-3">
-                        <label for="actionNotes" class="form-label">備註</label>
-                        <textarea class="form-control" id="actionNotes" rows="3"></textarea>
+                                        <div class="mb-3" id="transactionTypeInGroup" style="display: none;">
+                                            <label for="actionTransactionTypeIn" class="form-label">入庫類型</label>
+                                            <select class="form-select" id="actionTransactionTypeIn">
+                                                <option value="IN_PURCHASE">採購入庫</option>
+                                                <option value="IN_TRANSFER">倉庫轉入</option>
+                                                <option value="IN_RETURN">退料入庫</option>
+                                            </select>
+                                        </div>
+                    
+                                        <div class="mb-3" id="transactionTypeOutGroup" style="display: none;">
+                                            <label for="actionTransactionTypeOut" class="form-label">出庫類型</label>
+                                            <select class="form-select" id="actionTransactionTypeOut">
+                                                <option value="OUT_ISSUE">領料出庫</option>
+                                                <option value="OUT_WORK_ORDER" selected>工單領用</option>
+                                                <option value="OUT_TRANSFER">倉庫轉出</option>
+                                                <option value="OUT_SCRAP">報廢出庫</option>
+                                            </select>
+                                        </div>
+                    
+                                        <div class="mb-3" id="workOrderGroup" style="display: none;">
+                                            <label for="actionWorkOrderId" class="form-label">工單編號</label>
+                                            <input type="text" class="form-control" id="actionWorkOrderId" value="20000">
+                                        </div>
+                                        
+                                        <div class="mb-3">
+                                            <label for="actionNotes" class="form-label">備註</label>                        <textarea class="form-control" id="actionNotes" rows="3"></textarea>
                     </div>
                 </form>
             </div>

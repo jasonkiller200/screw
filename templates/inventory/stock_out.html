@@ -66,7 +66,7 @@
                                 <select class="form-select" id="transaction_type" name="transaction_type" required>
                                     <option value="">選擇出庫類型</option>
                                     <option value="OUT_ISSUE">領料出庫</option>
-                                    <option value="OUT_WORK_ORDER">工單領用</option>
+                                    <option value="OUT_WORK_ORDER" selected>工單領用</option>
                                     <option value="OUT_TRANSFER">倉庫轉出</option>
                                     <option value="OUT_SCRAP">報廢出庫</option>
                                 </select>
@@ -78,9 +78,7 @@
                     <div id="workOrderSection" class="row mb-3" style="display: none;">
                         <div class="col-md-6">
                             <label for="work_order_id" class="form-label">工單編號</label>
-                            <select class="form-select" id="work_order_id" name="work_order_id">
-                                <option value="">選擇工單...</option>
-                            </select>
+                            <input type="text" class="form-control" id="work_order_id" name="work_order_id" value="20000">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">工單需求資訊</label>
