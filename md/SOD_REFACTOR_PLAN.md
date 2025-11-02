@@ -4,34 +4,16 @@
 **日期:** 2025-11-01
 **狀態:** 已完成今日工作，明日繼續
 
-## 0. 今日進度總結 (2025-11-01)
+## 0. 今日進度總結 (2025-11-02)
 
-今天我們取得了顯著的進展，主要集中在 `web_controller.py` 的重構以及修復過程中發現的多個問題。
+今天我們繼續了 `api_controller.py` 和 `weekly_order_controller.py` 的重構，並完成了第二階段和第三階段的所有任務。
 
 **已完成的重構任務:**
 - **第一階段 (`web_controller.py`):** 全部完成 (任務 1.1 ~ 1.6)。
-- **第二階段 (`api_controller.py`):** 全部完成 (任務 2.1, 2.2)。
+- **第二階段 (`api_controller.py`):** 全部完成 (任務 2.1 ~ 2.4)。
+- **第三階段 (`weekly_order_controller.py`):** 全部完成 (任務 3.1 ~ 3.5)。
 
-**過程中修復的 Bug 與功能優化:**
-1.  **`warehouse_id` vs `warehouse_location_id` 問題:**
-    - **現象:** 入庫與出庫功能（包含一般及快速操作）失敗，因為介面傳遞的是「倉庫ID」，但底層邏輯需要的是「倉位ID」。
-    - **解決:** 已在 `InventoryService` 中加入轉換邏輯，使其能自動從「倉庫ID」解析出正確的「倉位ID」。
-2.  **庫存檢查邏輯錯誤:**
-    - **現象:** 出庫時回報「可用數量為0」，但實際有庫存。
-    - **解決:** 修正了 `models/inventory.py` 中的 `get_current_stock` 函式，使其查詢條件從錯誤的 `warehouse_id` 改為正確的 `warehouse_location_id`。
-3.  **出庫功能優化 (依使用者需求):**
-    - **現象:** 工單領用時，會對工單需求進行嚴格驗證。
-    - **解決:** 移除了前端的驗證機制，允許使用者為任意工單號進行領料，同時工單號會被記錄在異動的備註中。
-    - **介面優化:** 將「工單編號」欄位改為預設填入 `20000` 的輸入框，並將「工單領用」設為預設出庫類型。
-4.  **庫存異動記錄頁面優化:**
-    - **現象:** 原始頁面資訊不足。
-    - **解決:** 新增了「異動類型」、「倉庫/儲位」、「參考類型」、「參考編號」等欄位，並將英文代碼轉換為中文顯示。
-5.  **修復了遷移過程中引入的 `SyntaxError` 和 `NameError`** (例如 `pandas` 未導入、括號不匹配等)。
-6.  **修復 `api_controller.py` 中的 `NameError`:**
-    - **現象:** `api_controller.py` 無法識別 `PartService`。
-    - **解決:** 在 `api_controller.py` 中加入了 `from services.part_service import PartService` 導入語句。
-
-**今日工作總結：** 已完成第一階段和第二階段的重構任務，並修復了過程中發現的相關問題。明日將繼續執行第二階段的剩餘任務 (2.3, 2.4)。
+**今日工作總結：** 已完成第二階段和第三階段的所有重構任務。接下來將執行最終測試並提交 Git Commit。
 
 ---
 
@@ -85,23 +67,23 @@
 | :--- | :--- | :--- | :--- |
 | 2.1 | 遷移 Excel 匯出邏輯 (庫存、低庫存、零件) | `InventoryService`, `PartService` | `已完成` |
 | 2.2 | 遷移跨模型資料聚合邏輯 (`get_part_details`) | `PartService` | `已完成` |
-| 2.3 | 遷移資料庫查詢邏輯 (`parts_autocomplete`, `get_work_orders`) | `PartService`, `WorkOrderService` | `未開始` |
-| 2.4 | 遷移庫存策略更新邏輯 (`update_inventory_policy`) | `InventoryService` | `未開始` |
+| 2.3 | 遷移資料庫查詢邏輯 (`parts_autocomplete`, `get_work_orders`) | `PartService`, `WorkOrderService` | `已完成` |
+| 2.4 | 遷移庫存策略更新邏輯 (`update_inventory_policy`) | `InventoryService` | `已完成` |
 
 ---
 
 ### **第三階段：`weekly_order_controller.py` 重構**
 
 - **目標:** 將週期訂單的業務邏輯封裝到 Service 中。
-- **狀態:** `未開始`
+- **狀態:** `已完成`
 
 | 任務 | 描述 | 目標 Service | 狀態 |
 | :--- | :--- | :--- | :--- |
-| 3.1 | 建立 `WeeklyOrderService` | `N/A` | `未開始` |
-| 3.2 | 遷移 Excel 匯出邏輯 (`export_excel`) | `WeeklyOrderService` | `未開始` |
-| 3.3 | 遷移審查邏輯 (`review_registration`, `batch_review`) | `WeeklyOrderService` | `未開始` |
-| 3.4 | 遷移訂單登記邏輯 (register, batch_register) | `WeeklyOrderService` | `未開始` |
-| 3.5 | 遷移入庫操作邏輯 (`inbound_item`, `batch_inbound_items`) | `InventoryService` | `未開始` |
+| 3.1 | 建立 `WeeklyOrderService` | `N/A` | `已完成` |
+| 3.2 | 遷移 Excel 匯出邏輯 (`export_excel`) | `WeeklyOrderService` | `已完成` |
+| 3.3 | 遷移審查邏輯 (`review_registration`, `batch_review`) | `WeeklyOrderService` | `已完成` |
+| 3.4 | 遷移訂單登記邏輯 (register, batch_register) | `WeeklyOrderService` | `已完成` |
+| 3.5 | 遷移入庫操作邏輯 (`inbound_item`, `batch_inbound_items`) | `InventoryService` | `已完成` |
 
 ---
 

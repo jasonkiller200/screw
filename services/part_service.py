@@ -253,6 +253,22 @@ class PartService:
         return output.getvalue(), filename
 
     @staticmethod
+    def get_part_autocomplete_suggestions(query):
+        """Provides autocomplete suggestions for part numbers and names."""
+        if not query or len(query) < 1:
+            return []
+
+        parts = Part.query.filter(
+            or_(
+                Part.part_number.ilike(f'%{query}%'),
+                Part.name.ilike(f'%{query}%')
+            )
+        ).limit(10).all()
+
+        results = [{'part_number': part.part_number, 'name': part.name} for part in parts]
+        return results
+
+    @staticmethod
     def add_warehouse(form_data):
         code = form_data.get('code', '')
         name = form_data.get('name', '')

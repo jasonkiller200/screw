@@ -15,6 +15,7 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 
 from services.inventory_service import InventoryService # Import InventoryService
 from services.part_service import PartService # Import PartService
+from services.work_order_service import WorkOrderService # Import WorkOrderService
 
 @api_bp.route('/inventory/stock/export', methods=['GET'])
 def export_inventory_stock():
@@ -152,19 +153,8 @@ def get_warehouses():
 @api_bp.route('/parts/autocomplete', methods=['GET'])
 def parts_autocomplete():
     """Provides autocomplete suggestions for part numbers and names."""
-    from sqlalchemy import or_
     query = request.args.get('q', '').strip()
-    if not query or len(query) < 1: # 至少需要1個字元才觸發搜尋
-        return jsonify([])
-
-    parts = Part.query.filter(
-        or_(
-            Part.part_number.ilike(f'%{query}%'),
-            Part.name.ilike(f'%{query}%')
-        )
-    ).limit(10).all()
-
-    results = [{'part_number': part.part_number, 'name': part.name} for part in parts]
+    results = PartService.get_part_autocomplete_suggestions(query)
     return jsonify(results)
 
 @api_bp.route('/parts/search', methods=['GET'])
@@ -238,29 +228,10 @@ def delete_part(part_id):
 @api_bp.route('/work-orders', methods=['GET'])
 def get_work_orders():
     """獲取工單需求列表"""
-    from models.work_order import WorkOrderDemand
-    
-    # 獲取查詢參數
     order_id = request.args.get('order_id')
     part_number = request.args.get('part_number')
     
-    # 建立查詢
-    query = WorkOrderDemand.query
-    
-    if order_id:
-        query = query.filter(WorkOrderDemand.order_id.like(f'%{order_id}%'))
-    
-    if part_number:
-        query = query.filter(WorkOrderDemand.part_number.like(f'%{part_number}%'))
-    
-    # 執行查詢並排序
-    demands = query.order_by(WorkOrderDemand.order_id, WorkOrderDemand.part_number).all()
-    
-    # 轉換為字典格式
-    result = {
-        'demands': [demand.to_dict() for demand in demands],
-        'total_count': len(demands)
-    }
+    result = WorkOrderService.get_work_orders(order_id, part_number)
     
     return jsonify(result)
 
@@ -405,33 +376,12 @@ def update_inventory_policy(part_id):
     safety_stock = data.get('safety_stock')
     reorder_point = data.get('reorder_point')
 
-    if not all([warehouse_id, safety_stock is not None, reorder_point is not None]):
-        return jsonify({'error': 'Missing warehouse_id, safety_stock or reorder_point'}), 400
-
-    current_inventory = CurrentInventory.query.filter_by(part_id=part_id, warehouse_id=warehouse_id).first()
-
-    if not current_inventory:
-        # If no existing inventory record, create one with default quantities
-        current_inventory = CurrentInventory(
-            part_id=part_id,
-            warehouse_id=warehouse_id,
-            quantity_on_hand=0,
-            reserved_quantity=0,
-            available_quantity=0,
-            safety_stock=safety_stock,
-            reorder_point=reorder_point
-        )
-        db.session.add(current_inventory)
-    else:
-        current_inventory.safety_stock = safety_stock
-        current_inventory.reorder_point = reorder_point
+    result = InventoryService.update_inventory_policy(part_id, warehouse_id, safety_stock, reorder_point)
     
-    try:
-        db.session.commit()
-        return jsonify({'success': True, 'message': 'Inventory policy updated successfully'})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+    if result['success']:
+        return jsonify(result), 200
+    else:
+        return jsonify(result), 400
 
 @api_bp.route('/parts/export', methods=['GET'])
 def export_parts():

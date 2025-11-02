@@ -117,3 +117,22 @@ class WorkOrderService:
                 'success': False, 
                 'error': f'匯入過程發生嚴重錯誤: {str(e)}'
             }
+
+    @staticmethod
+    def get_work_orders(order_id=None, part_number=None):
+        """獲取工單需求列表，支援篩選。"""
+        query = WorkOrderDemand.query
+
+        if order_id:
+            query = query.filter(WorkOrderDemand.order_id.ilike(f'%{order_id}%'))
+
+        if part_number:
+            query = query.filter(WorkOrderDemand.part_number.ilike(f'%{part_number}%'))
+
+        demands = query.order_by(WorkOrderDemand.order_id, WorkOrderDemand.part_number).all()
+
+        result = {
+            'demands': [demand.to_dict() for demand in demands],
+            'total_count': len(demands)
+        }
+        return result

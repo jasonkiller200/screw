@@ -3,6 +3,7 @@ from extensions import db
 from models.weekly_order import WeeklyOrderCycle, OrderRegistration, OrderReviewLog, User
 from models.part import WarehouseLocation # Import for relationship loading
 from services.inventory_service import InventoryService # New import
+from services.weekly_order_service import WeeklyOrderService # New import
 from datetime import datetime, timedelta
 from sqlalchemy.orm import joinedload
 import pandas as pd
@@ -81,40 +82,12 @@ def register_order():
         prefill_data['warehouse_location_id'] = request.args.get('warehouse_location_id', type=int) # New
 
     if request.method == 'POST':
-        try:
-            # 獲取下一個項次
-            max_sequence = db.session.query(db.func.max(OrderRegistration.item_sequence)).filter_by(cycle_id=current_cycle.id).scalar()
-            next_sequence = (max_sequence or 0) + 1
-            
-            # Get warehouse_location_id from form
-            warehouse_location_id = request.form.get('warehouse_location_id', type=int) # New
-
-            # 創建新的登記記錄
-            registration = OrderRegistration(
-                cycle_id=current_cycle.id,
-                item_sequence=next_sequence,
-                part_number=request.form.get('part_number', '').strip(),
-                part_name=request.form.get('part_name', '').strip(),
-                warehouse_location_id=warehouse_location_id, # New
-                quantity=int(request.form.get('quantity', 0)),
-                unit=request.form.get('unit', '').strip(),
-                category=request.form.get('part_type', '').strip(),
-                required_date=datetime.strptime(request.form.get('required_date'), '%Y-%m-%d') if request.form.get('required_date') else None,
-                priority=request.form.get('priority', 'normal').strip(),
-                purpose_notes=request.form.get('purpose_notes', '').strip(),
-                applicant_name=request.form.get('applicant_name', '').strip(),
-                department=request.form.get('department', '').strip()
-            )
-            
-            db.session.add(registration)
-            db.session.commit()
-            
-            flash(f'項目 #{next_sequence} 登記成功', 'success')
+        result = WeeklyOrderService.register_new_order(current_cycle.id, request.form)
+        if result['success']:
+            flash(result['message'], 'success')
             return redirect(url_for('weekly_order.weekly_orders'))
-            
-        except Exception as e:
-            db.session.rollback()
-            flash(f'登記失敗：{str(e)}', 'error')
+        else:
+            flash(result['message'], 'error')
     
     all_warehouse_locations = []
     # Fetch all warehouse locations with their warehouse names
@@ -145,49 +118,12 @@ def batch_register():
     parts = data.get('parts', [])
     source = data.get('source', 'unknown')
     
-    if not parts:
-        return jsonify({'success': False, 'message': '沒有提供要登記的零件資料'})
+    result = WeeklyOrderService.batch_register_orders(current_cycle.id, parts, source)
     
-    try:
-        added_count = 0
-        
-        for part_data in parts:
-            # 獲取下一個項次
-            max_sequence = db.session.query(db.func.max(OrderRegistration.item_sequence)).filter_by(cycle_id=current_cycle.id).scalar()
-            next_sequence = (max_sequence or 0) + 1
-            
-            # Get warehouse_location_id from part_data
-            warehouse_location_id = part_data.get('warehouse_location_id', type=int) # New
-
-            # 創建新的登記記錄
-            registration = OrderRegistration()
-            registration.cycle_id = current_cycle.id
-            registration.item_sequence = next_sequence
-            registration.part_number = part_data.get('part_number', '').strip()
-            registration.part_name = part_data.get('part_name', '').strip()
-            registration.warehouse_location_id = warehouse_location_id # New
-            registration.quantity = int(part_data.get('quantity', 1))
-            registration.unit = part_data.get('unit', '個').strip()
-            registration.category = part_data.get('category', '').strip()
-            registration.priority = part_data.get('priority', 'normal').strip()
-            registration.purpose_notes = f'自動匯入自{source}'
-            registration.applicant_name = '系統自動'
-            registration.department = '自動申請'
-            
-            db.session.add(registration)
-            added_count += 1
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'成功登記 {added_count} 個項目',
-            'added_count': added_count
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': f'批量登記失敗：{str(e)}'})
+    if result['success']:
+        return jsonify(result)
+    else:
+        return jsonify(result), 500
 
 @weekly_order_bp.route('/weekly-orders/batch-register', methods=['GET', 'POST'])
 def batch_register_form():
@@ -378,43 +314,13 @@ def review_registration(registration_id):
     action = data.get('action')  # approved, rejected
     notes = data.get('notes', '')
     reviewer_name = '主管'  # 暫時固定，之後改為登入用戶
+
+    result = WeeklyOrderService.review_order_registration(registration_id, action, notes, reviewer_name)
     
-    try:
-        registration = OrderRegistration.query.get_or_404(registration_id)
-        old_status = registration.status
-        
-        if action == 'approved':
-            registration.status = 'approved'
-        elif action == 'rejected':
-            registration.status = 'rejected'
-        else:
-            return jsonify({'success': False, 'message': '無效的操作'})
-        
-        registration.admin_notes = notes
-        
-        # 記錄審查log
-        review_log = OrderReviewLog(
-            cycle_id=registration.cycle_id,
-            registration_id=registration.id,
-            reviewer_name=reviewer_name,
-            action=action,
-            old_status=old_status,
-            new_status=registration.status,
-            notes=notes
-        )
-        db.session.add(review_log)
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f"項目已{'通過' if action == 'approved' else '拒絕'}",
-            'new_status': registration.status
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)})
+    if result['success']:
+        return jsonify(result)
+    else:
+        return jsonify(result), 500
 
 @weekly_order_bp.route('/weekly_orders/batch_review', methods=['POST'])
 def batch_review():
@@ -424,37 +330,12 @@ def batch_review():
     action = data.get('action', 'approved')
     reviewer_name = '主管'
     
-    try:
-        updated_count = 0
-        for reg_id in registration_ids:
-            registration = OrderRegistration.query.get(reg_id)
-            if registration and registration.status == 'registered':
-                old_status = registration.status
-                registration.status = action
-                
-                # 記錄審查log
-                review_log = OrderReviewLog(
-                    cycle_id=registration.cycle_id,
-                    registration_id=registration.id,
-                    reviewer_name=reviewer_name,
-                    action=action,
-                    old_status=old_status,
-                    new_status=registration.status,
-                    notes=f'批量{action}'
-                )
-                db.session.add(review_log)
-                updated_count += 1
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'已批量處理 {updated_count} 個項目'
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)})
+    result = WeeklyOrderService.batch_review_registrations(registration_ids, action, reviewer_name)
+    
+    if result['success']:
+        return jsonify(result)
+    else:
+        return jsonify(result), 500
 
 @weekly_order_bp.route('/weekly_orders/registration/<int:registration_id>')
 def get_registration_detail(registration_id):
@@ -497,154 +378,25 @@ def batch_inbound_items():
     data = request.get_json()
     items = data.get('items')
 
-    if not items or not isinstance(items, list):
-        return jsonify({'success': False, 'error': '請求格式錯誤，需要一個項目列表'}), 400
+    result = WeeklyOrderService.batch_inbound_weekly_orders(items)
 
-    success_count = 0
-    error_count = 0
-    errors = []
-
-    for item in items:
-        registration_id = item.get('registration_id')
-        quantity = item.get('quantity')
-
-        if not all([registration_id, quantity]):
-            error_count += 1
-            errors.append({'item': item, 'error': '缺少 registration_id 或 quantity'})
-            continue
-        
-        try:
-            inbound_quantity = int(quantity)
-            if inbound_quantity <= 0:
-                error_count += 1
-                errors.append({'item': item, 'error': '入庫數量必須為正整數'})
-                continue
-        except (ValueError, TypeError):
-            error_count += 1
-            errors.append({'item': item, 'error': '數量格式錯誤'})
-            continue
-
-        # Here we commit each transaction individually.
-        # For a more robust system, one might wrap the whole loop in a single transaction
-        # and rollback on any failure, but for this use case, processing them individually is acceptable.
-        result = InventoryService.receive_stock(
-            registration_id=registration_id, 
-            inbound_quantity=inbound_quantity, 
-            notes='批量入庫'
-        )
-
-        if result.get('success'):
-            success_count += 1
-        else:
-            error_count += 1
-            # Get registration details for a more informative error message
-            reg = OrderRegistration.query.get(registration_id)
-            error_item_info = f"品號 {reg.part_number}" if reg else f"ID {registration_id}"
-            errors.append({'item': error_item_info, 'error': result.get('error', '未知錯誤')})
-
-    response = {
-        'success': error_count == 0,
-        'message': f'批量入庫完成。成功: {success_count} 項, 失敗: {error_count} 項。',
-        'success_count': success_count,
-        'error_count': error_count,
-        'errors': errors
-    }
-
-    status_code = 200 if error_count == 0 else 400
-    return jsonify(response), status_code
+    status_code = 200 if result['error_count'] == 0 else 400
+    return jsonify(result), status_code
 
 @weekly_order_bp.route('/weekly_orders/export_excel/<int:cycle_id>')
 def export_excel(cycle_id):
     """生成Excel申請單"""
-    try:
-        cycle = WeeklyOrderCycle.query.get_or_404(cycle_id)
-        # Optimize query to include related location and warehouse data
-        registrations = OrderRegistration.query.options(
-            joinedload(OrderRegistration.warehouse_location).joinedload(WarehouseLocation.warehouse)
-        ).filter(
-            OrderRegistration.cycle_id == cycle_id, 
-            OrderRegistration.status == 'approved'
-        ).order_by(OrderRegistration.item_sequence).all()
-        
-        if not registrations:
-            flash('沒有已核准的項目可生成申請單', 'warning')
-            return redirect(url_for('weekly_order.review_cycle', cycle_id=cycle_id))
-        
-        # 準備Excel數據
-        data = []
-        for reg in registrations:
-            # Format location string
-            location_str = ''
-            if reg.warehouse_location and reg.warehouse_location.warehouse:
-                location_str = f"{reg.warehouse_location.warehouse.name} - {reg.warehouse_location.location_code}"
-            elif reg.warehouse_location:
-                location_str = reg.warehouse_location.location_code
+    result = WeeklyOrderService.export_weekly_order_excel(cycle_id)
 
-            # Format priority string
-            priority_str = '緊急' if reg.priority == 'urgent' else '一般'
-
-            data.append({
-                '項次': reg.item_sequence,
-                '品號': reg.part_number,
-                '品名': reg.part_name,
-                '儲位': location_str,
-                '種類': reg.category or '',
-                '數量': reg.quantity,
-                '單位': reg.unit,
-                '申請人': reg.applicant_name,
-                '申請單位': reg.department or '',
-                '緊急程度': priority_str,
-                '需用日期': reg.required_date.strftime('%Y-%m-%d') if reg.required_date else '',
-                '台份用/備註': reg.purpose_notes or ''
-            })
-        
-        # 創建DataFrame
-        df = pd.DataFrame(data)
-        
-        # 生成Excel檔案
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name='申請單', index=False)
-            
-            worksheet = writer.sheets['申請單']
-            # 自動調整欄位寬度
-            for idx, col in enumerate(df.columns, 1):
-                max_len = 0
-                # Get max length of header
-                max_len = max(max_len, len(str(col)))
-                # Get max length of column content
-                if not df[col].empty:
-                    max_len = max(max_len, df[col].astype(str).map(len).max())
-                
-                # Adjust width, adding a little padding
-                # For Chinese characters, width needs to be larger
-                adjusted_width = (max_len + 4) * 1.2 
-                worksheet.column_dimensions[chr(64 + idx)].width = adjusted_width
-
-        output.seek(0)
-        
-        filename = f"採購申請單_{cycle.cycle_name}_{get_taipei_time().strftime('%Y%m%d')}.xlsx"
-        
-        # Log the export action
-        review_log = OrderReviewLog(
-            cycle_id=cycle.id,
-            reviewer_name='系統', # Or current user
-            action='export_excel',
-            notes=f'匯出Excel申請單，包含{len(registrations)}個項目'
-        )
-        db.session.add(review_log)
-        db.session.commit()
-        
+    if result['success']:
         return send_file(
-            output,
+            BytesIO(result['file_content']),
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             as_attachment=True,
-            download_name=filename
+            download_name=result['filename']
         )
-        
-    except Exception as e:
-        db.session.rollback()
-        flash(f"匯出失敗: {str(e)}", 'danger')
+    else:
+        flash(result['message'], 'danger')
         return redirect(url_for('weekly_order.review_cycle', cycle_id=cycle_id))
 
 @weekly_order_bp.route('/weekly-orders/api/cycle-summary')

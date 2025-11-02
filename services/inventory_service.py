@@ -379,3 +379,34 @@ class InventoryService:
         except SQLAlchemyError as e:
             db.session.rollback()
             return {'success': False, 'error': f'資料庫操作失敗: {str(e)}'}
+
+    @staticmethod
+    def update_inventory_policy(part_id, warehouse_id, safety_stock, reorder_point):
+        """更新零件在特定倉庫的庫存策略 (安全庫存和補貨點)。"""
+        if not all([warehouse_id, safety_stock is not None, reorder_point is not None]):
+            return {'success': False, 'error': 'Missing warehouse_id, safety_stock or reorder_point'}
+
+        current_inventory = CurrentInventory.query.filter_by(part_id=part_id, warehouse_id=warehouse_id).first()
+
+        if not current_inventory:
+            # If no existing inventory record, create one with default quantities
+            current_inventory = CurrentInventory(
+                part_id=part_id,
+                warehouse_id=warehouse_id,
+                quantity_on_hand=0,
+                reserved_quantity=0,
+                available_quantity=0,
+                safety_stock=safety_stock,
+                reorder_point=reorder_point
+            )
+            db.session.add(current_inventory)
+        else:
+            current_inventory.safety_stock = safety_stock
+            current_inventory.reorder_point = reorder_point
+        
+        try:
+            db.session.commit()
+            return {'success': True, 'message': 'Inventory policy updated successfully'}
+        except Exception as e:
+            db.session.rollback()
+            return {'success': False, 'error': str(e)}
