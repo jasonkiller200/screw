@@ -204,6 +204,23 @@ class Part(db.Model):
         # 檢查倉位衝突
         location_conflicts = []
         if locations_data:
+            # 檢查同一零件是否重複指派相同倉位
+            seen_locations = set()
+            for loc_data in locations_data:
+                warehouse_id = loc_data.get('warehouse_id')
+                location_code = loc_data.get('location_code')
+                if warehouse_id and location_code:
+                    location_tuple = (warehouse_id, location_code)
+                    if location_tuple in seen_locations:
+                        warehouse = Warehouse.query.get(warehouse_id)
+                        warehouse_name = warehouse.name if warehouse else f"倉庫ID:{warehouse_id}"
+                        return {
+                            'success': False,
+                            'error': 'duplicate_location_for_part',
+                            'message': f'零件不能重複指派相同的倉位: {warehouse_name} - {location_code}'
+                        }
+                    seen_locations.add(location_tuple)
+
             for loc_data in locations_data:
                 warehouse_id = loc_data.get('warehouse_id')
                 location_code = loc_data.get('location_code')

@@ -145,7 +145,17 @@ def new_part():
             flash('零件新增成功', 'success')
             return redirect(url_for('web.parts'))
         else:
-            flash(result.get('error', '零件新增失敗'), 'error')
+            error_message = result.get('error', '零件新增失敗')
+            if error_message == 'location_conflict':
+                conflict_details = []
+                for conflict in result.get('conflicts', []):
+                    parts_info = ', '.join(conflict.get('parts', []))
+                    conflict_details.append(f"倉位 {conflict.get('warehouse')} - {conflict.get('location')} 已被零件 {parts_info} 使用。")
+                flash(f"零件新增失敗：儲位衝突。{''.join(conflict_details)}", 'error')
+            elif error_message == 'duplicate_location_for_part':
+                flash(f"零件新增失敗：{result.get('message', '零件不能重複指派相同的倉位。')}", 'error')
+            else:
+                flash(error_message, 'error')
             # Re-render the form with the data returned from the service
             return render_template('part_form.html', part=result.get('data', {}), warehouses=warehouses)
     
@@ -168,9 +178,57 @@ def edit_part(part_id):
             flash('零件更新成功', 'success')
             return redirect(url_for('web.parts'))
         else:
-            flash(result.get('error', '零件更新失敗'), 'error')
-            # Re-render the form with the data returned from the service
-            return render_template('part_form.html', part=result.get('data', {}), edit_mode=True, warehouses=warehouses)
+            error_message = result.get('error', '零件更新失敗')
+            if error_message == 'location_conflict':
+                conflict_details = []
+                for conflict in result.get('conflicts', []):
+                    parts_info = ', '.join(conflict.get('parts', []))
+                    conflict_details.append(f"倉位 {conflict.get('warehouse')} - {conflict.get('location')} 已被零件 {parts_info} 使用。")
+                flash(f"零件更新失敗：儲位衝突。{''.join(conflict_details)}", 'error')
+            elif error_message == 'duplicate_location_for_part':
+                flash(f"零件更新失敗：{result.get('message', '零件不能重複指派相同的倉位。')}", 'error')
+            else:
+                flash(error_message, 'error')
+
+            # Reconstruct the 'part' object for the template to prevent crashing
+            # and to preserve user input.
+            submitted_data = result.get('data', {})
+            part_for_template = {}
+            if hasattr(submitted_data, 'to_dict'):
+                 part_for_template = submitted_data.to_dict(flat=False) # Use flat=False for lists
+            else:
+                 part_for_template = dict(submitted_data)
+
+            # 1. Ensure 'id' is present for url_for
+            part_for_template['id'] = part_id
+
+            # 2. Reconstruct the 'locations' list for the template
+            part_for_template['locations'] = []
+            warehouse_ids = part_for_template.get('location_warehouse_id[]', [])
+            location_codes = part_for_template.get('location_code[]', [])
+            
+            # Ensure they are lists
+            if not isinstance(warehouse_ids, list): warehouse_ids = [warehouse_ids]
+            if not isinstance(location_codes, list): location_codes = [location_codes]
+
+            for i in range(len(warehouse_ids)):
+                try:
+                    wh_id = int(warehouse_ids[i])
+                    wh = Warehouse.get_by_id(wh_id)
+                    wh_name = wh.name if wh else "未知倉庫"
+                    
+                    # We don't know the stock quantity here without more queries, so default to 'N/A'
+                    part_for_template['locations'].append({
+                        'warehouse_id': wh_id,
+                        'warehouse_name': wh_name,
+                        'location_code': location_codes[i],
+                        'stock_quantity': 'N/A' 
+                    })
+                except (ValueError, IndexError):
+                    continue
+            
+            # Re-render the form with the reconstructed data
+            return render_template('part_form.html', part=part_for_template, edit_mode=True, warehouses=warehouses)
     
     # For GET request, prepare data for the template
     part_locations_with_stock = []

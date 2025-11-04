@@ -83,95 +83,65 @@ class PartService:
 
     @staticmethod
     def update_part_from_form(part_id, form_data):
-        """Updates a part from form data."""
+        """Updates a part from form data by delegating to Part.update."""
         try:
-            part = Part.query.get(part_id)
-            if not part:
-                return {'success': False, 'error': '找不到要更新的零件'}
+            # Extract all data from the form
+            part_number = form_data.get('part_number', '').strip()
+            name = form_data.get('name', '').strip()
+            type_ = form_data.get('type', '').strip()
+            description = form_data.get('description', '').strip()
+            unit = form_data.get('unit', '').strip() or '個'
+            quantity_per_box = int(form_data.get('quantity_per_box') or 1)
+            lead_time = int(form_data.get('lead_time') or 0)
+            standard_cost = float(form_data.get('standard_cost') or 0)
 
-            # 驗證零件編號是否重複
-            new_part_number = form_data.get('part_number', '').strip()
-            if part.part_number != new_part_number:
-                existing_part = Part.query.filter_by(part_number=new_part_number).first()
-                if existing_part:
-                    return {'success': False, 'error': f'零件編號 {new_part_number} 已存在'}
-            
-            # 更新零件屬性
-            part.part_number = new_part_number
-            part.name = form_data.get('name', '').strip()
-            part.type = form_data.get('type', '').strip()
-            part.description = form_data.get('description', '').strip()
-            part.unit = form_data.get('unit', '').strip()
-            part.quantity_per_box = int(form_data.get('quantity_per_box') or 1)
-            part.lead_time = int(form_data.get('lead_time') or 0)
+            # Basic validation
+            if not part_number:
+                return {'success': False, 'error': '零件編號為必填項目', 'data': form_data}
+            if not name:
+                return {'success': False, 'error': '零件名稱為必填項目', 'data': form_data}
 
-            # --- 開始修正儲位邏輯 ---
-            
-            # 獲取前端提交的倉庫ID和位置代碼列表
+            # Parse locations
+            locations_data = []
             warehouse_ids = form_data.getlist('location_warehouse_id[]')
             location_codes = form_data.getlist('location_code[]')
 
-            new_location_ids = set()
-            
-            # 遍歷提交的儲位
             for i in range(len(warehouse_ids)):
-                warehouse_id_str = warehouse_ids[i]
-                location_code = location_codes[i].strip()
-
-                if not warehouse_id_str or not location_code:
+                wid = warehouse_ids[i]
+                code = location_codes[i].strip()
+                if not wid or not code:
                     continue
-
                 try:
-                    warehouse_id = int(warehouse_id_str)
-                    
-                    # 查找或創建 WarehouseLocation
-                    warehouse_location = WarehouseLocation.query.filter_by(
-                        warehouse_id=warehouse_id,
-                        location_code=location_code
-                    ).first()
-
-                    # 如果儲位不存在，則創建它
-                    if not warehouse_location:
-                        warehouse_location = WarehouseLocation(
-                            warehouse_id=warehouse_id,
-                            location_code=location_code
-                        )
-                        db.session.add(warehouse_location)
-                        db.session.flush() # 立即獲取新儲位的 ID
-
-                    new_location_ids.add(warehouse_location.id)
-
+                    wid_int = int(wid)
                 except (ValueError, TypeError):
                     continue
+                locations_data.append({'warehouse_id': wid_int, 'location_code': code})
 
-            # 更新零件與儲位的關聯
+            # Delegate to Part.update for all logic, including conflict checks
+            result = Part.update(
+                part_id=part_id,
+                part_number=part_number,
+                name=name,
+                type=type_,
+                description=description,
+                unit=unit,
+                quantity_per_box=quantity_per_box,
+                locations_data=locations_data,
+                lead_time=lead_time,
+                standard_cost=standard_cost,
+                is_active=True
+            )
+
+            # If the update fails, return the original form data for re-rendering
+            if not result.get('success'):
+                result['data'] = form_data
             
-            # 1. 找出需要刪除的關聯
-            current_location_ids = {assoc.warehouse_location_id for assoc in part.location_associations}
-            ids_to_delete = current_location_ids - new_location_ids
-            
-            if ids_to_delete:
-                PartWarehouseLocation.query.filter(
-                    PartWarehouseLocation.part_id == part_id,
-                    PartWarehouseLocation.warehouse_location_id.in_(ids_to_delete)
-                ).delete(synchronize_session=False)
-
-            # 2. 找出需要新增的關聯
-            ids_to_add = new_location_ids - current_location_ids
-            
-            for loc_id in ids_to_add:
-                assoc = PartWarehouseLocation(part_id=part_id, warehouse_location_id=loc_id)
-                db.session.add(assoc)
-
-            # --- 結束修正儲位邏輯 ---
-
-            db.session.commit()
-            return {'success': True}
+            return result
 
         except Exception as e:
             db.session.rollback()
             print(f"Error in update_part_from_form: {e}")
-            return {'success': False, 'error': f'更新零件時發生錯誤: {str(e)}'}
+            return {'success': False, 'error': f'更新零件時發生錯誤: {str(e)}', 'data': form_data}
 
     @staticmethod
     def add_warehouse_location(form_data):
