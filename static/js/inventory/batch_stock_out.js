@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', function() {
         items.forEach(item => {
             const row = document.createElement('tr');
             row.dataset.partId = item.part_id;
-            row.dataset.locationId = item.warehouse_location_id;
+            row.dataset.locationId = item.location_id; // Corrected key
 
             row.innerHTML = `
                 <td><input class="form-check-input item-checkbox" type="checkbox"></td>
