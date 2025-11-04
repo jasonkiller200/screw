@@ -125,7 +125,7 @@ class InventoryService:
         except (ValueError, TypeError):
             return {'success': False, 'error': 'Invalid quantity'}
 
-        valid_out_types = ['OUT_ISSUE', 'OUT_WORK_ORDER', 'OUT_TRANSFER', 'OUT_SCRAP']
+        valid_out_types = ['OUT_ISSUE', 'OUT_WORK_ORDER', 'OUT_TRANSFER', 'OUT_SCRAP', 'OUT_AFTER_SALES']
         if transaction_type not in valid_out_types:
             return {'success': False, 'error': 'Invalid transaction type for stock out'}
 
@@ -223,6 +223,10 @@ class InventoryService:
 
         if not all([part_number, warehouse_id_str, quantity_str, transaction_type]):
             return {'success': False, 'message': '所有欄位都是必填的'}
+
+        valid_out_types = ['OUT_ISSUE', 'OUT_WORK_ORDER', 'OUT_TRANSFER', 'OUT_SCRAP', 'OUT_AFTER_SALES']
+        if transaction_type not in valid_out_types:
+            return {'success': False, 'message': '無效的出庫類型'}
 
         if transaction_type == 'OUT_WORK_ORDER' and not work_order_id:
             return {'success': False, 'message': '工單領用必須選擇工單編號'}
@@ -379,6 +383,79 @@ class InventoryService:
         except SQLAlchemyError as e:
             db.session.rollback()
             return {'success': False, 'error': f'資料庫操作失敗: {str(e)}'}
+
+    @staticmethod
+    def perform_batch_stock_out(data):
+        """
+        Handles the business logic for batch stocking out from an API request.
+        This entire operation is a single database transaction.
+        """
+        transaction_type = data.get('transaction_type')
+        notes = data.get('notes', '')
+        work_order_id = data.get('work_order_id')
+        items = data.get('items', [])
+
+        # --- Basic Validation ---
+        if not transaction_type or not items:
+            return {'success': False, 'error': '缺少交易類型或出庫品項'}
+
+        valid_out_types = ['OUT_ISSUE', 'OUT_WORK_ORDER', 'OUT_TRANSFER', 'OUT_SCRAP', 'OUT_AFTER_SALES']
+        if transaction_type not in valid_out_types:
+            return {'success': False, 'error': '無效的出庫類型'}
+
+        if transaction_type == 'OUT_WORK_ORDER' and not work_order_id:
+            return {'success': False, 'error': '工單領用必須提供工單編號'}
+
+        try:
+            with db.session.begin_nested(): # Use nested transaction
+                processed_parts = []
+                for item in items:
+                    part_id = item.get('part_id')
+                    warehouse_location_id = item.get('warehouse_location_id')
+                    quantity = item.get('quantity')
+
+                    if not all([part_id, warehouse_location_id, quantity]):
+                        raise ValueError("出庫品項缺少 part_id, warehouse_location_id, 或 quantity")
+
+                    try:
+                        quantity = int(quantity)
+                        if quantity <= 0:
+                            raise ValueError("數量必須為正整數")
+                    except (ValueError, TypeError):
+                        raise ValueError(f"零件ID {part_id} 的數量無效")
+
+                    part = Part.query.get(part_id)
+                    if not part:
+                        raise ValueError(f"找不到零件ID: {part_id}")
+
+                    # Check stock
+                    current_stock = CurrentInventory.get_current_stock(part_id, warehouse_location_id)
+                    if not current_stock or current_stock.get('available_quantity', 0) < quantity:
+                        available = current_stock.get('available_quantity', 0) if current_stock else 0
+                        raise ValueError(f"零件 {part.part_number} 庫存不足 (可用: {available}, 欲出庫: {quantity})")
+
+                    # Prepare notes
+                    final_notes = notes
+                    if transaction_type == 'OUT_WORK_ORDER' and work_order_id:
+                        final_notes = f"工單領用 - 工單編號: {work_order_id}"
+                        if notes:
+                            final_notes += f"\n備註: {notes}"
+                    
+                    # Update stock
+                    CurrentInventory.update_stock(
+                        part_id, warehouse_location_id, -quantity, transaction_type,
+                        'MANUAL_BATCH', None, final_notes
+                    )
+                    processed_parts.append(f"{part.part_number} ({quantity} {part.unit})")
+
+            db.session.commit()
+            return {
+                'success': True, 
+                'message': f"批量出庫成功。共處理 {len(processed_parts)} 個品項: {', '.join(processed_parts)}"
+            }
+        except (ValueError, SQLAlchemyError) as e:
+            db.session.rollback()
+            return {'success': False, 'error': f'批量出庫失敗: {str(e)}'}
 
     @staticmethod
     def update_inventory_policy(part_id, warehouse_id, safety_stock, reorder_point):

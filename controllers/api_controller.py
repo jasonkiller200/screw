@@ -403,3 +403,19 @@ def export_parts():
         }
     )
 
+@api_bp.route('/inventory/batch-stock-out', methods=['POST'])
+def batch_stock_out():
+    """
+    Handles batch stock-out requests.
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': '無效的請求資料'}), 400
+
+    result = InventoryService.perform_batch_stock_out(data)
+    
+    if result['success']:
+        return jsonify(result), 200
+    else:
+        return jsonify(result), 400
+
