@@ -13,8 +13,73 @@ class PartService:
 
     @staticmethod
     def create_part_from_form(form_data):
-        # ... (existing method) ...
-        pass
+        """Create a new part from submitted form data.
+
+        Returns a dict with keys: success (bool), error (str) or data (form values)
+        """
+        try:
+            part_number = form_data.get('part_number', '').strip()
+            name = form_data.get('name', '').strip()
+            type_ = form_data.get('type', '').strip()
+            description = form_data.get('description', '').strip()
+            unit = form_data.get('unit', '').strip() or '個'
+            quantity_per_box = int(form_data.get('quantity_per_box') or 1)
+            lead_time = int(form_data.get('lead_time') or 5)
+            standard_cost = float(form_data.get('standard_cost') or 0)
+
+            # Basic validation
+            if not part_number:
+                return {'success': False, 'error': '零件編號為必填項目', 'data': form_data}
+            if not name:
+                return {'success': False, 'error': '零件名稱為必填項目', 'data': form_data}
+
+            # Parse locations submitted as parallel arrays
+            locations_data = []
+            warehouse_ids = form_data.getlist('location_warehouse_id[]') if hasattr(form_data, 'getlist') else form_data.get('location_warehouse_id[]', [])
+            location_codes = form_data.getlist('location_code[]') if hasattr(form_data, 'getlist') else form_data.get('location_code[]', [])
+
+            # Normalize types when getlist returns str
+            try:
+                len_warehouses = len(warehouse_ids)
+            except Exception:
+                warehouse_ids = []
+                location_codes = []
+
+            for i in range(min(len(warehouse_ids), len(location_codes))):
+                wid = warehouse_ids[i]
+                code = location_codes[i].strip()
+                if not wid or not code:
+                    continue
+                try:
+                    wid_int = int(wid)
+                except Exception:
+                    continue
+                locations_data.append({'warehouse_id': wid_int, 'location_code': code})
+
+            # Use Part.create to perform creation and location conflict checks
+            result = Part.create(
+                part_number=part_number,
+                name=name,
+                type=type_,
+                description=description,
+                unit=unit,
+                quantity_per_box=quantity_per_box,
+                locations_data=locations_data,
+                lead_time=lead_time,
+                standard_cost=standard_cost,
+                is_active=True
+            )
+
+            # Part.create already returns a dict with success or error
+            if not isinstance(result, dict):
+                return {'success': False, 'error': '建立零件時發生錯誤', 'data': form_data}
+
+            return result
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error in create_part_from_form: {e}")
+            return {'success': False, 'error': f'建立零件時發生錯誤: {str(e)}', 'data': form_data}
 
     @staticmethod
     def update_part_from_form(part_id, form_data):
