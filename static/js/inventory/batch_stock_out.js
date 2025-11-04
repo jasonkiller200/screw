@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <td>${item.location_code}</td>
                 <td>${item.available_quantity}</td>
                 <td>
-                    <input type="number" class="form-control form-control-sm stock-out-quantity" min="0" max="${item.available_quantity}" disabled>
+                    <input type="number" class="form-control form-control-sm stock-out-quantity" min="0" step="1" max="${item.available_quantity}" disabled>
                 </td>
             `;
             itemListBody.appendChild(row);
