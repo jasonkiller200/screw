@@ -91,15 +91,9 @@
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="warehouse_location_id" class="form-label">儲位 <span class="text-danger">*</span></label>
-                                <select class="form-select" id="warehouse_location_id" name="warehouse_location_id" required>
-                                    <option value="">請選擇儲位</option>
-                                    {% for location in all_warehouse_locations %}
-                                    <option value="{{ location.id }}" 
-                                            {% if prefill_data and prefill_data.warehouse_location_id == location.id %}selected{% endif %}>
-                                        {{ location.warehouse_name }} - {{ location.location_code }}
-                                    </option>
-                                    {% endfor %}
+                                <label for="warehouse_location_id" class="form-label">儲位 <span id="location-required-star" class="text-danger" style="display: none;">*</span></label>
+                                <select class="form-select" id="warehouse_location_id" name="warehouse_location_id">
+                                    <option value="">請先輸入有效的品號</option>
                                 </select>
                                 <div class="form-text">選擇零件的儲存位置</div>
                             </div>

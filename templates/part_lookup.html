@@ -327,12 +327,9 @@
                             <input type="number" class="form-control" id="weeklyOrderQuantity" value="1" min="1" required>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="weeklyOrderLocation" class="form-label">目標儲位 <span class="text-danger">*</span></label>
-                            <select class="form-select" id="weeklyOrderLocation" required>
-                                <option value="" selected>請選擇儲位...</option>
-                                {% for loc in all_warehouse_locations %}
-                                <option value="{{ loc.id }}">{{ loc.text }}</option>
-                                {% endfor %}
+                            <label for="weeklyOrderLocation" class="form-label">目標儲位 <span id="modal-location-required-star" class="text-danger" style="display: none;">*</span></label>
+                            <select class="form-select" id="weeklyOrderLocation">
+                                <option value="" selected>正在載入儲位...</option>
                             </select>
                         </div>
                     </div>

@@ -13,24 +13,49 @@ function autoFillPartDetails(partNumber) {
                         .then(response => response.json())
                         .then(locationData => {
                             const locationSelect = document.getElementById('warehouse_location_id');
-                            locationSelect.innerHTML = '<option value="">請選擇儲位</option>'; // Clear existing options
+                            const locationStar = document.getElementById('location-required-star');
+                            
+                            locationSelect.innerHTML = ''; // Clear existing options
+                            
                             if (locationData.locations && locationData.locations.length > 0) {
+                                // Part has locations
+                                locationSelect.disabled = false;
+                                locationSelect.required = true;
+                                locationStar.style.display = 'inline';
+                                
+                                locationSelect.add(new Option('請選擇儲位', ''));
                                 locationData.locations.forEach(loc => {
                                     const option = new Option(`${loc.warehouse_name} - ${loc.location_code}`, loc.id);
                                     locationSelect.add(option);
                                 });
+
                                 // If only one location, auto-select it
                                 if (locationData.locations.length === 1) {
                                     locationSelect.value = locationData.locations[0].id;
                                 }
-                            }
-                            // If prefill_data has a warehouse_location_id, try to select it
-                            // Ensure prefill_data is defined and not null
-                            if (typeof prefill_data !== 'undefined' && prefill_data && prefill_data.warehouse_location_id) {
-                                locationSelect.value = prefill_data.warehouse_location_id;
+                                
+                                // Handle pre-filled data
+                                if (typeof prefill_data !== 'undefined' && prefill_data && prefill_data.warehouse_location_id) {
+                                    locationSelect.value = prefill_data.warehouse_location_id;
+                                }
+
+                            } else {
+                                // Part has no locations
+                                locationSelect.disabled = true;
+                                locationSelect.required = false;
+                                locationStar.style.display = 'none';
+                                
+                                const option = new Option('無指定儲位', '');
+                                locationSelect.add(option);
+                                locationSelect.value = '';
                             }
                         })
-                        .catch(error => console.error('Error fetching part locations:', error));
+                        .catch(error => {
+                            console.error('Error fetching part locations:', error);
+                            const locationSelect = document.getElementById('warehouse_location_id');
+                            locationSelect.innerHTML = '<option value="">無法載入儲位</option>';
+                            locationSelect.disabled = true;
+                        });
                 } else {
                     // Clear fields if part not found
                     document.getElementById('part_name').value = '';

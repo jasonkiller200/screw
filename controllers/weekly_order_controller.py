@@ -476,7 +476,7 @@ def api_register_order():
         return jsonify({'success': False, 'message': '目前沒有活躍的申請週期或週期已截止'}), 400
 
     data = request.get_json()
-    required_fields = ['part_number', 'part_name', 'quantity', 'unit', 'applicant_name', 'priority', 'warehouse_location_id', 'required_date']
+    required_fields = ['part_number', 'part_name', 'quantity', 'unit', 'applicant_name', 'priority', 'required_date']
     if not all(data.get(field) for field in required_fields):
         return jsonify({'success': False, 'message': '缺少必要欄位'}), 400
 
@@ -485,7 +485,10 @@ def api_register_order():
         if quantity <= 0:
             raise ValueError("數量必須為正數")
 
-        warehouse_location_id = int(data['warehouse_location_id'])
+        # Handle optional warehouse_location_id
+        warehouse_location_id_str = data.get('warehouse_location_id')
+        warehouse_location_id = int(warehouse_location_id_str) if warehouse_location_id_str else None
+
         required_date = datetime.strptime(data['required_date'], '%Y-%m-%d')
 
     except (ValueError, TypeError) as e:

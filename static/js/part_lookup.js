@@ -557,18 +557,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // 動態填充並處理儲位下拉選單
         const locationDropdown = document.getElementById('weeklyOrderLocation');
+        const locationStar = document.getElementById('modal-location-required-star');
         locationDropdown.innerHTML = ''; // 清空現有選項
-        locationDropdown.disabled = false; // 確保選單是啟用的
 
         try {
             const locations = JSON.parse(locationsString);
             
-            // 加入預設選項
-            locationDropdown.add(new Option('請選擇儲位...', ''));
-
             if (locations && locations.length > 0) {
+                // Part has locations
+                locationDropdown.disabled = false;
+                locationDropdown.required = true;
+                locationStar.style.display = 'inline';
+                
+                locationDropdown.add(new Option('請選擇儲位...', ''));
                 locations.forEach(loc => {
-                    // 從 part.locations 來的資料沒有 .text 屬性，需要自己組合
                     const optionText = `${loc.warehouse_name} - ${loc.location_code}`;
                     locationDropdown.add(new Option(optionText, loc.id));
                 });
@@ -578,15 +580,21 @@ document.addEventListener('DOMContentLoaded', function () {
                     locationDropdown.value = locations[0].id;
                 }
             } else {
-                 // 如果沒有可用儲位，可以選擇禁用下拉選單或顯示提示
-                 locationDropdown.options[0].textContent = '此零件未設定儲位';
-                 locationDropdown.disabled = true;
+                // Part has no locations
+                locationDropdown.disabled = true;
+                locationDropdown.required = false;
+                locationStar.style.display = 'none';
+                
+                const option = new Option('無指定儲位', '');
+                locationDropdown.add(option);
+                locationDropdown.value = '';
             }
 
         } catch (e) {
             console.error("解析儲位資料失敗:", e);
             locationDropdown.innerHTML = '<option value="">讀取儲位失敗</option>';
             locationDropdown.disabled = true;
+            locationStar.style.display = 'none';
         }
 
         // 顯示模態視窗
@@ -614,7 +622,8 @@ document.addEventListener('DOMContentLoaded', function () {
         };
 
         // 前端驗證
-        if (!data.quantity || !data.warehouse_location_id || !data.applicant_name || !data.required_date) {
+        const locationDropdown = document.getElementById('weeklyOrderLocation');
+        if (!data.quantity || !data.applicant_name || !data.required_date || (locationDropdown.required && !data.warehouse_location_id)) {
             errorDiv.textContent = '標有 * 的欄位為必填項目。';
             errorDiv.style.display = 'block';
             return;
