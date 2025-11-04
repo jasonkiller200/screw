@@ -690,6 +690,14 @@ def stock_out():
     parts_list = [part.to_dict(include_locations=True) for part in Part.get_all()]
     return render_template('inventory/stock_out.html', warehouses=warehouses, parts=parts_list)
 
+@web_bp.route('/inventory/batch-stock-out')
+def batch_stock_out():
+    """
+    Renders the batch stock-out page.
+    """
+    warehouses = Warehouse.get_all()
+    return render_template('inventory/batch_stock_out.html', warehouses=warehouses)
+
 @web_bp.route('/inventory/stock-counts')
 def stock_counts():
     """盤點管理頁面"""

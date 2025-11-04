@@ -150,6 +150,14 @@ def get_warehouses():
     warehouses = Warehouse.get_all() # This already returns a list of dicts
     return jsonify(warehouses)
 
+@api_bp.route('/inventory/warehouse/<int:warehouse_id>', methods=['GET'])
+def get_inventory_by_warehouse(warehouse_id):
+    """
+    Fetches all inventory items for a specific warehouse.
+    """
+    inventory_items = CurrentInventory.get_detailed_inventory_view(warehouse_id)
+    return jsonify(inventory_items)
+
 @api_bp.route('/parts/autocomplete', methods=['GET'])
 def parts_autocomplete():
     """Provides autocomplete suggestions for part numbers and names."""

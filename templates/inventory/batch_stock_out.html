@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}批量出庫 - 五金零件庫存管理系統{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-dolly-flatbed me-2 text-warning"></i>批量出庫作業</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('web.index') }}">首頁</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('web.inventory') }}">庫存管理</a></li>
+                <li class="breadcrumb-item active">批量出庫</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Basic Info Section -->
+    <div class="col-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">基礎資料</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <label for="warehouse_id" class="form-label">來源倉庫 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="warehouse_id" name="warehouse_id" required>
+                            <option value="">請選擇一個倉庫...</option>
+                            {% for warehouse in warehouses %}
+                            <option value="{{ warehouse['id'] }}">{{ warehouse['name'] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="transaction_type" class="form-label">出庫類型 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="transaction_type" name="transaction_type" required>
+                            <option value="">選擇出庫類型</option>
+                            <option value="OUT_ISSUE">領料出庫</option>
+                            <option value="OUT_WORK_ORDER">工單領用</option>
+                            <option value="OUT_TRANSFER">倉庫轉出</option>
+                            <option value="OUT_SCRAP">報廢出庫</option>
+                            <option value="OUT_AFTER_SALES">售服維修用</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="work_order_id" class="form-label">工單編號</label>
+                        <input type="text" class="form-control" id="work_order_id" name="work_order_id" disabled>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <label for="notes" class="form-label">備註</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="2"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Item List Section -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">零件清單</h5>
+                <div class="d-flex align-items-center">
+                    <input type="text" id="item-search" class="form-control form-control-sm me-2" placeholder="篩選零件..." disabled>
+                    <span id="item-count" class="badge bg-secondary">0 個品項</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive" style="max-height: 500px;">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-dark sticky-top">
+                            <tr>
+                                <th style="width: 5%;"><input class="form-check-input" type="checkbox" id="select-all"></th>
+                                <th style="width: 20%;">零件編號</th>
+                                <th style="width: 30%;">零件名稱</th>
+                                <th style="width: 15%;">儲位</th>
+                                <th style="width: 15%;">可用庫存</th>
+                                <th style="width: 15%;">出庫數量</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-item-list">
+                            <!-- Items will be loaded here by JavaScript -->
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-5">
+                                    <i class="fas fa-info-circle me-2"></i>請先選擇一個倉庫來載入庫存品項。
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer text-end">
+                <button type="button" id="submit-batch-stock-out" class="btn btn-primary" disabled>
+                    <i class="fas fa-check me-2"></i>確認批量出庫
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/inventory/batch_stock_out.js') }}"></script>
+{% endblock %}
