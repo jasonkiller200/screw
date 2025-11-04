@@ -407,7 +407,7 @@ class InventoryService:
             return {'success': False, 'error': '工單領用必須提供工單編號'}
 
         try:
-            with db.session.begin_nested(): # Use nested transaction
+            with db.session.begin(): # Use a single transaction for the whole batch
                 processed_parts = []
                 for item in items:
                     part_id = item.get('part_id')
@@ -441,20 +441,23 @@ class InventoryService:
                         if notes:
                             final_notes += f"\n備註: {notes}"
                     
-                    # Update stock
-                    CurrentInventory.update_stock(
+                    # Update stock without committing
+                    success = CurrentInventory.update_stock(
                         part_id, warehouse_location_id, -quantity, transaction_type,
-                        'MANUAL_BATCH', None, final_notes
+                        'MANUAL_BATCH', None, final_notes, commit=False
                     )
+                    if not success:
+                        raise ValueError(f"為零件 {part.part_number} 更新庫存失敗")
+
                     processed_parts.append(f"{part.part_number} ({quantity} {part.unit})")
 
-            db.session.commit()
+            # The 'with' block handles the commit on success
             return {
                 'success': True, 
                 'message': f"批量出庫成功。共處理 {len(processed_parts)} 個品項: {', '.join(processed_parts)}"
             }
         except (ValueError, SQLAlchemyError) as e:
-            db.session.rollback()
+            # The 'with' block handles the rollback on error
             return {'success': False, 'error': f'批量出庫失敗: {str(e)}'}
 
     @staticmethod

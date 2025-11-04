@@ -133,7 +133,7 @@ class CurrentInventory(db.Model):
         return [item.to_dict() for item in items]
 
     @classmethod
-    def update_stock(cls, part_id, warehouse_location_id, quantity_change, transaction_type, reference_type=None, reference_id=None, notes=None):
+    def update_stock(cls, part_id, warehouse_location_id, quantity_change, transaction_type, reference_type=None, reference_id=None, notes=None, commit=True):
         from .part import WarehouseLocation
         
         # Find the specific inventory record for the part at the given location
@@ -181,6 +181,9 @@ class CurrentInventory(db.Model):
         )
         db.session.add(transaction)
         
+        if not commit:
+            return True
+
         try:
             db.session.commit()
             return True
