@@ -18,6 +18,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Initialize work order input based on default selection
+    if (transactionTypeSelect.value === 'OUT_WORK_ORDER') {
+        workOrderIdInput.disabled = false;
+    } else {
+        workOrderIdInput.disabled = true;
+    }
+
     // Fetch inventory when a warehouse is selected
     warehouseSelect.addEventListener('change', function() {
         const warehouseId = this.value;
