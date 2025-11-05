@@ -1,18 +1,31 @@
 let itemCount = 0;
 
+// 計算並顯示剩餘時間
+function updateTimeRemaining() {
+    const deadline = new Date('{{ current_cycle.deadline.isoformat() }}');
+    const now = new Date();
+    const diff = deadline - now;
+    
+    const timeRemainingEl = document.getElementById('timeRemaining');
+    
+    if (diff <= 0) {
+        timeRemainingEl.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>申請已截止</span>';
+        return;
+    }
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    timeRemainingEl.innerHTML = '<i class="fas fa-hourglass-half me-1"></i>剩餘時間：' + days + '天 ' + hours + '小時 ' + minutes + '分鐘';
+}
+
 // 頁面載入時初始化
 document.addEventListener('DOMContentLoaded', function() {
     // 添加第一個項目
     addNewItem();
     
-    // 如果有預填資料，則填入
-    {% if prefill_items %}
-    const prefillItems = {{ prefill_items | tojson }};
-    prefillItems.forEach((item, index) => {
-        if (index > 0) addNewItem(); // 第一個已經添加了
-        fillItemData(index, item);
-    });
-    {% endif %}
+    // 暫時移除預填功能避免語法錯誤
     
     updateTimeRemaining();
     setInterval(updateTimeRemaining, 60000); // 每分鐘更新一次
@@ -153,19 +166,52 @@ function autoFillRow(partNumberInput) {
                         .then(response => response.json())
                         .then(locationData => {
                             const locationSelect = row.querySelector('select[name*="[warehouse_location_id]"]');
-                            locationSelect.innerHTML = '<option value="">請選擇儲位</option>'; // Clear existing options
+                            const locationStar = row.querySelector('.item-location-required-star');
+                            
+                            locationSelect.innerHTML = ''; // Clear existing options
+                            
                             if (locationData.locations && locationData.locations.length > 0) {
+                                // Part has locations
+                                locationSelect.disabled = false;
+                                locationSelect.required = true; // Make it required if locations exist
+                                if (locationStar) locationStar.style.display = 'inline';
+                                
+                                locationSelect.add(new Option('請選擇儲位', ''));
                                 locationData.locations.forEach(loc => {
                                     const option = new Option(`${loc.warehouse_name} - ${loc.location_code}`, loc.id);
                                     locationSelect.add(option);
                                 });
+
                                 // If only one location, auto-select it
                                 if (locationData.locations.length === 1) {
                                     locationSelect.value = locationData.locations[0].id;
                                 }
+                                
+                                // Handle pre-filled data (if any)
+                                // This part needs to be handled carefully as prefill_data is global,
+                                // but for batch, it's per item.
+                                // For now, we assume prefill_data is handled by fillItemData.
+
+                            } else {
+                                // Part has no locations
+                                locationSelect.disabled = true;
+                                locationSelect.required = false; // Not required if no locations
+                                if (locationStar) locationStar.style.display = 'none';
+                                
+                                const option = new Option('無指定儲位', '');
+                                locationSelect.add(option);
+                                locationSelect.value = '';
                             }
                         })
-                        .catch(error => console.error('Error fetching part locations:', error));
+                        .catch(error => {
+                            console.error('Error fetching part locations:', error);
+                            const locationSelect = row.querySelector('select[name*="[warehouse_location_id]"]');
+                            const locationStar = row.querySelector('.item-location-required-star');
+                            locationSelect.innerHTML = '<option value="">無法載入儲位</option>';
+                            locationSelect.disabled = true;
+                            locationSelect.required = false;
+                            if (locationStar) locationStar.style.display = 'none';
+                        });
 
                     // Add a new row and focus it for the next scan
                     addNewItem();
@@ -180,10 +226,9 @@ function autoFillRow(partNumberInput) {
                     row.querySelector('input[name*="[part_type]"]').value = '';
                     row.querySelector('select[name*="[unit]"]').value = '';
                     const locationSelect = row.querySelector('select[name*="[warehouse_location_id]"]');
-                    locationSelect.innerHTML = '<option value="">請選擇儲位</option>';
-                    const option = new Option('無可用儲位', '', true, true);
-                    option.disabled = true;
-                    locationSelect.add(option);
+                    locationSelect.innerHTML = '<option value="">請先輸入有效的品號</option>';
+                    locationSelect.disabled = true;
+                    locationSelect.required = false;
                 }
             })
             .catch(error => {
@@ -193,10 +238,9 @@ function autoFillRow(partNumberInput) {
                 row.querySelector('input[name*="[part_type]"]').value = '';
                 row.querySelector('select[name*="[unit]"]').value = '';
                 const locationSelect = row.querySelector('select[name*="[warehouse_location_id]"]');
-                locationSelect.innerHTML = '<option value="">請選擇儲位</option>';
-                const option = new Option('無可用儲位', '', true, true);
-                option.disabled = true;
-                locationSelect.add(option);
+                locationSelect.innerHTML = '<option value="">請先輸入有效的品號</option>';
+                locationSelect.disabled = true;
+                locationSelect.required = false;
             });
     } else {
         // Clear fields if part number is empty
@@ -204,6 +248,8 @@ function autoFillRow(partNumberInput) {
         row.querySelector('input[name*="[part_type]"]').value = '';
         row.querySelector('select[name*="[unit]"]').value = '';
         const locationSelect = row.querySelector('select[name*="[warehouse_location_id]"]');
-        locationSelect.innerHTML = '<option value="">請選擇儲位</option>';
+        locationSelect.innerHTML = '<option value="">請先輸入有效的品號</option>';
+        locationSelect.disabled = true;
+        locationSelect.required = false;
     }
 }

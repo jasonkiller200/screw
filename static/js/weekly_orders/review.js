@@ -17,10 +17,13 @@ document.querySelectorAll('input[name="statusFilter"]').forEach(radio => {
 });
 
 // 全選功能
-document.getElementById('selectAll').addEventListener('change', function() {
-    const checkboxes = document.querySelectorAll('.registration-checkbox:not([style*="display: none"])');
-    checkboxes.forEach(cb => cb.checked = this.checked);
-});
+const selectAllCheckbox = document.getElementById('selectAll');
+if (selectAllCheckbox) { // 僅在元素存在時添加監聽器
+    selectAllCheckbox.addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('.registration-checkbox:not([style*="display: none"])');
+        checkboxes.forEach(cb => cb.checked = this.checked);
+    });
+}
 
 // 查看詳細資訊
 function viewDetails(registrationId) {
@@ -166,8 +169,29 @@ function batchApprove() {
 
 // 顯示零件詳情
 function showPartDetails(partNumber) {
-    document.getElementById('detailModalLabel').textContent = `零件詳情: ${partNumber}`;
+    console.log('showPartDetails called with:', partNumber);
+    if (!partNumber) {
+        console.log('No part number provided');
+        return;
+    }
+    
+    const modalLabel = document.getElementById('detailModalLabel');
     const detailContent = document.getElementById('detailContent');
+    const modalElement = document.getElementById('detailModal');
+    
+    console.log('Modal elements found:', {
+        modalLabel: !!modalLabel,
+        detailContent: !!detailContent,
+        modalElement: !!modalElement
+    });
+    
+    if (!modalLabel || !detailContent || !modalElement) {
+        console.error('Modal elements not found');
+        alert('模態視窗元素未找到，請確認頁面載入完整');
+        return;
+    }
+    
+    modalLabel.textContent = `零件詳情: ${partNumber}`;
     detailContent.innerHTML = `
         <div class="text-center py-3">
             <div class="spinner-border text-primary" role="status">
@@ -176,7 +200,49 @@ function showPartDetails(partNumber) {
             <p class="mt-2">正在載入零件資訊...</p>
         </div>
     `;
-    new bootstrap.Modal(document.getElementById('detailModal')).show();
+    
+    // 使用更相容的方式顯示模態視窗
+    let modal;
+    try {
+        console.log('Bootstrap availability:', {
+            bootstrap: typeof bootstrap,
+            windowBootstrap: typeof window.bootstrap,
+            bootstrapModal: typeof bootstrap !== 'undefined' ? typeof bootstrap.Modal : 'undefined'
+        });
+        
+        // 嘗試使用 Bootstrap 5 的方式
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            console.log('Using bootstrap.Modal');
+            modal = new bootstrap.Modal(modalElement);
+        } else if (typeof window.bootstrap !== 'undefined' && window.bootstrap.Modal) {
+            console.log('Using window.bootstrap.Modal');
+            modal = new window.bootstrap.Modal(modalElement);
+        } else {
+            console.log('Bootstrap Modal not found, trying jQuery fallback');
+            // 回退到 jQuery 方式（如果可用）
+            if (typeof $ !== 'undefined') {
+                console.log('Using jQuery modal');
+                $(modalElement).modal('show');
+                modal = { show: function() {} }; // 假模態物件
+            } else {
+                console.error('Bootstrap Modal not available and no jQuery fallback');
+                alert('無法顯示詳細資訊視窗，請檢查頁面載入是否完整');
+                return;
+            }
+        }
+        
+        if (modal && typeof modal.show === 'function') {
+            console.log('Showing modal');
+            modal.show();
+        } else {
+            console.error('Modal object does not have show method');
+        }
+        
+    } catch (error) {
+        console.error('Error showing modal:', error);
+        alert('無法顯示詳細資訊視窗: ' + error.message);
+        return;
+    }
 
     fetch(`/api/part/${encodeURIComponent(partNumber)}?include_locations=true`)
         .then(response => response.json())

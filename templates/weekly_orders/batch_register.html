@@ -145,20 +145,22 @@
     <tr>
         <td class="text-center item-sequence">1</td>
         <td>
-            <input type="text" class="form-control form-control-sm" name="items[0][part_number]" required>
+            <div class="input-group input-group-sm">
+                <input type="text" class="form-control form-control-sm" name="items[0][part_number]" required>
+                <button class="btn btn-outline-secondary" type="button" onclick="showPartDetails(this.closest('tr').querySelector('input[name*=&quot;[part_number]&quot;]').value)">
+                    <i class="fas fa-info-circle"></i>
+                </button>
+            </div>
         </td>
         <td>
             <input type="text" class="form-control form-control-sm" name="items[0][part_name]" required>
         </td>
         <td>
-            <select class="form-select form-select-sm" name="items[0][warehouse_location_id]" required>
-                <option value="">請選擇儲位</option>
-                {% for location in all_warehouse_locations %}
-                <option value="{{ location.id }}">
-                    {{ location.warehouse_name }} - {{ location.location_code }}
-                </option>
-                {% endfor %}
+            <label class="visually-hidden">儲位</label>
+            <select class="form-select form-select-sm" name="items[0][warehouse_location_id]">
+                <option value="">請先輸入有效的品號</option>
             </select>
+            <span class="text-danger item-location-required-star" style="display: none;">*</span>
         </td>
         <td>
             <input type="number" class="form-control form-control-sm" name="items[0][quantity]" min="1" required>
@@ -198,8 +200,27 @@
     </tr>
 </template>
 
+<!-- 詳細資訊模態 -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detailModalLabel">詳細資訊</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detailContent">
+                <!-- 動態載入內容 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/weekly_orders/review.js') }}"></script>
 <script src="{{ url_for('weekly_order.batch_register_js', items=request.args.get('items')) }}"></script>
 {% endblock %}
