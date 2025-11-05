@@ -192,27 +192,38 @@ function showPartDetails(partNumber) {
 
             let historyHtml = '';
             if (history.length > 0) {
-                historyHtml = history.map(order => {
-                    const date = new Date(order.order_date);
+                const statusMap = {
+                    'registered': { text: '已登記', class: 'secondary' },
+                    'approved': { text: '已核准', class: 'primary' },
+                    'partially_received': { text: '部分到貨', class: 'info' },
+                    'completed': { text: '已完成', class: 'success' },
+                    'rejected': { text: '已拒絕', class: 'danger' }
+                };
+
+                historyHtml = history.map(reg => {
+                    const date = new Date(reg.created_at);
                     const formattedDate = date.getFullYear() + '-' +
                                           String(date.getMonth() + 1).padStart(2, '0') + '-' +
-                                          String(date.getDate()).padStart(2, '0') + ' ' +
-                                          String(date.getHours()).padStart(2, '0') + ':' +
-                                          String(date.getMinutes()).padStart(2, '0');
+                                          String(date.getDate()).padStart(2, '0');
+                    
+                    const statusInfo = statusMap[reg.status] || { text: reg.status, class: 'light' };
+
                     return `
                         <tr>
                             <td>${formattedDate}</td>
-                            <td>${order.quantity_ordered}</td>
+                            <td>${reg.applicant_name || 'N/A'}</td>
+                            <td>${reg.location_display || '無指定'}</td>
+                            <td>${reg.quantity}</td>
                             <td>
-                                <span class="badge bg-${order.status === 'confirmed' ? 'success' : 'warning'}">
-                                    ${order.status === 'confirmed' ? '已確認' : '待處理'}
+                                <span class="badge bg-${statusInfo.class}">
+                                    ${statusInfo.text}
                                 </span>
                             </td>
                         </tr>
                     `;
                 }).join('');
             } else {
-                historyHtml = '<tr><td colspan="3" class="text-center text-muted">暫無訂購記錄</td></tr>';
+                historyHtml = '<tr><td colspan="4" class="text-center text-muted">暫無申請記錄</td></tr>';
             }
 
             let inventoryHtml = '';
@@ -281,7 +292,9 @@ function showPartDetails(partNumber) {
                             <table class="table table-sm">
                                 <thead>
                                     <tr>
-                                        <th>訂購日期</th>
+                                        <th>申請日期</th>
+                                        <th>申請人</th>
+                                        <th>儲位</th>
                                         <th>數量</th>
                                         <th>狀態</th>
                                     </tr>

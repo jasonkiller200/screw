@@ -2,8 +2,10 @@ import pandas as pd
 from io import BytesIO
 from models.part import Part, Warehouse, WarehouseLocation, PartWarehouseLocation
 from extensions import db
-from models.order import Order
+from sqlalchemy.orm import joinedload
+from models.weekly_order import OrderRegistration
 from models.inventory import CurrentInventory
+from models.part import WarehouseLocation
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -253,7 +255,9 @@ class PartService:
                 return {'success': False, 'error': '找不到零件'}
             logging.info(f"Found part: {part.id}")
 
-            order_history = Order.get_history_by_part_number(part_number)
+            order_history = OrderRegistration.query.options(
+                joinedload(OrderRegistration.warehouse_location).joinedload(WarehouseLocation.warehouse)
+            ).filter_by(part_number=part_number).order_by(OrderRegistration.created_at.desc()).all()
             logging.info(f"Found {len(order_history)} order history records.")
 
             inventories = CurrentInventory.query.filter_by(part_id=part.id).all()

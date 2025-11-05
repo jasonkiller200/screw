@@ -158,7 +158,7 @@ class OrderRegistration(db.Model):
             'part_number': self.part_number,
             'part_name': self.part_name,
             'warehouse_location_id': self.warehouse_location_id, # New
-            'location_code': self.warehouse_location.location_code if self.warehouse_location else None, # New
+            'location_display': f"{self.warehouse_location.warehouse.name} - {self.warehouse_location.location_code}" if self.warehouse_location and self.warehouse_location.warehouse else (self.warehouse_location.location_code if self.warehouse_location else None),
             'quantity': self.quantity,
             'quantity_received': self.quantity_received,
             'unit': self.unit,
