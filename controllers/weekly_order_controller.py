@@ -42,7 +42,8 @@ def pending_inbound_orders():
         joinedload(OrderRegistration.warehouse_location).joinedload(WarehouseLocation.warehouse),
         joinedload(OrderRegistration.cycle)
     ).filter(
-        OrderRegistration.status == 'approved'
+        OrderRegistration.status == 'approved',
+        OrderRegistration.warehouse_location_id.isnot(None) # Exclude items without a specified location
     ).order_by(
         OrderRegistration.required_date.asc(),
         OrderRegistration.created_at.asc()
