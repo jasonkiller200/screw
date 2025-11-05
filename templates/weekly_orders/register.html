@@ -76,9 +76,14 @@
                     <form method="POST" action="{{ url_for('weekly_order.register_order') }}">
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="part_number" class="form-label">品號 <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="part_number" name="part_number" 
-                                       value="{{ prefill_data.part_number if prefill_data else '' }}" required>
+                                <label for="part_number" class="form-label">品號 <span class="text-danger"></span></label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="part_number" name="part_number" 
+                                           value="{{ prefill_data.part_number if prefill_data else '' }}" required>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="showPartDetails(document.getElementById('part_number').value)">
+                                        <i class="fas fa-info-circle"></i>
+                                    </button>
+                                </div>
                                 <div class="form-text">產品編號或零件號碼</div>
                             </div>
                             <div class="col-md-6">
@@ -181,9 +186,9 @@
                 <div class="card-body">
                     <ul class="list-unstyled mb-0">
                         <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>品號：</strong>必填，產品編號</li>
-                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>品名：</strong>必填，產品名稱</li>
-                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>數量/單位：</strong>必填</li>
-                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>申請人：</strong>必填</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>品名：：</strong>必填，產品名稱</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>數量/單位：：</strong>必填</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>申請人：：</strong>必填</li>
                         <li class="mb-0"><i class="fas fa-info text-info me-2"></i>其他欄位為選填</li>
                     </ul>
                 </div>
@@ -219,8 +224,27 @@
     </div>
 </div>
 
+<!-- 詳細資訊模態 -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detailModalLabel">詳細資訊</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detailContent">
+                <!-- 動態載入內容 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/weekly_orders/review.js') }}"></script>
 <script src="{{ url_for('static', filename='js/weekly_orders/register.js') }}"></script>
 {% endblock %}

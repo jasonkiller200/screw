@@ -1,0 +1,24 @@
+// 計算並顯示剩餘時間
+function updateTimeRemaining() {
+    const deadline = new Date('{{ current_cycle.deadline.isoformat() }}');
+    const now = new Date();
+    const diff = deadline - now;
+    
+    const timeRemainingEl = document.getElementById('timeRemaining');
+    
+    if (timeRemainingEl) { // Check if element exists
+        if (diff <= 0) {
+            timeRemainingEl.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>申請已截止</span>';
+            return;
+        }
+        
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        
+        timeRemainingEl.innerHTML = `
+            <i class="fas fa-hourglass-half me-1"></i>
+            剩餘時間：${days}天 ${hours}小時 ${minutes}分鐘
+        `;
+    }
+}

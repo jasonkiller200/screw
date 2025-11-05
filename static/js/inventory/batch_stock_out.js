@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
     transactionTypeSelect.addEventListener('change', function() {
         if (this.value === 'OUT_WORK_ORDER') {
             workOrderIdInput.disabled = false;
+            workOrderIdInput.value = '20000';
         } else {
             workOrderIdInput.disabled = true;
             workOrderIdInput.value = '';
@@ -21,6 +22,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize work order input based on default selection
     if (transactionTypeSelect.value === 'OUT_WORK_ORDER') {
         workOrderIdInput.disabled = false;
+        workOrderIdInput.value = '20000';
     } else {
         workOrderIdInput.disabled = true;
     }
