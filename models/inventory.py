@@ -85,7 +85,7 @@ class CurrentInventory(db.Model):
         .join(PartWarehouseLocation, Part.id == PartWarehouseLocation.part_id)
         .join(WarehouseLocation, PartWarehouseLocation.warehouse_location_id == WarehouseLocation.id)
         .join(Warehouse, WarehouseLocation.warehouse_id == Warehouse.id)
-        .outerjoin(cls, sa.and_(Part.id == cls.part_id, Warehouse.id == cls.warehouse_id)))
+        .outerjoin(cls, sa.and_(Part.id == cls.part_id, WarehouseLocation.id == cls.warehouse_location_id)))
 
         if warehouse_id:
             query = query.filter(Warehouse.id == warehouse_id)

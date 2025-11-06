@@ -63,26 +63,26 @@ function displayPartInfo(partNumber, partName, unit, locations) {
     const partInfoCard = document.getElementById('partInfoCard');
     const partInfoContent = document.getElementById('partInfoContent');
     const partNameDisplay = document.getElementById('partNameDisplay');
-    const warehouseSelect = document.getElementById('warehouse_id');
+    const locationSelect = document.getElementById('warehouse_location_id'); // Corrected ID
 
     partNameDisplay.textContent = partName || '';
     partInfoCard.style.display = 'block';
 
-    // 填充倉庫下拉選單
-    warehouseSelect.innerHTML = '<option value="">選擇倉庫</option>';
+    // 填充儲位下拉選單
+    locationSelect.innerHTML = '<option value="">選擇儲位</option>'; // Corrected placeholder
     if (locations && locations.length > 0) {
         locations.forEach(loc => {
             const option = document.createElement('option');
-            option.value = loc.warehouse_id;
+            option.value = loc.id; // Use the unique location ID
             option.textContent = `${loc.warehouse_name} - ${loc.location_code}`;
-            warehouseSelect.appendChild(option);
+            locationSelect.appendChild(option);
         });
     } else {
         const option = document.createElement('option');
         option.value = '';
-        option.textContent = '無可用倉庫';
+        option.textContent = '無可用儲位';
         option.disabled = true;
-        warehouseSelect.appendChild(option);
+        locationSelect.appendChild(option);
     }
 
     // 顯示基本資訊並準備載入庫存
@@ -123,7 +123,7 @@ function displayPartInfo(partNumber, partName, unit, locations) {
 function clearPartInfo() {
     document.getElementById('partInfoCard').style.display = 'none';
     document.getElementById('partNameDisplay').textContent = '';
-    document.getElementById('warehouse_id').innerHTML = '<option value="">選擇倉庫</option>';
+    document.getElementById('warehouse_location_id').innerHTML = '<option value="">請先選擇一個零件</option>';
     document.getElementById('partInfoContent').innerHTML = '';
 }
 
@@ -145,7 +145,7 @@ function handleFormSubmit(event) {
 
     const form = event.target;
     const partNumber = document.getElementById('part_number').value.trim();
-    const warehouseId = document.getElementById('warehouse_id').value;
+    const warehouseLocationId = document.getElementById('warehouse_location_id').value; // Corrected ID
     const quantity = document.getElementById('quantity').value;
     const transactionType = document.getElementById('transaction_type').value;
 
@@ -155,9 +155,9 @@ function handleFormSubmit(event) {
     if (!partNumber) {
         isValid = false;
         errorMessage = '請輸入或選擇一個零件編號';
-    } else if (!warehouseId) {
+    } else if (!warehouseLocationId) { // Corrected validation
         isValid = false;
-        errorMessage = '請選擇目標倉庫';
+        errorMessage = '請選擇目標儲位'; // Corrected message
     } else if (!quantity) {
         isValid = false;
         errorMessage = '請輸入入庫數量';

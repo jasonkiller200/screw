@@ -297,6 +297,27 @@ class Part(db.Model):
                         db.session.add(assoc)
         
         db.session.commit()
+
+        # After commit, ensure inventory records exist for all assigned locations
+        from models.inventory import CurrentInventory
+        for assoc in new_part.location_associations:
+            inventory_exists = CurrentInventory.query.filter_by(
+                part_id=new_part.id,
+                warehouse_location_id=assoc.warehouse_location_id
+            ).first()
+
+            if not inventory_exists:
+                new_inventory_record = CurrentInventory(
+                    part_id=new_part.id,
+                    warehouse_id=assoc.warehouse_location.warehouse_id,
+                    warehouse_location_id=assoc.warehouse_location_id,
+                    quantity_on_hand=0,
+                    available_quantity=0,
+                    reserved_quantity=0
+                )
+                db.session.add(new_inventory_record)
+        db.session.commit() # Commit the new inventory records
+
         return {'success': True}
 
     @classmethod
@@ -392,6 +413,27 @@ class Part(db.Model):
                         db.session.add(assoc)
         
         db.session.commit()
+
+        # After commit, ensure inventory records exist for all assigned locations
+        from models.inventory import CurrentInventory
+        for assoc in part.location_associations:
+            inventory_exists = CurrentInventory.query.filter_by(
+                part_id=part.id,
+                warehouse_location_id=assoc.warehouse_location_id
+            ).first()
+
+            if not inventory_exists:
+                new_inventory_record = CurrentInventory(
+                    part_id=part.id,
+                    warehouse_id=assoc.warehouse_location.warehouse_id,
+                    warehouse_location_id=assoc.warehouse_location_id,
+                    quantity_on_hand=0,
+                    available_quantity=0,
+                    reserved_quantity=0
+                )
+                db.session.add(new_inventory_record)
+        db.session.commit() # Commit the new inventory records
+
         cls._cleanup_unused_locations_and_warehouses() # Call cleanup after commit
         return {'success': True}
 
