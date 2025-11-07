@@ -1,6 +1,6 @@
 from extensions import db # Import the SQLAlchemy db instance
 from sqlalchemy.orm import relationship
-from sqlalchemy import event
+from sqlalchemy import event, and_ as sa_and
 from datetime import datetime
 
 # Helper function to get current time in UTC+8
@@ -150,7 +150,50 @@ class Part(db.Model):
     @classmethod
     def get_by_id(cls, part_id):
         return cls.query.get(part_id)
-    
+
+    @classmethod
+    def get_by_barcode_with_locations_and_stock(cls, barcode, warehouse_id):
+        from models.inventory import CurrentInventory # Import here to avoid circular dependency
+        
+        part = cls.query.filter_by(part_number=barcode).first()
+        if not part:
+            return None
+
+        # Get all locations associated with this part in the specified warehouse
+        locations_with_stock = db.session.query(
+            WarehouseLocation.id.label('location_id'),
+            WarehouseLocation.location_code,
+            CurrentInventory.quantity_on_hand,
+            CurrentInventory.available_quantity
+        ).join(PartWarehouseLocation, PartWarehouseLocation.warehouse_location_id == WarehouseLocation.id) \
+        .outerjoin(CurrentInventory, 
+                   sa_and(CurrentInventory.part_id == part.id, 
+                           CurrentInventory.warehouse_location_id == WarehouseLocation.id)) \
+        .filter(
+            PartWarehouseLocation.part_id == part.id,
+            WarehouseLocation.warehouse_id == warehouse_id
+        ).all()
+
+        if not locations_with_stock:
+            return None # Part found, but no associated locations in this warehouse
+
+        formatted_locations = []
+        for loc in locations_with_stock:
+            formatted_locations.append({
+                'location_id': loc.location_id,
+                'location_code': loc.location_code,
+                'quantity_on_hand': loc.quantity_on_hand if loc.quantity_on_hand is not None else 0,
+                'available_quantity': loc.available_quantity if loc.available_quantity is not None else 0
+            })
+        
+        return {
+            'part_id': part.id,
+            'part_number': part.part_number,
+            'part_name': part.name,
+            'unit': part.unit,
+            'locations': formatted_locations
+        }
+
     @classmethod
     def get_all(cls, search_term=None, sort_by='part_number', sort_order='asc', page=1, per_page=50):
         from sqlalchemy import or_, func

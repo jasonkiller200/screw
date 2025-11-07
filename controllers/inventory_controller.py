@@ -47,6 +47,24 @@ def get_part_stock(part_number):
         'stock_info': stock_info
     })
 
+@inventory_api_bp.route('/part-by-barcode', methods=['GET'])
+def get_part_by_barcode():
+    """根據條碼取得零件資訊及可用儲位庫存"""
+    barcode = request.args.get('barcode')
+    warehouse_id = request.args.get('warehouse_id', type=int)
+
+    if not barcode:
+        return jsonify({'error': 'Barcode is required'}), 400
+    if not warehouse_id:
+        return jsonify({'error': 'Warehouse ID is required'}), 400
+
+    part_data = Part.get_by_barcode_with_locations_and_stock(barcode, warehouse_id)
+
+    if not part_data:
+        return jsonify({'error': 'Part not found or no stock in this warehouse'}), 404
+
+    return jsonify(part_data)
+
 @inventory_api_bp.route('/low-stock', methods=['GET'])
 def get_low_stock():
     """取得低庫存項目"""
