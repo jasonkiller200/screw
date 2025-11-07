@@ -292,7 +292,7 @@ class StockCount(db.Model):
             'count_number': self.count_number,
             'warehouse_id': self.warehouse_id,
             'warehouse_name': self.warehouse.name if self.warehouse else None,
-            'count_date': self.count_date.isoformat() if self.count_date else None,
+            'count_date': self.count_date.strftime("%Y-%m-%d %H:%M") if self.count_date else None,
             'status': self.status,
             'count_type': self.count_type,
             'description': self.description,
@@ -300,8 +300,8 @@ class StockCount(db.Model):
             'verified_by': self.verified_by,
             'total_items': self.total_items,
             'variance_items': self.variance_items,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'created_at': self.created_at.strftime("%Y-%m-%d %H:%M") if self.created_at else None,
+            'completed_at': self.completed_at.strftime("%Y-%m-%d %H:%M") if self.completed_at else None,
         }
 
     @classmethod
@@ -511,6 +511,39 @@ class StockCount(db.Model):
         return False
 
     @classmethod
+    def batch_update_count_details(cls, updates):
+        """批量更新盤點明細"""
+        if not updates:
+            return True, "No updates provided."
+
+        try:
+            # Create a dictionary of updates for quick lookup
+            updates_dict = {item['detail_id']: item['counted_quantity'] for item in updates}
+            detail_ids = list(updates_dict.keys())
+
+            # Fetch all details to be updated in one query
+            details_to_update = StockCountDetail.query.filter(StockCountDetail.id.in_(detail_ids)).all()
+
+            if len(details_to_update) != len(detail_ids):
+                # This indicates some detail_ids were not found
+                found_ids = {d.id for d in details_to_update}
+                missing_ids = set(detail_ids) - found_ids
+                return False, f"Could not find detail IDs: {list(missing_ids)}"
+
+            for detail in details_to_update:
+                counted_quantity = updates_dict[detail.id]
+                detail.counted_quantity = counted_quantity
+                detail.variance_quantity = counted_quantity - detail.system_quantity
+                detail.counted_at = get_taipei_time()
+            
+            db.session.commit()
+            return True, f"Successfully updated {len(details_to_update)} items."
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error in batch_update_count_details: {e}")
+            return False, f"An error occurred during the batch update: {str(e)}"
+
+    @classmethod
     def complete_count(cls, count_id, verified_by='', apply_adjustments=False):
         count = cls.query.get(count_id)
         if not count:
@@ -654,5 +687,5 @@ class StockCountDetail(db.Model):
             'counted_quantity': self.counted_quantity,
             'variance_quantity': self.variance_quantity,
             'notes': self.notes,
-            'counted_at': self.counted_at.isoformat() if self.counted_at else None,
+            'counted_at': self.counted_at.strftime("%Y-%m-%d %H:%M") if self.counted_at else None,
         }

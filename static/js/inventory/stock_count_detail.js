@@ -366,3 +366,63 @@ function exportCountData() {
     const countId = document.getElementById('stock-count-card').dataset.countId;
     window.open(`/api/inventory/stock-counts/${countId}/export`, '_blank');
 }
+
+// 批量儲存盤點結果
+function batchSaveCounts() {
+    const countId = document.getElementById('stock-count-card').dataset.countId;
+    const saveButton = document.getElementById('batch-save-btn');
+    
+    // 找到所有已填寫的輸入框
+    const inputs = document.querySelectorAll('.count-input');
+    const updates = [];
+
+    inputs.forEach(input => {
+        const value = input.value.trim();
+        if (value !== '' && value >= 0) {
+            updates.push({
+                detail_id: parseInt(input.dataset.detailId, 10),
+                counted_quantity: parseInt(value, 10)
+            });
+        }
+    });
+
+    if (updates.length === 0) {
+        alert('沒有需要儲存的盤點數量。請先在「實盤數量」欄位中輸入數字。');
+        return;
+    }
+
+    // 提供使用者回饋
+    const originalHtml = saveButton.innerHTML;
+    saveButton.disabled = true;
+    saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>儲存中...';
+
+    fetch(`/api/inventory/stock-counts/${countId}/batch-update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => { throw new Error(err.error || '伺服器錯誤') });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            saveButton.innerHTML = '<i class="fas fa-check me-1"></i>儲存成功';
+            alert(`成功儲存 ${updates.length} 筆盤點記錄。`);
+            // 2秒後重新整理頁面以顯示更新後的差異
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+        } else {
+            throw new Error(data.error || '批量更新失敗');
+        }
+    })
+    .catch(err => {
+        alert('儲存失敗：' + err.message);
+        // 發生錯誤時還原按鈕
+        saveButton.innerHTML = originalHtml;
+        saveButton.disabled = false;
+    });
+}
