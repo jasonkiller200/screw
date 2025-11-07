@@ -245,7 +245,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 part_name: result.part_name,
                                 location_id: result.locations.length === 1 ? selectedLocation.location_id : null, // Set to null if multiple locations
                                 location_code: result.locations.length === 1 ? selectedLocation.location_code : '請選擇', // Set to '請選擇' if multiple locations
-                                quantity: 1, // Default to 1
+                                quantity: null, // Default to null for empty input
                                 available_quantity: selectedLocation.available_quantity,
                                 all_locations: result.locations // Store all locations for dropdown
                             };
@@ -303,7 +303,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <td class="text-end available-quantity-display">${displayedAvailableQuantity}</td>
                 <td>
                     <input type="number" class="form-control form-control-sm scanned-stock-out-quantity" 
-                           value="${item.quantity}" 
+                           value="${item.quantity === null ? '' : item.quantity}" 
                            min="1" 
                            max="${quantityInputMax}" 
                            data-item-key="${row.dataset.itemKey}">
