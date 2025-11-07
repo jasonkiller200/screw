@@ -4,6 +4,7 @@ from controllers.api_controller import api_bp
 from controllers.web_controller import web_bp
 from controllers.inventory_controller import inventory_api_bp
 from controllers.weekly_order_controller import weekly_order_bp
+from controllers.ai_controller import ai_bp
 from extensions import db, migrate # Import from extensions
 
 def create_app():
@@ -26,6 +27,7 @@ def create_app():
     app.register_blueprint(inventory_api_bp)    # 庫存 API 路由 (/api/inventory/...)
     app.register_blueprint(web_bp)              # 網頁路由 (/...)
     app.register_blueprint(weekly_order_bp)     # 週期訂單路由 (/weekly-orders/...)
+    app.register_blueprint(ai_bp)               # AI 相關路由 (/ai/...)
     
     return app
 
