@@ -27,7 +27,7 @@ def create_app():
     app.register_blueprint(inventory_api_bp)    # 庫存 API 路由 (/api/inventory/...)
     app.register_blueprint(web_bp)              # 網頁路由 (/...)
     app.register_blueprint(weekly_order_bp)     # 週期訂單路由 (/weekly-orders/...)
-    app.register_blueprint(ai_bp)               # AI 查詢路由 (/ai/...)
+    app.register_blueprint(ai_bp)               # AI 相關路由 (/ai/...)
     
     return app
 
@@ -48,6 +48,14 @@ if __name__ == '__main__':
     cert_file = 'cert.pem'
     key_file = 'cert.key'
     
-    # 強制使用 HTTP 模式啟動
-    print("✅ 已強制使用 HTTP 模式啟動")
-    app.run(host='0.0.0.0', port=5005, debug=True)
+    if os.path.exists(cert_file) and os.path.exists(key_file):
+        # 使用 HTTPS (支援 iOS Service Worker 和相機存取)
+        print("🔐 啟用 HTTPS 模式")
+        print("📱 iOS 裝置現在可以使用 Service Worker 和相機功能")
+        ssl_context = (cert_file, key_file)
+        app.run(host='0.0.0.0', port=5005, debug=True, ssl_context=ssl_context)
+    else:
+        # 使用 HTTP (僅限 Android 和開發測試)
+        print("⚠️  HTTP 模式 (iOS 功能受限)")
+        print("💡 執行 'python generate_ssl_cert.py' 生成 SSL 憑證以啟用 HTTPS")
+        app.run(host='0.0.0.0', port=5005, debug=True)

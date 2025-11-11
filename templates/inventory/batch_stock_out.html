@@ -48,6 +48,7 @@
                     <div class="col-md-4">
                         <label for="work_order_id" class="form-label">工單編號</label>
                         <input type="text" class="form-control" id="work_order_id" name="work_order_id" value="20000">
+                        <div class="invalid-feedback" id="work-order-id-feedback"></div>
                     </div>
                 </div>
                 <div class="row mt-3">
@@ -63,35 +64,79 @@
     <!-- Item List Section -->
     <div class="col-12">
         <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">零件清單</h5>
-                <div class="d-flex align-items-center">
-                    <input type="text" id="item-search" class="form-control form-control-sm me-2" placeholder="篩選零件..." disabled>
-                    <span id="item-count" class="badge bg-secondary">0 個品項</span>
-                </div>
+            <div class="card-header">
+                <ul class="nav nav-tabs card-header-tabs" id="stockOutTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="manual-tab" data-bs-toggle="tab" data-bs-target="#manual-pane" type="button" role="tab" aria-controls="manual-pane" aria-selected="true">手動選擇品項</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="barcode-tab" data-bs-toggle="tab" data-bs-target="#barcode-pane" type="button" role="tab" aria-controls="barcode-pane" aria-selected="false">條碼掃描出庫</button>
+                    </li>
+                </ul>
             </div>
             <div class="card-body">
-                <div class="table-responsive" style="max-height: 500px;">
-                    <table class="table table-sm table-hover">
-                        <thead class="table-dark sticky-top">
-                            <tr>
-                                <th style="width: 5%;"><input class="form-check-input" type="checkbox" id="select-all"></th>
-                                <th style="width: 20%;">零件編號</th>
-                                <th style="width: 30%;">零件名稱</th>
-                                <th style="width: 15%;">儲位</th>
-                                <th style="width: 15%;">可用庫存</th>
-                                <th style="width: 15%;">出庫數量</th>
-                            </tr>
-                        </thead>
-                        <tbody id="inventory-item-list">
-                            <!-- Items will be loaded here by JavaScript -->
-                            <tr>
-                                <td colspan="6" class="text-center text-muted py-5">
-                                    <i class="fas fa-info-circle me-2"></i>請先選擇一個倉庫來載入庫存品項。
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div class="tab-content" id="stockOutTabsContent">
+                    <div class="tab-pane fade show active" id="manual-pane" role="tabpanel" aria-labelledby="manual-tab" tabindex="0">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="mb-0">零件清單</h5>
+                            <div class="d-flex align-items-center">
+                                <input type="text" id="item-search" class="form-control form-control-sm me-2" placeholder="篩選零件..." disabled>
+                                <span id="item-count" class="badge bg-secondary">0 個品項</span>
+                            </div>
+                        </div>
+                        <div class="table-responsive" style="max-height: 500px;">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-dark sticky-top">
+                                    <tr>
+                                        <th style="width: 5%;"><input class="form-check-input" type="checkbox" id="select-all"></th>
+                                        <th style="width: 20%;">零件編號</th>
+                                        <th style="width: 30%;">零件名稱</th>
+                                        <th style="width: 15%;">儲位</th>
+                                        <th style="width: 15%;">可用庫存</th>
+                                        <th style="width: 15%;">出庫數量</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inventory-item-list">
+                                    <!-- Items will be loaded here by JavaScript -->
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-5">
+                                            <i class="fas fa-info-circle me-2"></i>請先選擇一個倉庫來載入庫存品項。
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="barcode-pane" role="tabpanel" aria-labelledby="barcode-tab" tabindex="0">
+                        <div class="mb-3">
+                            <label for="barcode-input" class="form-label">掃描條碼</label>
+                            <input type="text" class="form-control" id="barcode-input" placeholder="請掃描零件條碼" autofocus>
+                            <div class="form-text">掃描條碼後，系統將自動帶出零件資訊並加入下方清單。</div>
+                        </div>
+                        <div id="barcode-scan-feedback" class="mt-3"></div>
+                        
+                        <hr>
+                        <h6>已掃描待出庫清單</h6>
+                        <div class="table-responsive" style="max-height: 300px;">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>零件編號</th>
+                                        <th>零件名稱</th>
+                                        <th>儲位</th>
+                                        <th>可用庫存</th>
+                                        <th>出庫數量</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="scanned-items-to-submit">
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-3">尚無掃描品項</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="card-footer text-end">

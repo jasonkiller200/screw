@@ -94,6 +94,56 @@ function submitAddItem() {
     .catch(err => alert('網路錯誤：' + err.message));
 }
 
+// Helper function to update a single row's UI
+function updateTableRowUI(row, item) {
+    if (!row || !item) return;
+
+    // Update Variance Quantity
+    const varianceCell = row.querySelector('.variance-qty');
+    if (varianceCell) {
+        const diff = item.variance_quantity;
+        let diffHtml = `<span class="text-muted">0</span>`;
+        if (diff > 0) {
+            diffHtml = `<span class="text-success">+${diff}</span>`;
+        } else if (diff < 0) {
+            diffHtml = `<span class="text-danger">${diff}</span>`;
+        }
+        varianceCell.innerHTML = diffHtml;
+    }
+
+    // Update Variance Rate
+    const varianceRateCell = row.querySelector('.variance-rate');
+    const systemQtyCell = row.querySelector('.system-qty');
+    if (varianceRateCell && systemQtyCell) {
+        const systemQty = parseInt(systemQtyCell.textContent, 10);
+        let rateHtml = `<span class="text-muted">-</span>`;
+        
+        if (item.counted_quantity !== null) {
+            if (systemQty > 0) {
+                const rate = (item.variance_quantity / systemQty) * 100;
+                if (rate > 0) {
+                    rateHtml = `<span class="text-success">+${rate.toFixed(1)}%</span>`;
+                } else if (rate < 0) {
+                    rateHtml = `<span class="text-danger">${rate.toFixed(1)}%</span>`;
+                } else {
+                    rateHtml = `<span class="text-muted">0.0%</span>`;
+                }
+            } else if (systemQty === 0 && item.variance_quantity !== 0) {
+                rateHtml = `<span class="text-success">+∞%</span>`;
+            } else { // systemQty is 0 and variance is 0
+                rateHtml = `<span class="text-muted">0.0%</span>`;
+            }
+        }
+        varianceRateCell.innerHTML = rateHtml;
+    }
+
+    // Update Counted At time
+    const countedAtCell = row.querySelector('.counted-at');
+    if (countedAtCell) {
+        countedAtCell.textContent = item.counted_at || '-';
+    }
+}
+
 // 儲存盤點項目
 function saveCountItem(buttonElement) {
     const row = buttonElement.closest('tr');
@@ -127,19 +177,20 @@ function saveCountItem(buttonElement) {
         return response.json();
     })
     .then(data => {
-        if (data.success) {
-            // Maybe a more subtle success indicator instead of an alert
+        if (data.success && data.updated_item) {
+            // Use the helper to update the UI
+            updateTableRowUI(row, data.updated_item);
+
+            // --- Restore button state ---
             const originalIcon = '<i class="fas fa-save"></i>';
             buttonElement.innerHTML = '<i class="fas fa-check"></i>';
-            // Briefly show success, then revert button
             setTimeout(() => {
                 buttonElement.innerHTML = originalIcon;
                 buttonElement.disabled = false;
-                // Optionally, reload the whole page or just update the specific row's data
-                // location.reload(); // This is a bit heavy
             }, 1500);
+
         } else {
-            throw new Error(data.error || '更新失敗');
+            throw new Error(data.error || '更新失敗，未收到有效資料');
         }
     })
     .catch(err => {
@@ -408,12 +459,20 @@ function batchSaveCounts() {
         return response.json();
     })
     .then(data => {
-        if (data.success) {
+        if (data.success && data.updated_items) {
             saveButton.innerHTML = '<i class="fas fa-check me-1"></i>儲存成功';
-            alert(`成功儲存 ${updates.length} 筆盤點記錄。`);
-            // 2秒後重新整理頁面以顯示更新後的差異
+            alert(`成功儲存 ${data.updated_items.length} 筆盤點記錄。`);
+
+            // Loop through updated items and update each row's UI
+            data.updated_items.forEach(item => {
+                const row = document.getElementById(`row-${item.id}`);
+                updateTableRowUI(row, item);
+            });
+
+            // Revert button after a delay, no page reload needed
             setTimeout(() => {
-                location.reload();
+                saveButton.innerHTML = originalHtml;
+                saveButton.disabled = false;
             }, 2000);
         } else {
             throw new Error(data.error || '批量更新失敗');

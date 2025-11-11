@@ -47,6 +47,24 @@ def get_part_stock(part_number):
         'stock_info': stock_info
     })
 
+@inventory_api_bp.route('/part-by-barcode', methods=['GET'])
+def get_part_by_barcode():
+    """根據條碼取得零件資訊及可用儲位庫存"""
+    barcode = request.args.get('barcode')
+    warehouse_id = request.args.get('warehouse_id', type=int)
+
+    if not barcode:
+        return jsonify({'error': 'Barcode is required'}), 400
+    if not warehouse_id:
+        return jsonify({'error': 'Warehouse ID is required'}), 400
+
+    part_data = Part.get_by_barcode_with_locations_and_stock(barcode, warehouse_id)
+
+    if not part_data:
+        return jsonify({'error': 'Part not found or no stock in this warehouse'}), 404
+
+    return jsonify(part_data)
+
 @inventory_api_bp.route('/low-stock', methods=['GET'])
 def get_low_stock():
     """取得低庫存項目"""
@@ -260,10 +278,14 @@ def update_count_detail(count_id, detail_id):
     except (ValueError, TypeError):
         return jsonify({'error': 'Invalid counted_quantity'}), 400
     
-    success = StockCount.update_count_detail(detail_id, counted_quantity, notes)
+    success, updated_detail = StockCount.update_count_detail(detail_id, counted_quantity, notes)
     
     if success:
-        return jsonify({'success': True, 'message': 'Count detail updated successfully'})
+        return jsonify({
+            'success': True, 
+            'message': 'Count detail updated successfully',
+            'updated_item': updated_detail
+        })
     else:
         return jsonify({'error': 'Failed to update count detail'}), 500
 
@@ -294,11 +316,11 @@ def batch_update_count_details(count_id):
     if not updates:
         return jsonify({'success': True, 'message': 'No updates to perform.'})
 
-    # This method needs to be created in the StockCount model
-    success, message = StockCount.batch_update_count_details(updates)
+    # This method now returns a list of updated items
+    success, message, updated_items = StockCount.batch_update_count_details(updates)
 
     if success:
-        return jsonify({'success': True, 'message': message})
+        return jsonify({'success': True, 'message': message, 'updated_items': updated_items})
     else:
         return jsonify({'error': message}), 500
 
