@@ -278,10 +278,14 @@ def update_count_detail(count_id, detail_id):
     except (ValueError, TypeError):
         return jsonify({'error': 'Invalid counted_quantity'}), 400
     
-    success = StockCount.update_count_detail(detail_id, counted_quantity, notes)
+    success, updated_detail = StockCount.update_count_detail(detail_id, counted_quantity, notes)
     
     if success:
-        return jsonify({'success': True, 'message': 'Count detail updated successfully'})
+        return jsonify({
+            'success': True, 
+            'message': 'Count detail updated successfully',
+            'updated_item': updated_detail
+        })
     else:
         return jsonify({'error': 'Failed to update count detail'}), 500
 
@@ -312,11 +316,11 @@ def batch_update_count_details(count_id):
     if not updates:
         return jsonify({'success': True, 'message': 'No updates to perform.'})
 
-    # This method needs to be created in the StockCount model
-    success, message = StockCount.batch_update_count_details(updates)
+    # This method now returns a list of updated items
+    success, message, updated_items = StockCount.batch_update_count_details(updates)
 
     if success:
-        return jsonify({'success': True, 'message': message})
+        return jsonify({'success': True, 'message': message, 'updated_items': updated_items})
     else:
         return jsonify({'error': message}), 500
 

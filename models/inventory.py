@@ -501,21 +501,33 @@ class StockCount(db.Model):
     @classmethod
     def update_count_detail(cls, detail_id, counted_quantity, notes=''):
         detail = StockCountDetail.query.get(detail_id)
-        if detail:
+        if not detail:
+            return False, None
+        
+        try:
             detail.counted_quantity = counted_quantity
             detail.variance_quantity = counted_quantity - detail.system_quantity
-            detail.notes = notes
+            # Only update notes if it's not empty, to avoid overwriting existing notes with blank ones
+            if notes:
+                detail.notes = notes
             detail.counted_at = get_taipei_time()
+            
             db.session.commit()
-            return True
-        return False
+            
+            # After commit, the detail object is updated and can be converted to a dict
+            return True, detail.to_dict()
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error updating count detail {detail_id}: {e}")
+            return False, None
 
     @classmethod
     def batch_update_count_details(cls, updates):
         """批量更新盤點明細"""
         if not updates:
-            return True, "No updates provided."
+            return True, "No updates provided.", []
 
+        updated_items_list = []
         try:
             # Create a dictionary of updates for quick lookup
             updates_dict = {item['detail_id']: item['counted_quantity'] for item in updates}
@@ -525,23 +537,27 @@ class StockCount(db.Model):
             details_to_update = StockCountDetail.query.filter(StockCountDetail.id.in_(detail_ids)).all()
 
             if len(details_to_update) != len(detail_ids):
-                # This indicates some detail_ids were not found
                 found_ids = {d.id for d in details_to_update}
                 missing_ids = set(detail_ids) - found_ids
-                return False, f"Could not find detail IDs: {list(missing_ids)}"
+                return False, f"Could not find detail IDs: {list(missing_ids)}", []
 
             for detail in details_to_update:
                 counted_quantity = updates_dict[detail.id]
                 detail.counted_quantity = counted_quantity
                 detail.variance_quantity = counted_quantity - detail.system_quantity
                 detail.counted_at = get_taipei_time()
+                updated_items_list.append(detail.to_dict())
             
             db.session.commit()
-            return True, f"Successfully updated {len(details_to_update)} items."
+            
+            # Re-fetch the dictionaries after commit to ensure data is fresh, though not strictly necessary here
+            # For simplicity, we'll use the list built before commit.
+            
+            return True, f"Successfully updated {len(details_to_update)} items.", updated_items_list
         except Exception as e:
             db.session.rollback()
             print(f"Error in batch_update_count_details: {e}")
-            return False, f"An error occurred during the batch update: {str(e)}"
+            return False, f"An error occurred during the batch update: {str(e)}", []
 
     @classmethod
     def complete_count(cls, count_id, verified_by='', apply_adjustments=False):
