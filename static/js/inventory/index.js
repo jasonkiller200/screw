@@ -1,8 +1,9 @@
 // 快速入庫
-function quickStockIn(partNumber, warehouseId) {
+function quickStockIn(partNumber, warehouseId, locationId) {
     document.getElementById('quickActionTitle').textContent = '快速入庫';
     document.getElementById('actionPartNumber').value = partNumber;
-    document.getElementById('actionWarehouseId').value = warehouseId;
+    document.getElementById('actionWarehouseId').value = warehouseId; // Keep for context if needed, but not for submission
+    document.getElementById('actionLocationId').value = locationId; // Set the location ID
     document.getElementById('actionType').value = 'IN';
     document.getElementById('displayPartNumber').value = partNumber;
     document.getElementById('actionQuantity').value = '';
@@ -18,10 +19,11 @@ function quickStockIn(partNumber, warehouseId) {
 }
 
 // 快速出庫
-function quickStockOut(partNumber, warehouseId) {
+function quickStockOut(partNumber, warehouseId, locationId) {
     document.getElementById('quickActionTitle').textContent = '快速出庫';
     document.getElementById('actionPartNumber').value = partNumber;
     document.getElementById('actionWarehouseId').value = warehouseId;
+    document.getElementById('actionLocationId').value = locationId; // Set the location ID
     document.getElementById('actionType').value = 'OUT';
     document.getElementById('displayPartNumber').value = partNumber;
     document.getElementById('actionQuantity').value = '';
@@ -31,7 +33,6 @@ function quickStockOut(partNumber, warehouseId) {
     document.getElementById('transactionTypeInGroup').style.display = 'none';
     document.getElementById('transactionTypeOutGroup').style.display = 'block';
     
-    // Trigger change event to show/hide work order field based on default selection
     const transactionTypeOut = document.getElementById('actionTransactionTypeOut');
     if (transactionTypeOut.value === 'OUT_WORK_ORDER') {
         document.getElementById('workOrderGroup').style.display = 'block';
@@ -56,10 +57,15 @@ document.getElementById('actionTransactionTypeOut').addEventListener('change', f
 // 提交快速操作
 document.getElementById('submitQuickAction').addEventListener('click', function() {
     const partNumber = document.getElementById('actionPartNumber').value;
-    const warehouseId = document.getElementById('actionWarehouseId').value;
+    const locationId = document.getElementById('actionLocationId').value;
     const actionType = document.getElementById('actionType').value;
     const quantity = document.getElementById('actionQuantity').value;
     const notes = document.getElementById('actionNotes').value;
+    
+    if (!locationId) {
+        alert('請選擇一個儲位');
+        return;
+    }
     
     if (!quantity || quantity <= 0) {
         alert('請輸入有效的數量');
@@ -76,7 +82,7 @@ document.getElementById('submitQuickAction').addEventListener('click', function(
         }
         payload = {
             part_number: partNumber,
-            warehouse_id: parseInt(warehouseId),
+            warehouse_location_id: parseInt(locationId),
             quantity: parseInt(quantity),
             transaction_type: transactionType,
             notes: notes
@@ -90,7 +96,7 @@ document.getElementById('submitQuickAction').addEventListener('click', function(
         }
         payload = {
             part_number: partNumber,
-            warehouse_id: parseInt(warehouseId),
+            warehouse_location_id: parseInt(locationId),
             quantity: parseInt(quantity),
             transaction_type: transactionType,
             notes: notes
@@ -108,7 +114,12 @@ document.getElementById('submitQuickAction').addEventListener('click', function(
         },
         body: JSON.stringify(payload)
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => { throw new Error(err.error || '伺服器錯誤') });
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             alert(data.message);
@@ -118,7 +129,8 @@ document.getElementById('submitQuickAction').addEventListener('click', function(
         }
     })
     .catch(err => {
-        alert('網路錯誤：' + err.message);
+        console.error('Fetch Error:', err);
+        alert('網路或執行錯誤：' + err.message);
     });
     
     bootstrap.Modal.getInstance(document.getElementById('quickActionModal')).hide();

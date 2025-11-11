@@ -59,3 +59,5 @@ desktop.ini
 # Ignored by user
 import_parts_from_excel.py
 part.xlsx
+cert.key.bak 
+cert.pem.bak
