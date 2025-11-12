@@ -545,7 +545,12 @@
     }
     
     .sortable:hover {
-        background-color: rgba(255, 255, 255, 0.1);
+        background-color: rgba(255, 255, 255, 0.2);
+        color: #ffffff !important;
+    }
+    
+    .sortable:hover i {
+        color: #ffffff !important;
     }
     
     .sortable.sort-asc i {
@@ -980,7 +985,7 @@ function createBatchWeeklyOrder() {
     
     // 將數據編碼並跳轉到批量週期訂單頁面
     const encodedItems = encodeURIComponent(JSON.stringify(selectedItems));
-    const url = `{{ url_for('weekly_order.batch_register') }}?source=inventory&items=${encodedItems}`;
+    const url = `{{ url_for('weekly_order.batch_register_form') }}?source=inventory&items=${encodedItems}`;
     
     // 確認跳轉
     if (confirm(`確定要將選中的 ${selectedItems.length} 個項目加入批量週期訂單嗎？`)) {
