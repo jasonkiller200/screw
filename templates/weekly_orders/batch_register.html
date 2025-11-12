@@ -70,14 +70,20 @@
                         <!-- 公共資訊 -->
                         <div class="row mb-4">
                             <div class="col-md-6">
-                                <label for="applicant_name" class="form-label">申請人 <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="applicant_name" name="applicant_name" 
-                                       value="{{ current_user.name if current_user else '系統使用者' }}" required>
+                                <label class="form-label">申請人</label>
+                                <input type="text" class="form-control" 
+                                       value="{{ current_user.username if current_user.is_authenticated else '未登入' }}" 
+                                       readonly disabled>
+                                <input type="hidden" name="applicant_name" 
+                                       value="{{ current_user.username if current_user.is_authenticated else '系統使用者' }}">
                             </div>
                             <div class="col-md-6">
-                                <label for="department" class="form-label">申請單位 <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="department" name="department" 
-                                       value="{{ current_user.department if current_user else '生產部門' }}" required>
+                                <label class="form-label">申請單位</label>
+                                <input type="text" class="form-control" 
+                                       value="{{ current_user.department if (current_user.is_authenticated and current_user.department) else '生產部門' }}" 
+                                       readonly disabled>
+                                <input type="hidden" name="department" 
+                                       value="{{ current_user.department if (current_user.is_authenticated and current_user.department) else '生產部門' }}">
                             </div>
                         </div>
 
