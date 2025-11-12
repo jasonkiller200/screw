@@ -22,14 +22,114 @@ function updateTimeRemaining() {
 
 // 頁面載入時初始化
 document.addEventListener('DOMContentLoaded', function() {
-    // 添加第一個項目
-    addNewItem();
+    // 檢查是否有從庫存頁面傳來的預填數據
+    const prefillItems = {{ prefill_items | tojson | safe }};
     
-    // 暫時移除預填功能避免語法錯誤
+    if (prefillItems && prefillItems.length > 0) {
+        // 處理從庫存頁面傳來的數據
+        loadInventoryItems(prefillItems);
+    } else {
+        // 添加第一個空白項目
+        addNewItem();
+    }
     
     updateTimeRemaining();
     setInterval(updateTimeRemaining, 60000); // 每分鐘更新一次
 });
+
+// 載入從庫存頁面傳來的項目
+function loadInventoryItems(items) {
+    items.forEach((item, index) => {
+        // 添加新行
+        addNewItem();
+        
+        // 填入數據
+        setTimeout(() => {
+            const row = document.querySelectorAll('#batchItemsBody tr')[index];
+            if (row) {
+                // 基本信息
+                const partNumberInput = row.querySelector('input[name*="[part_number]"]');
+                const partNameInput = row.querySelector('input[name*="[part_name]"]');
+                const quantityInput = row.querySelector('input[name*="[quantity]"]');
+                const unitSelect = row.querySelector('select[name*="[unit]"]');
+                const typeInput = row.querySelector('input[name*="[part_type]"]');
+                const prioritySelect = row.querySelector('select[name*="[priority]"]');
+                const notesInput = row.querySelector('input[name*="[purpose_notes]"]');
+                const locationSelect = row.querySelector('select[name*="[warehouse_location_id]"]');
+                
+                if (partNumberInput) partNumberInput.value = item.part_number || '';
+                if (partNameInput) partNameInput.value = item.part_name || '';
+                if (quantityInput) quantityInput.value = item.suggested_quantity || '';
+                if (unitSelect) unitSelect.value = item.unit || '個';
+                if (typeInput) typeInput.value = item.part_type || '';
+                
+                // 設定優先級（低庫存項目設為緊急）
+                if (prioritySelect) {
+                    const priority = (item.available_quantity <= item.reorder_point) ? 'urgent' : 'normal';
+                    prioritySelect.value = priority;
+                }
+                
+                // 自動填入備註
+                if (notesInput) {
+                    let notes = `從庫存頁面導入 - ${item.warehouse_name} ${item.location_code}`;
+                    if (item.available_quantity <= 0) {
+                        notes += ' (缺貨)';
+                    } else if (item.available_quantity <= item.reorder_point) {
+                        notes += ' (低庫存)';
+                    }
+                    notesInput.value = notes;
+                }
+                
+                // 設定儲位
+                if (locationSelect && item.warehouse_location_id) {
+                    // 先載入該零件的所有可用儲位
+                    fetch(`/api/part/${item.part_number}/locations`)
+                        .then(response => response.json())
+                        .then(locationData => {
+                            locationSelect.innerHTML = '';
+                            
+                            if (locationData.locations && locationData.locations.length > 0) {
+                                locationSelect.disabled = false;
+                                locationSelect.required = true;
+                                
+                                locationSelect.add(new Option('請選擇儲位', ''));
+                                locationData.locations.forEach(loc => {
+                                    const option = new Option(`${loc.warehouse_name} - ${loc.location_code}`, loc.id);
+                                    locationSelect.add(option);
+                                });
+                                
+                                // 自動選中原儲位
+                                locationSelect.value = item.warehouse_location_id;
+                            } else {
+                                locationSelect.disabled = true;
+                                locationSelect.required = false;
+                                locationSelect.add(new Option('無指定儲位', ''));
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error loading locations:', error);
+                            // 使用備用方案：直接設定選項
+                            locationSelect.innerHTML = '';
+                            const optionText = `${item.warehouse_name} - ${item.location_code}`;
+                            locationSelect.add(new Option(optionText, item.warehouse_location_id));
+                            locationSelect.value = item.warehouse_location_id;
+                            locationSelect.disabled = false;
+                            locationSelect.required = true;
+                        });
+                }
+                
+                // 標記行為已預填
+                row.classList.add('prefilled');
+                row.style.backgroundColor = '#e8f5e8';
+            }
+        }, index * 100); // 延遲處理避免DOM操作衝突
+    });
+    
+    // 在最後添加一個空白行供新增
+    setTimeout(() => {
+        addNewItem();
+    }, items.length * 100 + 200);
+}
 
 // 新增項目
 function addNewItem() {
