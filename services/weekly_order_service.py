@@ -101,7 +101,7 @@ class WeeklyOrderService:
             return {'success': False, 'message': f"匯出失敗: {str(e)}"}
 
     @staticmethod
-    def review_order_registration(registration_id, action, notes, reviewer_name):
+    def review_order_registration(registration_id, action, notes, reviewer_id, reviewer_name):
         from models.weekly_order import OrderRegistration, OrderReviewLog
         try:
             registration = OrderRegistration.query.get(registration_id)
@@ -122,6 +122,7 @@ class WeeklyOrderService:
             review_log = OrderReviewLog(
                 cycle_id=registration.cycle_id,
                 registration_id=registration.id,
+                reviewer_id=reviewer_id,
                 reviewer_name=reviewer_name,
                 action=action,
                 old_status=old_status,
@@ -143,7 +144,7 @@ class WeeklyOrderService:
             return {'success': False, 'message': str(e)}
 
     @staticmethod
-    def batch_review_registrations(registration_ids, action, reviewer_name):
+    def batch_review_registrations(registration_ids, action, reviewer_id, reviewer_name):
         from models.weekly_order import OrderRegistration, OrderReviewLog
         try:
             updated_count = 0
@@ -152,10 +153,11 @@ class WeeklyOrderService:
                 if registration and registration.status == 'registered':
                     old_status = registration.status
                     registration.status = action
-                    
+
                     review_log = OrderReviewLog(
                         cycle_id=registration.cycle_id,
                         registration_id=registration.id,
+                        reviewer_id=reviewer_id,
                         reviewer_name=reviewer_name,
                         action=action,
                         old_status=old_status,
@@ -164,20 +166,20 @@ class WeeklyOrderService:
                     )
                     db.session.add(review_log)
                     updated_count += 1
-            
+
             db.session.commit()
-            
+
             return {
                 'success': True,
                 'message': f'已批量處理 {updated_count} 個項目'
             }
-            
+
         except Exception as e:
             db.session.rollback()
             return {'success': False, 'message': str(e)}
 
     @staticmethod
-    def register_new_order(cycle_id, form_data):
+    def register_new_order(cycle_id, form_data, user_id, user_name, user_department):
         from models.weekly_order import WeeklyOrderCycle, OrderRegistration
         try:
             current_cycle = WeeklyOrderCycle.query.get(cycle_id)
@@ -204,8 +206,9 @@ class WeeklyOrderService:
                 required_date=datetime.strptime(form_data.get('required_date'), '%Y-%m-%d') if form_data.get('required_date') else None,
                 priority=form_data.get('priority', 'normal').strip(),
                 purpose_notes=form_data.get('purpose_notes', '').strip(),
-                applicant_name=form_data.get('applicant_name', '').strip(),
-                department=form_data.get('department', '').strip()
+                applicant_id=user_id,
+                applicant_name=user_name,
+                department=user_department or '未設定'
             )
             
             db.session.add(registration)

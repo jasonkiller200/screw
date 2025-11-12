@@ -87,7 +87,13 @@ def register_order():
         prefill_data['warehouse_location_id'] = request.args.get('warehouse_location_id', type=int) # New
 
     if request.method == 'POST':
-        result = WeeklyOrderService.register_new_order(current_cycle.id, request.form)
+        result = WeeklyOrderService.register_new_order(
+            current_cycle.id, 
+            request.form,
+            user_id=current_user.id,
+            user_name=current_user.full_name,
+            user_department=current_user.department
+        )
         if result['success']:
             flash(result['message'], 'success')
             return redirect(url_for('weekly_order.weekly_orders'))
@@ -177,12 +183,10 @@ def batch_register_form():
     # POST 處理表單提交
     if request.method == 'POST':
         try:
-            applicant_name = request.form.get('applicant_name', '').strip()
-            department = request.form.get('department', '').strip()
-            
-            if not applicant_name or not department:
-                flash('請填寫申請人和申請單位', 'error')
-                return redirect(request.url)
+            # 直接使用 current_user，移除表單驗證
+            applicant_name = current_user.full_name
+            applicant_id = current_user.id
+            department = current_user.department or '未設定'
             
             added_count = 0
             
@@ -223,6 +227,7 @@ def batch_register_form():
                 registration.category = request.form.get(f'items[{item_index}][part_type]', '').strip()
                 registration.priority = request.form.get(f'items[{item_index}][priority]', 'normal').strip()
                 registration.purpose_notes = request.form.get(f'items[{item_index}][purpose_notes]', '').strip()
+                registration.applicant_id = applicant_id
                 registration.applicant_name = applicant_name
                 registration.department = department
 
@@ -324,9 +329,14 @@ def review_registration(registration_id):
     data = request.get_json()
     action = data.get('action')  # approved, rejected
     notes = data.get('notes', '')
-    reviewer_name = '主管'  # 暫時固定，之後改為登入用戶
 
-    result = WeeklyOrderService.review_order_registration(registration_id, action, notes, reviewer_name)
+    result = WeeklyOrderService.review_order_registration(
+        registration_id, 
+        action, 
+        notes, 
+        reviewer_id=current_user.id,
+        reviewer_name=current_user.full_name
+    )
     
     if result['success']:
         return jsonify(result)
@@ -340,9 +350,13 @@ def batch_review():
     data = request.get_json()
     registration_ids = data.get('registration_ids', [])
     action = data.get('action', 'approved')
-    reviewer_name = '主管'
     
-    result = WeeklyOrderService.batch_review_registrations(registration_ids, action, reviewer_name)
+    result = WeeklyOrderService.batch_review_registrations(
+        registration_ids, 
+        action, 
+        reviewer_id=current_user.id,
+        reviewer_name=current_user.full_name
+    )
     
     if result['success']:
         return jsonify(result)

@@ -158,16 +158,12 @@
                                 <input type="text" class="form-control" 
                                        value="{{ current_user.full_name if current_user.is_authenticated else '未登入' }}" 
                                        readonly disabled>
-                                <input type="hidden" name="applicant_name" 
-                                       value="{{ current_user.full_name if current_user.is_authenticated else '系統使用者' }}">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">申請單位</label>
                                 <input type="text" class="form-control" 
-                                       value="{{ current_user.department if (current_user.is_authenticated and current_user.department) else '生產部門' }}" 
+                                       value="{{ current_user.department if (current_user.is_authenticated and current_user.department) else '未設定' }}" 
                                        readonly disabled>
-                                <input type="hidden" name="department" 
-                                       value="{{ current_user.department if (current_user.is_authenticated and current_user.department) else '生產部門' }}">
                             </div>
                         </div>
 
