@@ -156,10 +156,10 @@
                             <div class="col-md-6">
                                 <label class="form-label">申請人</label>
                                 <input type="text" class="form-control" 
-                                       value="{{ current_user.username if current_user.is_authenticated else '未登入' }}" 
+                                       value="{{ current_user.full_name if current_user.is_authenticated else '未登入' }}" 
                                        readonly disabled>
                                 <input type="hidden" name="applicant_name" 
-                                       value="{{ current_user.username if current_user.is_authenticated else '系統使用者' }}">
+                                       value="{{ current_user.full_name if current_user.is_authenticated else '系統使用者' }}">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">申請單位</label>

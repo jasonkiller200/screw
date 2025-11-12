@@ -436,7 +436,7 @@ def inventory_transactions():
             'warehouse_name': transaction.warehouse_location.warehouse.name if transaction.warehouse_location and transaction.warehouse_location.warehouse else 'N/A',
             'location_code': transaction.warehouse_location.location_code if transaction.warehouse_location else 'N/A',
             'quantity': transaction.quantity,
-            'user_name': transaction.user.username if transaction.user else None,
+            'user_name': transaction.user.full_name if transaction.user else None,
             'reference_type': transaction.reference_type,
             'reference_id': transaction.reference_id,
             'notes': transaction.notes
