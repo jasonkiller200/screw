@@ -66,6 +66,144 @@
     </div>
 </div>
 
+<!-- 新手歡迎提示 -->
+<div class="row mb-3" id="welcomeTip" style="display: none;">
+    <div class="col-12">
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+            <div class="d-flex align-items-start">
+                <div class="me-3">
+                    <i class="fas fa-hand-paper fa-2x text-info"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h6 class="alert-heading mb-2">
+                        <i class="fas fa-star me-1"></i>歡迎使用庫存管理系統！
+                    </h6>
+                    <p class="mb-2">
+                        這裡是您的庫存控制中心。您可以查看所有零件的庫存狀況、進行快速操作，並設定庫存警示參數。
+                    </p>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-info" onclick="showInventoryGuide()">
+                            <i class="fas fa-question-circle me-1"></i>查看功能說明
+                        </button>
+                        <button class="btn btn-sm btn-outline-success" onclick="hideWelcomeTip(true)">
+                            <i class="fas fa-check me-1"></i>我知道了
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="btn-close" onclick="hideWelcomeTip(true)" aria-label="關閉"></button>
+        </div>
+    </div>
+</div>
+
+<!-- 庫存狀態說明 -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card border-info">
+            <div class="card-header bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-info-circle me-2 text-info"></i>庫存狀態說明</h6>
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="showWelcomeTip()" 
+                                title="重新顯示歡迎提示" style="font-size: 0.75rem;">
+                            <i class="fas fa-undo-alt"></i> 重新導覽
+                        </button>
+                        <button class="btn btn-sm btn-link text-muted p-0" type="button" data-bs-toggle="collapse" 
+                                data-bs-target="#inventoryGuide" aria-expanded="false" aria-controls="inventoryGuide">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="collapse" id="inventoryGuide">
+                <div class="card-body bg-light">
+                    <div class="row">
+                        <!-- 狀態說明 -->
+                        <div class="col-md-6">
+                            <h6 class="text-primary"><i class="fas fa-traffic-light me-1"></i>庫存狀態</h6>
+                            <div class="mb-3">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="badge bg-success me-2">正常</span>
+                                    <small class="text-muted">可用庫存 > 補貨點，庫存充足</small>
+                                </div>
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="badge bg-warning me-2">低庫存</span>
+                                    <small class="text-muted">可用庫存 ≤ 補貨點，建議補貨</small>
+                                </div>
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-danger me-2">缺貨</span>
+                                    <small class="text-muted">可用庫存 = 0，無法出庫</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 欄位說明 -->
+                        <div class="col-md-6">
+                            <h6 class="text-primary"><i class="fas fa-table me-1"></i>欄位說明</h6>
+                            <div class="mb-3">
+                                <div class="row text-sm">
+                                    <div class="col-5"><strong>現有庫存</strong></div>
+                                    <div class="col-7"><small class="text-muted">實際在庫數量</small></div>
+                                    
+                                    <div class="col-5"><strong>可用庫存</strong></div>
+                                    <div class="col-7"><small class="text-muted">現有庫存 - 預留數量</small></div>
+                                    
+                                    <div class="col-5"><strong>安全庫存</strong></div>
+                                    <div class="col-7"><small class="text-muted">最低安全存量，可編輯</small></div>
+                                    
+                                    <div class="col-5"><strong>補貨點</strong></div>
+                                    <div class="col-7"><small class="text-muted">觸發補貨警示，可編輯</small></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 快捷操作說明 -->
+                    <div class="row">
+                        <div class="col-12">
+                            <h6 class="text-primary"><i class="fas fa-mouse me-1"></i>快捷操作</h6>
+                            <div class="d-flex flex-wrap gap-2">
+                                <div class="d-flex align-items-center">
+                                    <button class="btn btn-outline-primary btn-sm me-2" disabled>
+                                        <i class="fas fa-save"></i>
+                                    </button>
+                                    <small class="text-muted">儲存庫存設定</small>
+                                </div>
+                                <div class="d-flex align-items-center">
+                                    <button class="btn btn-outline-success btn-sm me-2" disabled>
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                    <small class="text-muted">快速入庫</small>
+                                </div>
+                                <div class="d-flex align-items-center">
+                                    <button class="btn btn-outline-warning btn-sm me-2" disabled>
+                                        <i class="fas fa-minus"></i>
+                                    </button>
+                                    <small class="text-muted">快速出庫</small>
+                                </div>
+                                <div class="d-flex align-items-center">
+                                    <button class="btn btn-outline-info btn-sm me-2" disabled>
+                                        <i class="fas fa-history"></i>
+                                    </button>
+                                    <small class="text-muted">查看異動記錄</small>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-2">
+                                <small class="text-info">
+                                    <i class="fas fa-lightbulb me-1"></i>
+                                    <strong>小提示：</strong>
+                                    黃色背景行表示低庫存項目 | 直接修改安全庫存與補貨點後記得點擊儲存 | 點擊操作按鈕可快速進行庫存異動
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 低庫存警告 -->
 {% if low_stock_items %}
 <div class="row mb-4">
@@ -276,6 +414,216 @@
 </div>
 {% endblock %}
 
+{% block extra_css %}
+<style>
+    /* 庫存狀態說明區塊樣式 */
+    #inventoryGuide .text-sm {
+        font-size: 0.875rem;
+    }
+    
+    #inventoryGuide .row > div {
+        margin-bottom: 0.25rem;
+    }
+    
+    /* 摺疊動畫效果 */
+    #inventoryGuide {
+        transition: all 0.3s ease;
+    }
+    
+    /* 狀態徽章樣式優化 */
+    #inventoryGuide .badge {
+        font-size: 0.75rem;
+        min-width: 60px;
+        text-align: center;
+    }
+    
+    /* 快捷操作按鈕樣式 */
+    #inventoryGuide .btn[disabled] {
+        opacity: 0.8;
+        cursor: default;
+    }
+    
+    /* 提示卡片樣式 */
+    .card.border-info {
+        border-color: #17a2b8 !important;
+    }
+    
+    .card.border-info .card-header {
+        border-bottom: 1px solid #17a2b8;
+    }
+    
+    /* 摺疊按鈕動畫 */
+    .collapse-btn {
+        transition: transform 0.3s ease;
+    }
+    
+    .collapse-btn[aria-expanded="true"] {
+        transform: rotate(180deg);
+    }
+    
+    /* 響應式調整 */
+    @media (max-width: 768px) {
+        #inventoryGuide .d-flex.flex-wrap > div {
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+        
+        #inventoryGuide .row.text-sm > div {
+            margin-bottom: 0.5rem;
+        }
+    }
+    
+    /* 低庫存行高亮效果增強 */
+    .table-warning {
+        background-color: rgba(255, 193, 7, 0.2) !important;
+        border-left: 3px solid #ffc107;
+    }
+    
+    /* 工具提示樣式 */
+    .info-tooltip {
+        background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+        border-radius: 8px;
+        padding: 0.5rem;
+        margin: 0.25rem 0;
+    }
+</style>
+{% endblock %}
+
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/inventory/index.js') }}"></script>
+<script>
+// 庫存管理頁面交互功能
+document.addEventListener('DOMContentLoaded', function() {
+    // 初始化摺疊按鈕動畫
+    initCollapseAnimation();
+    
+    // 檢查是否需要顯示歡迎提示
+    checkWelcomeTip();
+    
+    // 初始化工具提示
+    initTooltips();
+});
+
+// 摺疊按鈕動畫
+function initCollapseAnimation() {
+    const collapseButton = document.querySelector('[data-bs-target="#inventoryGuide"]');
+    const collapseIcon = collapseButton?.querySelector('i');
+    
+    if (collapseButton && collapseIcon) {
+        collapseButton.addEventListener('click', function() {
+            setTimeout(() => {
+                const isExpanded = this.getAttribute('aria-expanded') === 'true';
+                collapseIcon.className = isExpanded ? 'fas fa-chevron-up' : 'fas fa-chevron-down';
+            }, 150);
+        });
+    }
+}
+
+// 檢查歡迎提示
+function checkWelcomeTip() {
+    const isFirstVisit = !localStorage.getItem('inventory-welcome-seen');
+    const hasLowStock = document.querySelectorAll('.table-warning').length > 0;
+    
+    if (isFirstVisit || hasLowStock) {
+        showWelcomeTip();
+    }
+}
+
+// 顯示歡迎提示
+function showWelcomeTip() {
+    const welcomeTip = document.getElementById('welcomeTip');
+    if (welcomeTip) {
+        welcomeTip.style.display = 'block';
+        
+        // 平滑滾動到頂部
+        setTimeout(() => {
+            welcomeTip.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start' 
+            });
+        }, 100);
+    }
+}
+
+// 隱藏歡迎提示
+function hideWelcomeTip(remember = false) {
+    const welcomeTip = document.getElementById('welcomeTip');
+    if (welcomeTip) {
+        // 淡出動畫
+        welcomeTip.style.transition = 'opacity 0.3s ease';
+        welcomeTip.style.opacity = '0';
+        
+        setTimeout(() => {
+            welcomeTip.style.display = 'none';
+            welcomeTip.style.opacity = '1';
+        }, 300);
+        
+        // 記住用戶選擇
+        if (remember) {
+            localStorage.setItem('inventory-welcome-seen', 'true');
+        }
+    }
+}
+
+// 顯示功能說明
+function showInventoryGuide() {
+    const collapseElement = document.getElementById('inventoryGuide');
+    const collapseButton = document.querySelector('[data-bs-target="#inventoryGuide"]');
+    
+    if (collapseElement) {
+        // 展開說明區塊
+        const bsCollapse = new bootstrap.Collapse(collapseElement, {
+            show: true
+        });
+        
+        // 更新按鈕狀態
+        if (collapseButton) {
+            collapseButton.setAttribute('aria-expanded', 'true');
+            const icon = collapseButton.querySelector('i');
+            if (icon) {
+                icon.className = 'fas fa-chevron-up';
+            }
+        }
+        
+        // 隱藏歡迎提示
+        hideWelcomeTip();
+        
+        // 滾動到說明區域
+        setTimeout(() => {
+            collapseElement.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start' 
+            });
+        }, 350);
+    }
+}
+
+// 初始化工具提示
+function initTooltips() {
+    // 初始化 Bootstrap 工具提示
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // 為狀態徽章添加懸停效果
+    const statusBadges = document.querySelectorAll('#inventoryGuide .badge');
+    statusBadges.forEach(badge => {
+        badge.addEventListener('mouseenter', function() {
+            this.style.transform = 'scale(1.05)';
+            this.style.transition = 'transform 0.2s ease';
+        });
+        
+        badge.addEventListener('mouseleave', function() {
+            this.style.transform = 'scale(1)';
+        });
+    });
+}
+
+// 重置歡迎提示（開發用）
+function resetWelcomeTip() {
+    localStorage.removeItem('inventory-welcome-seen');
+    showWelcomeTip();
+}
+</script>
 {% endblock %}
