@@ -103,6 +103,9 @@
 <h5 class="mb-0">盤點明細</h5>
                 <div>
                     {% if count_info.status == 'counting' %}
+                    <button id="batch-save-btn" class="btn btn-info btn-sm me-2" onclick="batchSaveCounts()">
+                        <i class="fas fa-save me-1"></i>批量儲存
+                    </button>
                     <button class="btn btn-success btn-sm me-2" onclick="showImportModal()">
                         <i class="fas fa-upload me-1"></i>匯入盤點結果
                     </button>
@@ -166,7 +169,7 @@
                                 <td>
                                     <span class="badge bg-secondary">{{ detail.location_code }}</span>
                                 </td>
-                                <td class="text-end">{{ detail.system_quantity }}</td>
+                                <td class="text-end system-qty">{{ detail.system_quantity }}</td>
                                 <td class="text-end">
                                     {% if count_info.status == 'counting' %}
                                     <input type="number" class="form-control form-control-sm count-input" 
@@ -179,7 +182,7 @@
                                     {{ detail.counted_quantity or '-' }}
                                     {% endif %}
                                 </td>
-                                <td class="text-end">
+                                <td class="text-end variance-qty">
                                     {% if detail.counted_quantity is not none %}
                                         {% set diff = detail.counted_quantity - detail.system_quantity %}
                                         {% if diff > 0 %}
@@ -193,7 +196,7 @@
                                         <span class="text-muted">-</span>
                                     {% endif %}
                                 </td>
-                                <td class="text-end">
+                                <td class="text-end variance-rate">
                                     {% if detail.counted_quantity is not none and detail.system_quantity > 0 %}
                                         {% set diff_rate = ((detail.counted_quantity - detail.system_quantity) / detail.system_quantity * 100) %}
                                         {% if diff_rate > 0 %}
@@ -203,11 +206,13 @@
                                         {% else %}
                                             <span class="text-muted">0.0%</span>
                                         {% endif %}
+                                    {% elif detail.counted_quantity is not none and detail.system_quantity == 0 and detail.counted_quantity != 0 %}
+                                        <span class="text-success">+∞%</span>
                                     {% else %}
                                         <span class="text-muted">-</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ detail.counted_at or '-' }}</td>
+                                <td class="counted-at">{{ detail.counted_at or '-' }}</td>
                                 {% if count_info.status == 'counting' %}
                                 <td>
                                     <button class="btn btn-outline-success btn-sm" 

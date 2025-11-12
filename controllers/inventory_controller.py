@@ -51,6 +51,24 @@ def get_part_stock(part_number):
         'stock_info': stock_info
     })
 
+@inventory_api_bp.route('/part-by-barcode', methods=['GET'])
+def get_part_by_barcode():
+    """根據條碼取得零件資訊及可用儲位庫存"""
+    barcode = request.args.get('barcode')
+    warehouse_id = request.args.get('warehouse_id', type=int)
+
+    if not barcode:
+        return jsonify({'error': 'Barcode is required'}), 400
+    if not warehouse_id:
+        return jsonify({'error': 'Warehouse ID is required'}), 400
+
+    part_data = Part.get_by_barcode_with_locations_and_stock(barcode, warehouse_id)
+
+    if not part_data:
+        return jsonify({'error': 'Part not found or no stock in this warehouse'}), 404
+
+    return jsonify(part_data)
+
 @inventory_api_bp.route('/low-stock', methods=['GET'])
 @login_required
 def get_low_stock():
@@ -274,12 +292,51 @@ def update_count_detail(count_id, detail_id):
     except (ValueError, TypeError):
         return jsonify({'error': 'Invalid counted_quantity'}), 400
     
-    success = StockCount.update_count_detail(detail_id, counted_quantity, notes)
+    success, updated_detail = StockCount.update_count_detail(detail_id, counted_quantity, notes)
     
     if success:
-        return jsonify({'success': True, 'message': 'Count detail updated successfully'})
+        return jsonify({
+            'success': True, 
+            'message': 'Count detail updated successfully',
+            'updated_item': updated_detail
+        })
     else:
         return jsonify({'error': 'Failed to update count detail'}), 500
+
+@inventory_api_bp.route('/stock-counts/<int:count_id>/batch-update', methods=['POST'])
+def batch_update_count_details(count_id):
+    """批量更新盤點明細"""
+    data = request.get_json()
+    if not isinstance(data, list):
+        return jsonify({'error': 'Request body must be a list of count details'}), 400
+
+    updates = []
+    for item in data:
+        detail_id = item.get('detail_id')
+        counted_quantity = item.get('counted_quantity')
+
+        if detail_id is None or counted_quantity is None:
+            return jsonify({'error': 'Each item must have detail_id and counted_quantity'}), 400
+        
+        try:
+            counted_quantity = int(counted_quantity)
+            if counted_quantity < 0:
+                raise ValueError("Quantity cannot be negative")
+        except (ValueError, TypeError):
+            return jsonify({'error': f'Invalid counted_quantity for detail_id {detail_id}'}), 400
+        
+        updates.append({'detail_id': detail_id, 'counted_quantity': counted_quantity})
+
+    if not updates:
+        return jsonify({'success': True, 'message': 'No updates to perform.'})
+
+    # This method now returns a list of updated items
+    success, message, updated_items = StockCount.batch_update_count_details(updates)
+
+    if success:
+        return jsonify({'success': True, 'message': message, 'updated_items': updated_items})
+    else:
+        return jsonify({'error': message}), 500
 
 @inventory_api_bp.route('/stock-counts/<int:count_id>/complete', methods=['POST'])
 @login_required
