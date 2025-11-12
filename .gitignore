@@ -61,3 +61,5 @@ import_parts_from_excel.py
 part.xlsx
 cert.key.bak 
 cert.pem.bak
+#acli_rovodev_bulid
+start_ai_system.bat
