@@ -37,7 +37,7 @@ class WeeklyOrderService:
             # 獲取審查記錄
             review_logs = OrderReviewLog.query.filter_by(
                 cycle_id=cycle_id,
-                action='approve'
+                action='approved'
             ).order_by(OrderReviewLog.created_at.desc()).all()
             
             reviewers = set()
