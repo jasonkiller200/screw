@@ -6,6 +6,7 @@ from controllers.inventory_controller import inventory_api_bp
 from controllers.weekly_order_controller import weekly_order_bp
 from controllers.ai_controller import ai_bp
 from controllers.auth_controller import auth_bp  # 新增
+from controllers.user_controller import user_bp  # 使用者管理
 from extensions import db, migrate, login_manager  # 新增 login_manager
 from datetime import timedelta
 
@@ -44,6 +45,7 @@ def create_app():
     
     # 註冊藍圖
     app.register_blueprint(auth_bp)             # 驗證路由 (/login, /register, /logout)
+    app.register_blueprint(user_bp)             # 使用者管理路由 (/users/...)
     app.register_blueprint(api_bp)              # API 路由 (/api/...)
     app.register_blueprint(inventory_api_bp)    # 庫存 API 路由 (/api/inventory/...)
     app.register_blueprint(web_bp)              # 網頁路由 (/...)

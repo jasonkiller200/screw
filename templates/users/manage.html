@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+
+{% block title %}使用者管理{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h2><i class="fas fa-users me-2"></i>使用者管理</h2>
+        </div>
+        <div class="col-md-6 text-end">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
+                <i class="fas fa-user-plus me-2"></i>新增使用者
+            </button>
+        </div>
+    </div>
+
+    <!-- 搜尋與篩選 -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('user.manage_users') }}" class="row g-3">
+                <div class="col-md-4">
+                    <input type="text" class="form-control" name="search" 
+                           placeholder="搜尋使用者名稱、全名、Email、部門..." 
+                           value="{{ search }}">
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" name="role">
+                        <option value="">所有角色</option>
+                        <option value="admin" {% if role_filter == 'admin' %}selected{% endif %}>管理員</option>
+                        <option value="manager" {% if role_filter == 'manager' %}selected{% endif %}>主管</option>
+                        <option value="user" {% if role_filter == 'user' %}selected{% endif %}>一般使用者</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" name="status">
+                        <option value="">所有狀態</option>
+                        <option value="active" {% if status_filter == 'active' %}selected{% endif %}>啟用</option>
+                        <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>停用</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" name="per_page">
+                        <option value="20" {% if request.args.get('per_page', '20') == '20' %}selected{% endif %}>20筆/頁</option>
+                        <option value="50" {% if request.args.get('per_page') == '50' %}selected{% endif %}>50筆/頁</option>
+                        <option value="100" {% if request.args.get('per_page') == '100' %}selected{% endif %}>100筆/頁</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i>搜尋
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 使用者列表 -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th width="5%">ID</th>
+                            <th width="12%">使用者名稱</th>
+                            <th width="12%">全名</th>
+                            <th width="15%">Email</th>
+                            <th width="10%">部門</th>
+                            <th width="8%">角色</th>
+                            <th width="8%">狀態</th>
+                            <th width="12%">最後登入</th>
+                            <th width="12%">建立時間</th>
+                            <th width="6%">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if users %}
+                            {% for user in users %}
+                            <tr>
+                                <td>{{ user.id }}</td>
+                                <td>
+                                    <strong>{{ user.username }}</strong>
+                                    {% if user.id == current_user.id %}
+                                    <span class="badge bg-info">目前使用者</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ user.full_name }}</td>
+                                <td>{{ user.email or '-' }}</td>
+                                <td>{{ user.department or '-' }}</td>
+                                <td>
+                                    {% if user.role == 'admin' %}
+                                    <span class="badge bg-danger">管理員</span>
+                                    {% elif user.role == 'manager' %}
+                                    <span class="badge bg-warning">主管</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">一般使用者</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if user.is_active %}
+                                    <span class="badge bg-success">啟用</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">停用</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else '-' }}</td>
+                                <td>{{ user.created_at.strftime('%Y-%m-%d %H:%M') if user.created_at else '-' }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary btn-sm" 
+                                                onclick="editUser({{ user.id }})" 
+                                                title="編輯">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        {% if user.id != current_user.id %}
+                                        <button class="btn btn-outline-warning btn-sm" 
+                                                onclick="toggleUserStatus({{ user.id }}, {{ user.is_active|lower }})"
+                                                title="{{ '停用' if user.is_active else '啟用' }}">
+                                            <i class="fas fa-{{ 'ban' if user.is_active else 'check' }}"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="10" class="text-center text-muted">沒有符合條件的使用者</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 分頁 -->
+            {% if pagination and pagination.pages > 1 %}
+            <nav aria-label="使用者列表分頁">
+                <ul class="pagination justify-content-center mb-0">
+                    <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('user.manage_users', page=pagination.prev_num, search=search, role=role_filter, status=status_filter, per_page=request.args.get('per_page', 20)) }}">上一頁</a>
+                    </li>
+                    {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if page_num %}
+                            <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                                <a class="page-link" href="{{ url_for('user.manage_users', page=page_num, search=search, role=role_filter, status=status_filter, per_page=request.args.get('per_page', 20)) }}">{{ page_num }}</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                    {% endfor %}
+                    <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('user.manage_users', page=pagination.next_num, search=search, role=role_filter, status=status_filter, per_page=request.args.get('per_page', 20)) }}">下一頁</a>
+                    </li>
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- 新增使用者Modal -->
+<div class="modal fade" id="createUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">新增使用者</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createUserForm">
+                    <div class="mb-3">
+                        <label class="form-label">使用者名稱 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">全名 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="full_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" name="email">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">部門</label>
+                        <input type="text" class="form-control" name="department">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">角色 <span class="text-danger">*</span></label>
+                        <select class="form-select" name="role" required>
+                            <option value="user">一般使用者</option>
+                            <option value="manager">主管</option>
+                            <option value="admin">管理員</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">密碼 <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" name="password" required>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" name="is_active" checked>
+                        <label class="form-check-label">啟用帳號</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="createUser()">建立</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 編輯使用者Modal -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">編輯使用者</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editUserForm">
+                    <input type="hidden" name="user_id">
+                    <div class="mb-3">
+                        <label class="form-label">使用者名稱 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">全名 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="full_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" name="email">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">部門</label>
+                        <input type="text" class="form-control" name="department">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">角色 <span class="text-danger">*</span></label>
+                        <select class="form-select" name="role" required>
+                            <option value="user">一般使用者</option>
+                            <option value="manager">主管</option>
+                            <option value="admin">管理員</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">新密碼（留空則不更改）</label>
+                        <input type="password" class="form-control" name="password">
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" name="is_active">
+                        <label class="form-check-label">啟用帳號</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="updateUser()">儲存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function createUser() {
+    const form = document.getElementById('createUserForm');
+    const formData = new FormData(form);
+    const data = {
+        username: formData.get('username'),
+        full_name: formData.get('full_name'),
+        email: formData.get('email'),
+        department: formData.get('department'),
+        role: formData.get('role'),
+        password: formData.get('password'),
+        is_active: formData.get('is_active') === 'on'
+    };
+
+    fetch('/users/api/create', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert(result.message);
+            location.reload();
+        } else {
+            alert('錯誤：' + result.message);
+        }
+    })
+    .catch(error => {
+        alert('發生錯誤：' + error);
+    });
+}
+
+function editUser(userId) {
+    fetch(`/users/api/list`)
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            const user = result.users.find(u => u.id === userId);
+            if (user) {
+                const form = document.getElementById('editUserForm');
+                form.querySelector('[name="user_id"]').value = user.id;
+                form.querySelector('[name="username"]').value = user.username;
+                form.querySelector('[name="full_name"]').value = user.full_name;
+                form.querySelector('[name="email"]').value = user.email || '';
+                form.querySelector('[name="department"]').value = user.department || '';
+                form.querySelector('[name="role"]').value = user.role;
+                form.querySelector('[name="is_active"]').checked = user.is_active;
+                form.querySelector('[name="password"]').value = '';
+                
+                const modal = new bootstrap.Modal(document.getElementById('editUserModal'));
+                modal.show();
+            }
+        }
+    })
+    .catch(error => {
+        alert('載入使用者資料失敗：' + error);
+    });
+}
+
+function updateUser() {
+    const form = document.getElementById('editUserForm');
+    const formData = new FormData(form);
+    const userId = formData.get('user_id');
+    const data = {
+        username: formData.get('username'),
+        full_name: formData.get('full_name'),
+        email: formData.get('email'),
+        department: formData.get('department'),
+        role: formData.get('role'),
+        is_active: formData.get('is_active') === 'on'
+    };
+    
+    if (formData.get('password')) {
+        data.password = formData.get('password');
+    }
+
+    fetch(`/users/api/${userId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert(result.message);
+            location.reload();
+        } else {
+            alert('錯誤：' + result.message);
+        }
+    })
+    .catch(error => {
+        alert('發生錯誤：' + error);
+    });
+}
+
+function toggleUserStatus(userId, currentStatus) {
+    const action = currentStatus ? '停用' : '啟用';
+    if (!confirm(`確定要${action}這個使用者嗎？`)) {
+        return;
+    }
+
+    fetch(`/users/api/${userId}/toggle-status`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert(result.message);
+            location.reload();
+        } else {
+            alert('錯誤：' + result.message);
+        }
+    })
+    .catch(error => {
+        alert('發生錯誤：' + error);
+    });
+}
+</script>
+{% endblock %}
