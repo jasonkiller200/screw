@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
+from flask_login import login_required, current_user
 from models.part import Part, Warehouse, WarehouseLocation, PartWarehouseLocation # Import PartWarehouseLocation for dummy object
 from models.order import Order
 from models.inventory import CurrentInventory, InventoryTransaction, StockCount
@@ -19,11 +20,13 @@ class DummyPartWarehouseLocation:
         self.warehouse_location = warehouse_location
 
 @web_bp.route('/')
+@login_required
 def index():
     """Main dashboard page."""
     return render_template('index.html')
 
 @web_bp.route('/parts')
+@login_required
 def parts():
     """Parts management page with pagination."""
     page = request.args.get('page', 1, type=int)
@@ -48,25 +51,21 @@ def parts():
                            per_page=per_page)
 
 @web_bp.route('/orders')
+@login_required
 def orders():
     """重定向到週期訂單頁面"""
     flash('所有訂單管理已統一到週期訂單系統中', 'info')
     return redirect(url_for('weekly_order.weekly_orders'))
 
 @web_bp.route('/order-history')
+@login_required
 def order_history():
-    """歷史訂單記錄頁面 - 只顯示已遷移的訂單"""
-    migrated_orders = Order.query.filter_by(status='migrated').order_by(db.desc(Order.order_date)).all()
-    confirmed_orders = Order.query.filter_by(status='confirmed').order_by(db.desc(Order.order_date)).all()
-    
-    all_history_orders = migrated_orders + confirmed_orders
-    
-    return render_template('order_history.html', 
-                         history_orders=all_history_orders,
-                         migrated_count=len(migrated_orders),
-                         confirmed_count=len(confirmed_orders))
+    """歷史訂單記錄頁面 - 重定向到新的統一歷史頁面"""
+    flash('歷史記錄已整合到訂單管理模組', 'info')
+    return redirect(url_for('weekly_order.order_history'))
 
 @web_bp.route('/work-orders')
+@login_required
 def work_orders():
     """工單需求管理頁面"""
     from models.work_order import WorkOrderDemand
@@ -99,6 +98,7 @@ def work_orders():
 from services.work_order_service import WorkOrderService
 
 @web_bp.route('/work-orders/import', methods=['POST'])
+@login_required
 def import_work_order_demands():
     """匯入工單需求資料"""
     if 'excel_file' not in request.files:
@@ -118,6 +118,7 @@ def import_work_order_demands():
     return jsonify(result)
 
 @web_bp.route('/part_lookup')
+@login_required
 def part_lookup():
     """Part lookup page for barcode scanning."""
     # Fetch all warehouse locations for the modal dropdown
@@ -133,6 +134,7 @@ def part_lookup():
     return render_template('part_lookup.html', all_warehouse_locations=locations_for_modal)
 
 @web_bp.route('/parts/new', methods=['GET', 'POST'])
+@login_required
 def new_part():
     """Create new part page."""
     warehouses = Warehouse.get_all()
@@ -163,6 +165,7 @@ def new_part():
     return render_template('part_form.html', part={}, warehouses=warehouses)
 
 @web_bp.route('/parts/<int:part_id>/edit', methods=['GET', 'POST'])
+@login_required
 def edit_part(part_id):
     """Edit part page."""
     warehouses = Warehouse.get_all()
@@ -244,6 +247,7 @@ def edit_part(part_id):
     return render_template('part_form.html', part=part_data_for_template, edit_mode=True, warehouses=warehouses)
 
 @web_bp.route('/parts/<int:part_id>/delete', methods=['POST'])
+@login_required
 def delete_part(part_id):
     """Delete part."""
     success = Part.delete(part_id)
@@ -256,6 +260,7 @@ def delete_part(part_id):
     return redirect(url_for('web.parts'))
 
 @web_bp.route('/parts/import', methods=['POST'])
+@login_required
 def import_parts():
     """Batch import parts from an XLSX file."""
     if 'file' not in request.files:
@@ -288,6 +293,7 @@ def import_parts():
         return redirect(url_for('web.parts'))
 
 @web_bp.route('/parts/import/example')
+@login_required
 def import_parts_example():
     """Downloads a sample XLSX file for batch import."""
     data = {
@@ -315,6 +321,7 @@ def import_parts_example():
 
 # 庫存管理路由
 @web_bp.route('/inventory')
+@login_required
 def inventory():
     """庫存管理首頁"""
     warehouse_id = request.args.get('warehouse_id', type=int)
@@ -329,16 +336,19 @@ def inventory():
                          selected_warehouse_id=warehouse_id)
 
 @web_bp.route('/inventory/adjustment')
+@login_required
 def inventory_adjustment():
     """即時庫存調整頁面"""
     return render_template('inventory/adjustment.html')
 
 @web_bp.route('/inventory/transactions')
+@login_required
 def inventory_transactions():
     """交易記錄頁面"""
     # 取得篩選參數
     part_id = request.args.get('part_id', type=int)
     warehouse_id = request.args.get('warehouse_id', type=int)
+    location_id = request.args.get('location_id', type=int)  # 新增儲位參數
     transaction_type = request.args.get('transaction_type')
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
@@ -361,8 +371,11 @@ def inventory_transactions():
     # 應用篩選條件
     if part_id:
         transactions_query = transactions_query.filter(InventoryTransaction.part_id == part_id)
-    if warehouse_id:
-        # Since the form gives warehouse_id, we filter on the joined Warehouse table
+    if location_id:
+        # 優先使用 location_id（更精確）
+        transactions_query = transactions_query.filter(InventoryTransaction.warehouse_location_id == location_id)
+    elif warehouse_id:
+        # 如果沒有 location_id，才用 warehouse_id
         transactions_query = transactions_query.filter(Warehouse.id == warehouse_id)
     if transaction_type:
         if transaction_type == 'IN':
@@ -416,6 +429,7 @@ def inventory_transactions():
             'warehouse_name': transaction.warehouse_location.warehouse.name if transaction.warehouse_location and transaction.warehouse_location.warehouse else 'N/A',
             'location_code': transaction.warehouse_location.location_code if transaction.warehouse_location else 'N/A',
             'quantity': transaction.quantity,
+            'user_name': transaction.user.full_name if transaction.user else None,
             'reference_type': transaction.reference_type,
             'reference_id': transaction.reference_id,
             'notes': transaction.notes
@@ -456,6 +470,7 @@ def inventory_transactions():
                          page_info=page_info,
                          selected_part_id=part_id,
                          selected_warehouse_id=warehouse_id,
+                         selected_location_id=location_id,
                          selected_transaction_type=transaction_type,
                          selected_date_from=date_from,
                          selected_date_to=date_to,
@@ -463,11 +478,13 @@ def inventory_transactions():
                          reference_type_map=reference_type_map)
 
 @web_bp.route('/reports/parts-comparison')
+@login_required
 def parts_comparison_report():
     """零件差異分析報告頁面"""
     return render_template('reports/parts_comparison.html')
 
 @web_bp.route('/reports/ai-query')
+@login_required
 def ai_query_report():
     """AI資料庫查詢頁面"""
     return render_template('reports/ai_query.html')
@@ -477,6 +494,7 @@ from services.report_service import ReportService
 
 
 @web_bp.route('/reports/parts-comparison/data')
+@login_required
 
 def parts_comparison_data():
 
@@ -489,6 +507,7 @@ def parts_comparison_data():
 
 
 @web_bp.route('/reports/parts-comparison/export')
+@login_required
 
 def export_parts_comparison():
 
@@ -513,8 +532,14 @@ def export_parts_comparison():
         return redirect(url_for('web.parts_comparison_report'))
 
 @web_bp.route('/reports/parts-comparison/add-parts', methods=['POST'])
+@login_required
+def add_parts_to_comparison():
+    """批次新增零件至零件倉"""
+    # 暫時返回成功
+    return jsonify({'success': True, 'message': '功能開發中'})
 
 @web_bp.route('/reports/parts-comparison/add-part-detailed', methods=['POST'])
+@login_required
 def add_part_detailed():
     """新增單個零件(詳細資訊)至零件倉"""
     from models.part import Part
@@ -572,6 +597,7 @@ def add_part_detailed():
         })
 
 @web_bp.route('/reports/parts-comparison/create-purchase-order', methods=['POST'])
+@login_required
 def create_purchase_order():
     """建立採購單"""
     from models.order import Order
@@ -661,10 +687,11 @@ def create_purchase_order():
 from services.inventory_service import InventoryService
 
 @web_bp.route('/inventory/stock-in', methods=['GET', 'POST'])
+@login_required
 def stock_in():
     """入庫作業頁面"""
     if request.method == 'POST':
-        result = InventoryService.perform_stock_in_from_form(request.form)
+        result = InventoryService.perform_stock_in_from_form(request.form, user_id=current_user.id)
         if result['success']:
             flash(result['message'], 'success')
         else:
@@ -676,10 +703,11 @@ def stock_in():
     return render_template('inventory/stock_in.html', warehouses=warehouses, parts=parts_list)
 
 @web_bp.route('/inventory/stock-out', methods=['GET', 'POST'])
+@login_required
 def stock_out():
     """出庫作業頁面"""
     if request.method == 'POST':
-        result = InventoryService.perform_stock_out_from_form(request.form)
+        result = InventoryService.perform_stock_out_from_form(request.form, user_id=current_user.id)
         if result['success']:
             flash(result['message'], 'success')
         else:
@@ -691,6 +719,7 @@ def stock_out():
     return render_template('inventory/stock_out.html', warehouses=warehouses, parts=parts_list)
 
 @web_bp.route('/inventory/batch-stock-out')
+@login_required
 def batch_stock_out():
     """
     Renders the batch stock-out page.
@@ -699,6 +728,7 @@ def batch_stock_out():
     return render_template('inventory/batch_stock_out.html', warehouses=warehouses)
 
 @web_bp.route('/inventory/stock-counts')
+@login_required
 def stock_counts():
     """盤點管理頁面"""
     counts = StockCount.get_all_counts()
@@ -706,12 +736,14 @@ def stock_counts():
     return render_template('inventory/stock_counts.html', counts=counts, warehouses=warehouses)
 
 @web_bp.route('/inventory/stock-counts/new')
+@login_required
 def new_stock_count():
     """建立新盤點頁面"""
     warehouses = Warehouse.get_all()
     return render_template('inventory/new_stock_count.html', warehouses=warehouses)
 
 @web_bp.route('/inventory/stock-counts/<int:count_id>')
+@login_required
 def stock_count_detail(count_id):
     """盤點明細頁面"""
     count_info = StockCount.get_count_by_id(count_id)
@@ -732,6 +764,7 @@ def stock_count_detail(count_id):
                          sort_order=sort_order)
 
 @web_bp.route('/inventory/stock-counts/<int:count_id>/edit', methods=['GET', 'POST'])
+@login_required
 def edit_stock_count(count_id):
     """Edit an existing stock count."""
     # Use .first() to get a single object or None
@@ -796,16 +829,19 @@ def service_worker():
     return send_from_directory(os.path.join(os.getcwd(), 'static'), 'sw.js', mimetype='application/javascript')
 
 @web_bp.route('/pwa-test')
+@login_required
 def pwa_test():
     """PWA 測試頁面"""
     return render_template('pwa_test.html')
 
 @web_bp.route('/pwa-install')
+@login_required
 def pwa_install():
     """PWA 快速安裝頁面"""
     return render_template('pwa_install.html')
 
 @web_bp.route('/camera-test')
+@login_required
 def camera_test():
     """相機和條碼掃描測試頁面"""
     return render_template('camera_test.html')
@@ -815,6 +851,7 @@ from services.part_service import PartService # Import the new service
 # ==================== 倉位管理 ====================
 
 @web_bp.route('/warehouse-locations')
+@login_required
 def warehouse_locations():
     """倉位管理頁面"""
     warehouses = Warehouse.get_all()
@@ -840,6 +877,7 @@ def warehouse_locations():
                          locations=locations_data)
 
 @web_bp.route('/warehouse-locations/add', methods=['POST'])
+@login_required
 def add_warehouse_location():
     """新增倉位"""
     result = PartService.add_warehouse_location(request.form)
@@ -850,6 +888,7 @@ def add_warehouse_location():
     return redirect(url_for('web.warehouse_locations'))
 
 @web_bp.route('/warehouse-locations/<int:location_id>/edit', methods=['POST'])
+@login_required
 def edit_warehouse_location(location_id):
     """編輯倉位"""
     result = PartService.edit_warehouse_location(location_id, request.form)
@@ -860,6 +899,7 @@ def edit_warehouse_location(location_id):
     return redirect(url_for('web.warehouse_locations'))
 
 @web_bp.route('/warehouse-locations/<int:location_id>/delete', methods=['POST'])
+@login_required
 def delete_warehouse_location(location_id):
     """刪除倉位"""
     result = PartService.delete_warehouse_location(location_id)
@@ -872,6 +912,7 @@ def delete_warehouse_location(location_id):
 # ==================== 倉庫管理 ====================
 
 @web_bp.route('/warehouses/add', methods=['POST'])
+@login_required
 def add_warehouse():
     """新增倉庫"""
     result = PartService.add_warehouse(request.form)
@@ -882,6 +923,7 @@ def add_warehouse():
     return redirect(url_for('web.warehouse_locations'))
 
 @web_bp.route('/warehouses/<int:warehouse_id>/edit', methods=['POST'])
+@login_required
 def edit_warehouse(warehouse_id):
     """編輯倉庫"""
     result = PartService.edit_warehouse(warehouse_id, request.form)
@@ -892,6 +934,7 @@ def edit_warehouse(warehouse_id):
     return redirect(url_for('web.warehouse_locations'))
 
 @web_bp.route('/warehouses/<int:warehouse_id>/delete', methods=['POST'])
+@login_required
 def delete_warehouse(warehouse_id):
     """刪除倉庫"""
     result = PartService.delete_warehouse(warehouse_id)

@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}註冊 - 五金零件庫存管理系統{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center" style="margin-top: 50px;">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-body p-4">
+                    <h3 class="text-center mb-4">
+                        <i class="fas fa-user-plus text-primary"></i>
+                        使用者註冊
+                    </h3>
+                    
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    
+                    <form method="POST" action="{{ url_for('auth.register') }}" id="registerForm">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="username" class="form-label">
+                                    使用者名稱 <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-user"></i></span>
+                                    <input type="text" class="form-control" id="username" name="username" 
+                                           required autofocus autocomplete="username"
+                                           pattern="[a-zA-Z0-9_]{3,20}"
+                                           title="3-20個字元，只能包含英文、數字和底線"
+                                           placeholder="請輸入使用者名稱">
+                                </div>
+                                <small class="text-muted">3-20個字元，只能使用英文、數字和底線</small>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="full_name" class="form-label">
+                                    真實姓名 <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-id-card"></i></span>
+                                    <input type="text" class="form-control" id="full_name" name="full_name" 
+                                           required autocomplete="name"
+                                           placeholder="請輸入真實姓名">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+                                <input type="email" class="form-control" id="email" name="email" 
+                                       autocomplete="email"
+                                       placeholder="選填，用於接收系統通知">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="department" class="form-label">部門</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-building"></i></span>
+                                <input type="text" class="form-control" id="department" name="department" 
+                                       autocomplete="organization"
+                                       placeholder="選填，例如：倉儲部、生產部">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="password" class="form-label">
+                                    密碼 <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                                    <input type="password" class="form-control" id="password" name="password" 
+                                           required autocomplete="new-password"
+                                           minlength="8"
+                                           placeholder="請輸入密碼">
+                                </div>
+                                <small class="text-muted">至少8個字元，需包含英文和數字</small>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="password_confirm" class="form-label">
+                                    確認密碼 <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                                    <input type="password" class="form-control" id="password_confirm" 
+                                           name="password_confirm" required autocomplete="new-password"
+                                           minlength="8"
+                                           placeholder="再次輸入密碼">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="alert alert-info mb-0">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>密碼要求：</strong>
+                                <ul class="mb-0 mt-2">
+                                    <li>至少 8 個字元</li>
+                                    <li>必須包含英文字母</li>
+                                    <li>必須包含數字</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100 mb-3">
+                            <i class="fas fa-user-plus me-2"></i>註冊
+                        </button>
+                    </form>
+                    
+                    <hr>
+                    
+                    <div class="text-center">
+                        <a href="{{ url_for('auth.login') }}" class="text-decoration-none">
+                            <i class="fas fa-arrow-left me-1"></i>返回登入
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 即時驗證密碼是否一致
+document.getElementById('registerForm').addEventListener('submit', function(e) {
+    const password = document.getElementById('password').value;
+    const passwordConfirm = document.getElementById('password_confirm').value;
+    
+    if (password !== passwordConfirm) {
+        e.preventDefault();
+        alert('兩次輸入的密碼不一致，請重新輸入');
+        document.getElementById('password_confirm').focus();
+        return false;
+    }
+});
+
+// 即時顯示密碼強度提示
+document.getElementById('password').addEventListener('input', function(e) {
+    const password = e.target.value;
+    const hasLetter = /[A-Za-z]/.test(password);
+    const hasNumber = /\d/.test(password);
+    const isLongEnough = password.length >= 8;
+    
+    // 更新輸入框邊框顏色
+    if (password.length > 0) {
+        if (isLongEnough && hasLetter && hasNumber) {
+            e.target.classList.remove('is-invalid');
+            e.target.classList.add('is-valid');
+        } else {
+            e.target.classList.remove('is-valid');
+            e.target.classList.add('is-invalid');
+        }
+    } else {
+        e.target.classList.remove('is-valid', 'is-invalid');
+    }
+});
+
+// 確認密碼即時檢查
+document.getElementById('password_confirm').addEventListener('input', function(e) {
+    const password = document.getElementById('password').value;
+    const passwordConfirm = e.target.value;
+    
+    if (passwordConfirm.length > 0) {
+        if (password === passwordConfirm) {
+            e.target.classList.remove('is-invalid');
+            e.target.classList.add('is-valid');
+        } else {
+            e.target.classList.remove('is-valid');
+            e.target.classList.add('is-invalid');
+        }
+    } else {
+        e.target.classList.remove('is-valid', 'is-invalid');
+    }
+});
+</script>
+{% endblock %}

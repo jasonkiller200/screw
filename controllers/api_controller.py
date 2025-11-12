@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify, request, send_file, Response
+from flask_login import login_required, current_user
 from models.part import Part, Warehouse
 from models.order import Order
 from models.inventory import CurrentInventory # Import CurrentInventory
@@ -18,6 +19,7 @@ from services.part_service import PartService # Import PartService
 from services.work_order_service import WorkOrderService # Import WorkOrderService
 
 @api_bp.route('/inventory/stock/export', methods=['GET'])
+@login_required
 def export_inventory_stock():
     """匯出庫存數據為 Excel 檔案"""
     warehouse_id = request.args.get('warehouse_id', type=int)
@@ -32,6 +34,7 @@ def export_inventory_stock():
     )
 
 @api_bp.route('/inventory/low-stock/export', methods=['GET'])
+@login_required
 def export_low_stock_items():
     """匯出低庫存項目為 Excel 檔案"""
     warehouse_id = request.args.get('warehouse_id', type=int)
@@ -377,7 +380,7 @@ def export_inventory_transactions():
     )
 
 @api_bp.route('/parts/<int:part_id>/update_inventory_policy', methods=['POST'])
-# @login_required
+@login_required
 def update_inventory_policy(part_id):
     data = request.get_json()
     warehouse_id = data.get('warehouse_id')
@@ -412,6 +415,7 @@ def export_parts():
     )
 
 @api_bp.route('/inventory/batch-stock-out', methods=['POST'])
+@login_required
 def batch_stock_out():
     """
     Handles batch stock-out requests.
@@ -420,7 +424,7 @@ def batch_stock_out():
     if not data:
         return jsonify({'success': False, 'error': '無效的請求資料'}), 400
 
-    result = InventoryService.perform_batch_stock_out(data)
+    result = InventoryService.perform_batch_stock_out(data, user_id=current_user.id)
     
     if result['success']:
         return jsonify(result), 200

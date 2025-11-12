@@ -63,12 +63,13 @@ class CurrentInventory(db.Model):
     @classmethod
     def get_detailed_inventory_view(cls, warehouse_id=None):
         from models.part import Part, Warehouse, WarehouseLocation, PartWarehouseLocation
-        
+
         # Start with all part-location associations
         query = (db.session.query(
             Part.id.label('part_id'),
             Part.part_number,
             Part.name.label('part_name'),
+            Part.type.label('part_type'),
             Part.unit,
             Warehouse.id.label('warehouse_id'),
             Warehouse.name.label('warehouse_name'),
@@ -85,22 +86,26 @@ class CurrentInventory(db.Model):
         .join(PartWarehouseLocation, Part.id == PartWarehouseLocation.part_id)
         .join(WarehouseLocation, PartWarehouseLocation.warehouse_location_id == WarehouseLocation.id)
         .join(Warehouse, WarehouseLocation.warehouse_id == Warehouse.id)
-        .outerjoin(cls, sa.and_(Part.id == cls.part_id, WarehouseLocation.id == cls.warehouse_location_id)))
+        .outerjoin(cls, sa.and_(
+            Part.id == cls.part_id,
+            WarehouseLocation.id == cls.warehouse_location_id
+        )))
 
         if warehouse_id:
             query = query.filter(Warehouse.id == warehouse_id)
-            
+
         # Order by warehouse code, part number, and location code for consistent display
         query = query.order_by(Warehouse.code, Part.part_number, WarehouseLocation.location_code)
-        
+
         results = query.all()
-        
+
         detailed_inventory = []
         for row in results:
             detailed_inventory.append({
                 'part_id': row.part_id,
                 'part_number': row.part_number,
                 'part_name': row.part_name,
+                'part_type': row.part_type,
                 'unit': row.unit,
                 'warehouse_id': row.warehouse_id,
                 'warehouse_name': row.warehouse_name,
@@ -133,7 +138,7 @@ class CurrentInventory(db.Model):
         return [item.to_dict() for item in items]
 
     @classmethod
-    def update_stock(cls, part_id, warehouse_location_id, quantity_change, transaction_type, reference_type=None, reference_id=None, notes=None, commit=True):
+    def update_stock(cls, part_id, warehouse_location_id, quantity_change, transaction_type, reference_type=None, reference_id=None, notes=None, user_id=None, commit=True):
         from .part import WarehouseLocation
         
         # Find the specific inventory record for the part at the given location
@@ -167,7 +172,7 @@ class CurrentInventory(db.Model):
             current_stock.quantity_on_hand = max(0, current_stock.quantity_on_hand)
             current_stock.available_quantity = max(0, current_stock.available_quantity)
         
-        # Record transaction with location information
+        # Record transaction with location information and user
         transaction = InventoryTransaction(
             part_id=part_id,
             warehouse_id=warehouse_id,
@@ -177,6 +182,7 @@ class CurrentInventory(db.Model):
             reference_type=reference_type,
             reference_id=reference_id,
             notes=notes,
+            user_id=user_id,
             transaction_date=get_taipei_time()
         )
         db.session.add(transaction)
@@ -205,13 +211,15 @@ class InventoryTransaction(db.Model):
     reference_id = db.Column(db.Integer)
     notes = db.Column(db.Text)
     transaction_date = db.Column(db.DateTime, nullable=False)
-    created_by = db.Column(db.String(100), default='system')
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, comment='操作人員ID')
+    created_by = db.Column(db.String(100), default='system', comment='建立者（系統/遷移用）')
     created_at = db.Column(db.DateTime, default=get_taipei_time)
 
     # Relationships
     part = relationship("Part", backref="transactions")
     warehouse = relationship("Warehouse", backref="transactions")
     warehouse_location = relationship("WarehouseLocation", backref="transactions")
+    user = relationship("User", foreign_keys=[user_id], backref="inventory_transactions")
 
     def to_dict(self):
         return {
@@ -227,6 +235,8 @@ class InventoryTransaction(db.Model):
             'reference_id': self.reference_id,
             'notes': self.notes,
             'transaction_date': self.transaction_date.isoformat() if self.transaction_date else None,
+            'user_id': self.user_id,
+            'user_name': self.user.full_name if self.user else None,
             'created_by': self.created_by,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'part_number': self.part.part_number if self.part else None,
@@ -292,7 +302,7 @@ class StockCount(db.Model):
             'count_number': self.count_number,
             'warehouse_id': self.warehouse_id,
             'warehouse_name': self.warehouse.name if self.warehouse else None,
-            'count_date': self.count_date.strftime("%Y-%m-%d %H:%M") if self.count_date else None,
+            'count_date': self.count_date.isoformat() if self.count_date else None,
             'status': self.status,
             'count_type': self.count_type,
             'description': self.description,
@@ -300,8 +310,8 @@ class StockCount(db.Model):
             'verified_by': self.verified_by,
             'total_items': self.total_items,
             'variance_items': self.variance_items,
-            'created_at': self.created_at.strftime("%Y-%m-%d %H:%M") if self.created_at else None,
-            'completed_at': self.completed_at.strftime("%Y-%m-%d %H:%M") if self.completed_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
         }
 
     @classmethod
@@ -501,66 +511,17 @@ class StockCount(db.Model):
     @classmethod
     def update_count_detail(cls, detail_id, counted_quantity, notes=''):
         detail = StockCountDetail.query.get(detail_id)
-        if not detail:
-            return False, None
-        
-        try:
+        if detail:
             detail.counted_quantity = counted_quantity
             detail.variance_quantity = counted_quantity - detail.system_quantity
-            # Only update notes if it's not empty, to avoid overwriting existing notes with blank ones
-            if notes:
-                detail.notes = notes
+            detail.notes = notes
             detail.counted_at = get_taipei_time()
-            
             db.session.commit()
-            
-            # After commit, the detail object is updated and can be converted to a dict
-            return True, detail.to_dict()
-        except Exception as e:
-            db.session.rollback()
-            print(f"Error updating count detail {detail_id}: {e}")
-            return False, None
+            return True
+        return False
 
     @classmethod
-    def batch_update_count_details(cls, updates):
-        """批量更新盤點明細"""
-        if not updates:
-            return True, "No updates provided.", []
-
-        updated_items_list = []
-        try:
-            # Create a dictionary of updates for quick lookup
-            updates_dict = {item['detail_id']: item['counted_quantity'] for item in updates}
-            detail_ids = list(updates_dict.keys())
-
-            # Fetch all details to be updated in one query
-            details_to_update = StockCountDetail.query.filter(StockCountDetail.id.in_(detail_ids)).all()
-
-            if len(details_to_update) != len(detail_ids):
-                found_ids = {d.id for d in details_to_update}
-                missing_ids = set(detail_ids) - found_ids
-                return False, f"Could not find detail IDs: {list(missing_ids)}", []
-
-            for detail in details_to_update:
-                counted_quantity = updates_dict[detail.id]
-                detail.counted_quantity = counted_quantity
-                detail.variance_quantity = counted_quantity - detail.system_quantity
-                detail.counted_at = get_taipei_time()
-                updated_items_list.append(detail.to_dict())
-            
-            db.session.commit()
-            
-            # Re-fetch the dictionaries after commit to ensure data is fresh, though not strictly necessary here
-            # For simplicity, we'll use the list built before commit.
-            
-            return True, f"Successfully updated {len(details_to_update)} items.", updated_items_list
-        except Exception as e:
-            db.session.rollback()
-            print(f"Error in batch_update_count_details: {e}")
-            return False, f"An error occurred during the batch update: {str(e)}", []
-
-    @classmethod
-    def complete_count(cls, count_id, verified_by='', apply_adjustments=False):
+    def complete_count(cls, count_id, verified_by='', apply_adjustments=False, user_id=None):
         count = cls.query.get(count_id)
         if not count:
             return False
@@ -580,7 +541,8 @@ class StockCount(db.Model):
                         transaction_type='ADJUST',
                         reference_type='COUNT', 
                         reference_id=count.id, 
-                        notes=f'盤點調整 (差異: {detail.variance_quantity})'
+                        notes=f'盤點調整 (差異: {detail.variance_quantity})',
+                        user_id=user_id
                     )
         
         try:
@@ -703,5 +665,5 @@ class StockCountDetail(db.Model):
             'counted_quantity': self.counted_quantity,
             'variance_quantity': self.variance_quantity,
             'notes': self.notes,
-            'counted_at': self.counted_at.strftime("%Y-%m-%d %H:%M") if self.counted_at else None,
+            'counted_at': self.counted_at.isoformat() if self.counted_at else None,
         }

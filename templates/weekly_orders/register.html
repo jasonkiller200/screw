@@ -154,12 +154,16 @@
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="applicant_name" class="form-label">申請人 <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="applicant_name" name="applicant_name" required>
+                                <label class="form-label">申請人</label>
+                                <input type="text" class="form-control" 
+                                       value="{{ current_user.full_name if current_user.is_authenticated else '未登入' }}" 
+                                       readonly disabled>
                             </div>
                             <div class="col-md-6">
-                                <label for="department" class="form-label">申請單位</label>
-                                <input type="text" class="form-control" id="department" name="department">
+                                <label class="form-label">申請單位</label>
+                                <input type="text" class="form-control" 
+                                       value="{{ current_user.department if (current_user.is_authenticated and current_user.department) else '未設定' }}" 
+                                       readonly disabled>
                             </div>
                         </div>
 

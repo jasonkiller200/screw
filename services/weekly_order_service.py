@@ -34,60 +34,162 @@ class WeeklyOrderService:
             if not registrations:
                 return {'success': False, 'message': '沒有已核准的項目可生成申請單'}
             
-            data = []
-            for reg in registrations:
-                location_str = ''
-                if reg.warehouse_location and reg.warehouse_location.warehouse:
-                    location_str = f"{reg.warehouse_location.warehouse.name} - {reg.warehouse_location.location_code}"
-                elif reg.warehouse_location:
-                    location_str = reg.warehouse_location.location_code
-
-                priority_str = '緊急' if reg.priority == 'urgent' else '一般'
-
-                data.append({
-                    '項次': reg.item_sequence,
-                    '品號': reg.part_number,
-                    '品名': reg.part_name,
-                    '儲位': location_str,
-                    '種類': reg.category or '',
-                    '數量': reg.quantity,
-                    '單位': reg.unit,
-                    '申請人': reg.applicant_name,
-                    '申請單位': reg.department or '',
-                    '緊急程度': priority_str,
-                    '需用日期': reg.required_date.strftime('%Y-%m-%d') if reg.required_date else '',
-                    '台份用/備註': reg.purpose_notes or ''
-                })
+            # 獲取審查記錄
+            review_logs = OrderReviewLog.query.filter_by(
+                cycle_id=cycle_id,
+                action='approved'
+            ).order_by(OrderReviewLog.created_at.desc()).all()
             
-            df = pd.DataFrame(data)
-            
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df.to_excel(writer, sheet_name='申請單', index=False)
-                
-                worksheet = writer.sheets['申請單']
-                for idx, col in enumerate(df.columns, 1):
-                    max_len = 0
-                    max_len = max(max_len, len(str(col)))
-                    if not df[col].empty:
-                        max_len = max(max_len, df[col].astype(str).map(len).max())
-                    
-                    adjusted_width = (max_len + 4) * 1.2 
-                    worksheet.column_dimensions[chr(64 + idx)].width = adjusted_width
-
-            output.seek(0)
+            reviewers = set()
+            for log in review_logs:
+                if log.reviewer_name and log.reviewer_name not in ['主管', '系統']:
+                    reviewers.add(log.reviewer_name)
+            reviewers_str = '、'.join(sorted(reviewers)) if reviewers else '系統'
             
             # Helper function to get current time in UTC+8
             def get_taipei_time():
                 from datetime import timezone, timedelta
                 tz_taipei = timezone(timedelta(hours=8))
                 return datetime.now(tz_taipei)
+            
+            # 建立 Workbook
+            wb = Workbook()
+            ws = wb.active
+            ws.title = '採購申請單'
+            
+            # 定義樣式
+            title_font = Font(name='微軟正黑體', size=16, bold=True)
+            header_font = Font(name='微軟正黑體', size=11, bold=True, color='FFFFFF')
+            normal_font = Font(name='微軟正黑體', size=10)
+            
+            header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+            
+            center_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            left_alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+            
+            thin_border = Border(
+                left=Side(style='thin', color='000000'),
+                right=Side(style='thin', color='000000'),
+                top=Side(style='thin', color='000000'),
+                bottom=Side(style='thin', color='000000')
+            )
+            
+            # 標題區（第1-3行）
+            ws.merge_cells('A1:L1')
+            ws['A1'] = '週期訂單採購申請單'
+            ws['A1'].font = title_font
+            ws['A1'].alignment = center_alignment
+            ws.row_dimensions[1].height = 30
+            
+            # 週期資訊（第2行）
+            ws.merge_cells('A2:F2')
+            ws['A2'] = f'週期名稱：{cycle.cycle_name}'
+            ws['A2'].font = Font(name='微軟正黑體', size=11)
+            ws['A2'].alignment = left_alignment
+            
+            ws.merge_cells('G2:L2')
+            ws['G2'] = f'申請日期：{get_taipei_time().strftime("%Y-%m-%d")}'
+            ws['G2'].font = Font(name='微軟正黑體', size=11)
+            ws['G2'].alignment = left_alignment
+            
+            # 審查資訊（第3行）
+            ws.merge_cells('A3:F3')
+            ws['A3'] = f'審查人員：{reviewers_str}'
+            ws['A3'].font = Font(name='微軟正黑體', size=11)
+            ws['A3'].alignment = left_alignment
+            
+            ws.merge_cells('G3:L3')
+            ws['G3'] = f'核准項目數：{len(registrations)} 項'
+            ws['G3'].font = Font(name='微軟正黑體', size=11)
+            ws['G3'].alignment = left_alignment
+            
+            # 空白行
+            ws.row_dimensions[4].height = 5
+            
+            # 表頭（第5行）
+            headers = ['項次', '品號', '品名', '儲位', '種類', '數量', '單位', 
+                      '申請人', '申請單位', '緊急程度', '需用日期', '台份用/備註']
+            
+            for col_idx, header in enumerate(headers, start=1):
+                cell = ws.cell(row=5, column=col_idx)
+                cell.value = header
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = center_alignment
+                cell.border = thin_border
+            
+            ws.row_dimensions[5].height = 25
+            
+            # 資料列（從第6行開始）
+            for idx, reg in enumerate(registrations, start=1):
+                row_num = 5 + idx
+                
+                location_str = ''
+                if reg.warehouse_location and reg.warehouse_location.warehouse:
+                    location_str = f"{reg.warehouse_location.warehouse.name} - {reg.warehouse_location.location_code}"
+                elif reg.warehouse_location:
+                    location_str = reg.warehouse_location.location_code
+                
+                priority_str = '緊急' if reg.priority == 'urgent' else '一般'
+                
+                row_data = [
+                    idx,
+                    reg.part_number,
+                    reg.part_name,
+                    location_str,
+                    reg.category or '',
+                    reg.quantity,
+                    reg.unit,
+                    reg.applicant_name,
+                    reg.department or '',
+                    priority_str,
+                    reg.required_date.strftime('%Y-%m-%d') if reg.required_date else '',
+                    reg.purpose_notes or ''
+                ]
+                
+                for col_idx, value in enumerate(row_data, start=1):
+                    cell = ws.cell(row=row_num, column=col_idx)
+                    cell.value = value
+                    cell.font = normal_font
+                    cell.border = thin_border
+                    
+                    # 對齊方式
+                    if col_idx in [1, 6]:  # 項次、數量
+                        cell.alignment = center_alignment
+                    else:
+                        cell.alignment = left_alignment
+                
+                ws.row_dimensions[row_num].height = 20
+            
+            # 設定欄寬
+            column_widths = {
+                'A': 8,   # 項次
+                'B': 15,  # 品號
+                'C': 25,  # 品名
+                'D': 20,  # 儲位
+                'E': 12,  # 種類
+                'F': 10,  # 數量
+                'G': 8,   # 單位
+                'H': 12,  # 申請人
+                'I': 15,  # 申請單位
+                'J': 12,  # 緊急程度
+                'K': 12,  # 需用日期
+                'L': 30   # 台份用/備註
+            }
+            
+            for col, width in column_widths.items():
+                ws.column_dimensions[col].width = width
+            
+            # 儲存到 BytesIO
+            output = BytesIO()
+            wb.save(output)
+            output.seek(0)
 
             filename = f"採購申請單_{cycle.cycle_name}_{get_taipei_time().strftime('%Y%m%d')}.xlsx"
             
             review_log = OrderReviewLog(
                 cycle_id=cycle.id,
-                reviewer_name='系統', # Or current user
+                reviewer_name='系統',
                 action='export_excel',
                 notes=f'匯出Excel申請單，包含{len(registrations)}個項目'
             )
@@ -101,7 +203,7 @@ class WeeklyOrderService:
             return {'success': False, 'message': f"匯出失敗: {str(e)}"}
 
     @staticmethod
-    def review_order_registration(registration_id, action, notes, reviewer_name):
+    def review_order_registration(registration_id, action, notes, reviewer_id, reviewer_name):
         from models.weekly_order import OrderRegistration, OrderReviewLog
         try:
             registration = OrderRegistration.query.get(registration_id)
@@ -122,6 +224,7 @@ class WeeklyOrderService:
             review_log = OrderReviewLog(
                 cycle_id=registration.cycle_id,
                 registration_id=registration.id,
+                reviewer_id=reviewer_id,
                 reviewer_name=reviewer_name,
                 action=action,
                 old_status=old_status,
@@ -143,7 +246,7 @@ class WeeklyOrderService:
             return {'success': False, 'message': str(e)}
 
     @staticmethod
-    def batch_review_registrations(registration_ids, action, reviewer_name):
+    def batch_review_registrations(registration_ids, action, reviewer_id, reviewer_name):
         from models.weekly_order import OrderRegistration, OrderReviewLog
         try:
             updated_count = 0
@@ -152,10 +255,11 @@ class WeeklyOrderService:
                 if registration and registration.status == 'registered':
                     old_status = registration.status
                     registration.status = action
-                    
+
                     review_log = OrderReviewLog(
                         cycle_id=registration.cycle_id,
                         registration_id=registration.id,
+                        reviewer_id=reviewer_id,
                         reviewer_name=reviewer_name,
                         action=action,
                         old_status=old_status,
@@ -164,20 +268,20 @@ class WeeklyOrderService:
                     )
                     db.session.add(review_log)
                     updated_count += 1
-            
+
             db.session.commit()
-            
+
             return {
                 'success': True,
                 'message': f'已批量處理 {updated_count} 個項目'
             }
-            
+
         except Exception as e:
             db.session.rollback()
             return {'success': False, 'message': str(e)}
 
     @staticmethod
-    def register_new_order(cycle_id, form_data):
+    def register_new_order(cycle_id, form_data, user_id, user_name, user_department):
         from models.weekly_order import WeeklyOrderCycle, OrderRegistration
         try:
             current_cycle = WeeklyOrderCycle.query.get(cycle_id)
@@ -204,8 +308,9 @@ class WeeklyOrderService:
                 required_date=datetime.strptime(form_data.get('required_date'), '%Y-%m-%d') if form_data.get('required_date') else None,
                 priority=form_data.get('priority', 'normal').strip(),
                 purpose_notes=form_data.get('purpose_notes', '').strip(),
-                applicant_name=form_data.get('applicant_name', '').strip(),
-                department=form_data.get('department', '').strip()
+                applicant_id=user_id,
+                applicant_name=user_name,
+                department=user_department or '未設定'
             )
             
             db.session.add(registration)

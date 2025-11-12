@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify, request
+from flask_login import login_required, current_user
 from models.inventory import CurrentInventory, InventoryTransaction, StockCount, get_taipei_time
 from models.part import Part, Warehouse
 import csv
@@ -9,6 +10,7 @@ inventory_api_bp = Blueprint('inventory_api', __name__, url_prefix='/api/invento
 
 # 倉庫管理 API
 @inventory_api_bp.route('/warehouses', methods=['GET'])
+@login_required
 def get_warehouses():
     """取得所有倉庫"""
     warehouses = Warehouse.get_all()
@@ -16,6 +18,7 @@ def get_warehouses():
 
 # 庫存查詢 API
 @inventory_api_bp.route('/stock', methods=['GET'])
+@login_required
 def get_inventory():
     """取得庫存清單"""
     warehouse_id = request.args.get('warehouse_id', type=int)
@@ -23,6 +26,7 @@ def get_inventory():
     return jsonify(inventories)
 
 @inventory_api_bp.route('/stock/<string:part_number>', methods=['GET'])
+@login_required
 def get_part_stock(part_number):
     """取得特定零件的庫存"""
     warehouse_id = request.args.get('warehouse_id', type=int)
@@ -66,6 +70,7 @@ def get_part_by_barcode():
     return jsonify(part_data)
 
 @inventory_api_bp.route('/low-stock', methods=['GET'])
+@login_required
 def get_low_stock():
     """取得低庫存項目"""
     warehouse_id = request.args.get('warehouse_id', type=int)
@@ -73,6 +78,7 @@ def get_low_stock():
     return jsonify(low_stock_items)
 
 @inventory_api_bp.route('/stock/export', methods=['GET'])
+@login_required
 def export_inventory():
     """匯出庫存清單為 CSV"""
     from flask import Response
@@ -125,6 +131,7 @@ def export_inventory():
     )
 
 @inventory_api_bp.route('/low-stock/export', methods=['GET'])
+@login_required
 def export_low_stock():
     """匯出低庫存清單為 CSV"""
     from flask import Response
@@ -182,6 +189,7 @@ def export_low_stock():
 
 # 交易記錄 API
 @inventory_api_bp.route('/transactions', methods=['GET'])
+@login_required
 def get_transactions():
     """取得交易記錄"""
     part_id = request.args.get('part_id', type=int)
@@ -192,6 +200,7 @@ def get_transactions():
     return jsonify(transactions)
 
 @inventory_api_bp.route('/transaction-summary/<int:part_id>', methods=['GET'])
+@login_required
 def get_transaction_summary(part_id):
     """取得交易摘要"""
     warehouse_id = request.args.get('warehouse_id', type=int)
@@ -202,10 +211,11 @@ def get_transaction_summary(part_id):
 
 # 入庫 API
 @inventory_api_bp.route('/stock-in', methods=['POST'])
+@login_required
 def stock_in():
     """入庫作業"""
     data = request.get_json()
-    result = InventoryService.perform_stock_in_from_api(data)
+    result = InventoryService.perform_stock_in_from_api(data, user_id=current_user.id)
     
     if result['success']:
         return jsonify(result), 201
@@ -222,10 +232,11 @@ def stock_in():
 
 # 出庫 API
 @inventory_api_bp.route('/stock-out', methods=['POST'])
+@login_required
 def stock_out():
     """出庫作業"""
     data = request.get_json()
-    result = InventoryService.perform_stock_out_from_api(data)
+    result = InventoryService.perform_stock_out_from_api(data, user_id=current_user.id)
     
     if result.get('success'):
         return jsonify(result), 201
@@ -241,12 +252,14 @@ def stock_out():
 
 # 盤點管理 API
 @inventory_api_bp.route('/stock-counts', methods=['GET'])
+@login_required
 def get_stock_counts():
     """取得所有盤點記錄"""
     counts = StockCount.get_all_counts()
     return jsonify(counts)
 
 @inventory_api_bp.route('/stock-counts/<int:count_id>', methods=['GET'])
+@login_required
 def get_stock_count_details(count_id):
     """取得盤點明細"""
     count_info = StockCount.get_count_by_id(count_id)
@@ -261,6 +274,7 @@ def get_stock_count_details(count_id):
     })
 
 @inventory_api_bp.route('/stock-counts/<int:count_id>/details/<int:detail_id>', methods=['PUT'])
+@login_required
 def update_count_detail(count_id, detail_id):
     """更新盤點明細"""
     data = request.get_json()
@@ -325,6 +339,7 @@ def batch_update_count_details(count_id):
         return jsonify({'error': message}), 500
 
 @inventory_api_bp.route('/stock-counts/<int:count_id>/complete', methods=['POST'])
+@login_required
 def complete_stock_count(count_id):
     """完成盤點"""
     data = request.get_json()
@@ -332,7 +347,7 @@ def complete_stock_count(count_id):
     verified_by = data.get('verified_by', '')
     apply_adjustments = data.get('apply_adjustments', False)
     
-    success = StockCount.complete_count(count_id, verified_by, apply_adjustments)
+    success = StockCount.complete_count(count_id, verified_by, apply_adjustments, user_id=current_user.id)
     
     if success:
         message = 'Stock count completed successfully'
@@ -344,6 +359,7 @@ def complete_stock_count(count_id):
 
 # 建立盤點
 @inventory_api_bp.route('/stock-counts', methods=['POST'])
+@login_required
 def create_stock_count():
     """建立新盤點"""
     data = request.get_json()
@@ -371,6 +387,7 @@ def create_stock_count():
 
 # 開始盤點
 @inventory_api_bp.route('/stock-counts/<int:count_id>/start', methods=['POST'])
+@login_required
 def start_stock_count(count_id):
     """開始盤點"""
     success = StockCount.start_count(count_id)
@@ -382,6 +399,7 @@ def start_stock_count(count_id):
 
 # 刪除盤點
 @inventory_api_bp.route('/stock-counts/<int:count_id>/delete', methods=['POST'])
+@login_required
 def delete_stock_count(count_id):
     """刪除盤點（僅規劃中的盤點可刪除）"""
     from extensions import db
@@ -409,6 +427,7 @@ def delete_stock_count(count_id):
 
 # 盤點項目管理
 @inventory_api_bp.route('/stock-counts/<int:count_id>/items', methods=['POST'])
+@login_required
 def add_count_item(count_id):
     """新增盤點項目"""
     data = request.get_json()
@@ -427,6 +446,7 @@ def add_count_item(count_id):
         return jsonify({'error': 'Failed to add count item'}), 500
 
 @inventory_api_bp.route('/stock-counts/<int:count_id>/items/<int:part_id>', methods=['PUT'])
+@login_required
 def update_count_item(count_id, part_id):
     """更新盤點項目"""
     data = request.get_json()
@@ -444,6 +464,7 @@ def update_count_item(count_id, part_id):
         return jsonify({'error': 'Failed to update count item'}), 500
 
 @inventory_api_bp.route('/stock-counts/<int:count_id>/items/update-by-part', methods=['POST'])
+@login_required
 def update_count_item_by_part_number(count_id):
     """根據零件編號更新盤點項目"""
     from models.inventory import StockCountDetail
@@ -486,6 +507,7 @@ def update_count_item_by_part_number(count_id):
         return jsonify({'error': str(e)}), 500
 
 @inventory_api_bp.route('/import-count-data', methods=['POST'])
+@login_required
 def import_count_data_batch():
     """批量匯入盤點資料"""
     warehouse_id = request.form.get('warehouse_id')
@@ -520,6 +542,7 @@ def import_count_data_batch():
         return jsonify({'success': False, 'error': result['error']}), 500
 
 @inventory_api_bp.route('/count-template', methods=['GET'])
+@login_required
 def download_general_count_template():
     """下載通用盤點範本"""
     from flask import Response
@@ -552,6 +575,7 @@ def download_general_count_template():
     )
 
 @inventory_api_bp.route('/stock-counts/<int:count_id>/export', methods=['GET'])
+@login_required
 def export_count_template(count_id):
     """匯出盤點模板（Excel 格式）"""
     from flask import Response
@@ -690,6 +714,7 @@ def export_count_template(count_id):
     )
 
 @inventory_api_bp.route('/adjust-stock', methods=['POST'])
+@login_required
 def adjust_stock():
     """即時庫存調整"""
     data = request.get_json()
@@ -727,7 +752,8 @@ def adjust_stock():
         warehouse_location_id=location_id,
         quantity_change=quantity_change,
         transaction_type='ADJUST',
-        notes=notes
+        notes=notes,
+        user_id=current_user.id
     )
 
     if success:

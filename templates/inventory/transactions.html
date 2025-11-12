@@ -6,7 +6,19 @@
 <div class="row">
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2><i class="fas fa-exchange-alt me-2"></i>庫存異動記錄</h2>
+            <div>
+                <h2><i class="fas fa-exchange-alt me-2"></i>庫存異動記錄</h2>
+                {% if selected_part_id or selected_location_id %}
+                <small class="text-muted">
+                    {% if selected_part_id %}
+                        <i class="fas fa-filter me-1"></i>已篩選特定零件
+                    {% endif %}
+                    {% if selected_location_id %}
+                        <i class="fas fa-map-marker-alt me-1"></i>已篩選特定儲位
+                    {% endif %}
+                </small>
+                {% endif %}
+            </div>
             <div>
                 <button class="btn btn-outline-secondary me-2" onclick="exportTransactions()">
                     <i class="fas fa-download me-1"></i>匯出記錄
@@ -91,6 +103,7 @@
                                 <th>零件名稱</th>
                                 <th>倉庫 / 儲位</th>
                                 <th>數量變化</th>
+                                <th>操作人員</th>
                                 <th>參考類型</th>
                                 <th>參考編號</th>
                                 <th>備註</th>
@@ -109,6 +122,13 @@
                                         <span class="text-success fw-bold">+{{ transaction.quantity }}</span>
                                     {% else %}
                                         <span class="text-danger fw-bold">{{ transaction.quantity }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if transaction.user_name %}
+                                        <span class="badge bg-info">{{ transaction.user_name }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ reference_type_map.get(transaction.reference_type, transaction.reference_type or 'N/A') }}</td>

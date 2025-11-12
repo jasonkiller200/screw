@@ -66,152 +66,6 @@
     </div>
 </div>
 
-<!-- 新手歡迎提示 -->
-<div class="row mb-3" id="welcomeTip" style="display: none;">
-    <div class="col-12">
-        <div class="alert alert-info alert-dismissible fade show" role="alert">
-            <div class="d-flex align-items-start">
-                <div class="me-3">
-                    <i class="fas fa-hand-paper fa-2x text-info"></i>
-                </div>
-                <div class="flex-grow-1">
-                    <h6 class="alert-heading mb-2">
-                        <i class="fas fa-star me-1"></i>歡迎使用庫存管理系統！
-                    </h6>
-                    <p class="mb-2">
-                        這裡是您的庫存控制中心。您可以查看所有零件的庫存狀況、進行快速操作，並設定庫存警示參數。
-                    </p>
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-sm btn-outline-info" onclick="showInventoryGuide()">
-                            <i class="fas fa-question-circle me-1"></i>查看功能說明
-                        </button>
-                        <button class="btn btn-sm btn-outline-success" onclick="hideWelcomeTip(true)">
-                            <i class="fas fa-check me-1"></i>我知道了
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <button type="button" class="btn-close" onclick="hideWelcomeTip(true)" aria-label="關閉"></button>
-        </div>
-    </div>
-</div>
-
-<!-- 庫存狀態說明 -->
-<div class="row mb-3">
-    <div class="col-12">
-        <div class="card border-info">
-            <div class="card-header bg-light">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0"><i class="fas fa-info-circle me-2 text-info"></i>庫存狀態說明</h6>
-                    <div class="d-flex align-items-center gap-2">
-                        <button class="btn btn-sm btn-outline-secondary" onclick="showWelcomeTip()" 
-                                title="重新顯示歡迎提示" style="font-size: 0.75rem;">
-                            <i class="fas fa-undo-alt"></i> 重新導覽
-                        </button>
-                        <button class="btn btn-sm btn-link text-muted p-0" type="button" data-bs-toggle="collapse" 
-                                data-bs-target="#inventoryGuide" aria-expanded="false" aria-controls="inventoryGuide">
-                            <i class="fas fa-chevron-down"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div class="collapse" id="inventoryGuide">
-                <div class="card-body bg-light">
-                    <div class="row">
-                        <!-- 狀態說明 -->
-                        <div class="col-md-6">
-                            <h6 class="text-primary"><i class="fas fa-traffic-light me-1"></i>庫存狀態</h6>
-                            <div class="mb-3">
-                                <div class="d-flex align-items-center mb-2">
-                                    <span class="badge bg-success me-2">正常</span>
-                                    <small class="text-muted">可用庫存 > 補貨點，庫存充足</small>
-                                </div>
-                                <div class="d-flex align-items-center mb-2">
-                                    <span class="badge bg-warning me-2">低庫存</span>
-                                    <small class="text-muted">可用庫存 ≤ 補貨點，建議補貨</small>
-                                </div>
-                                <div class="d-flex align-items-center">
-                                    <span class="badge bg-danger me-2">缺貨</span>
-                                    <small class="text-muted">可用庫存 = 0，無法出庫</small>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- 欄位說明 -->
-                        <div class="col-md-6">
-                            <h6 class="text-primary"><i class="fas fa-table me-1"></i>欄位說明</h6>
-                            <div class="mb-3">
-                                <div class="row text-sm">
-                                    <div class="col-5"><strong>現有庫存</strong></div>
-                                    <div class="col-7"><small class="text-muted">實際在庫數量</small></div>
-                                    
-                                    <div class="col-5"><strong>可用庫存</strong></div>
-                                    <div class="col-7"><small class="text-muted">現有庫存 - 預留數量</small></div>
-                                    
-                                    <div class="col-5"><strong>安全庫存</strong></div>
-                                    <div class="col-7"><small class="text-muted">最低安全存量，可編輯</small></div>
-                                    
-                                    <div class="col-5"><strong>補貨點</strong></div>
-                                    <div class="col-7"><small class="text-muted">觸發補貨警示，可編輯</small></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- 快捷操作說明 -->
-                    <div class="row">
-                        <div class="col-12">
-                            <h6 class="text-primary"><i class="fas fa-mouse me-1"></i>快捷操作</h6>
-                            <div class="d-flex flex-wrap gap-2">
-                                <div class="d-flex align-items-center">
-                                    <button class="btn btn-outline-primary btn-sm me-2" disabled>
-                                        <i class="fas fa-save"></i>
-                                    </button>
-                                    <small class="text-muted">儲存庫存設定</small>
-                                </div>
-                                <div class="d-flex align-items-center">
-                                    <button class="btn btn-outline-success btn-sm me-2" disabled>
-                                        <i class="fas fa-plus"></i>
-                                    </button>
-                                    <small class="text-muted">快速入庫</small>
-                                </div>
-                                <div class="d-flex align-items-center">
-                                    <button class="btn btn-outline-warning btn-sm me-2" disabled>
-                                        <i class="fas fa-minus"></i>
-                                    </button>
-                                    <small class="text-muted">快速出庫</small>
-                                </div>
-                                <div class="d-flex align-items-center">
-                                    <button class="btn btn-outline-info btn-sm me-2" disabled>
-                                        <i class="fas fa-history"></i>
-                                    </button>
-                                    <small class="text-muted">查看異動記錄</small>
-                                </div>
-                            </div>
-                            
-                            <div class="mt-2">
-                                <small class="text-info">
-                                    <i class="fas fa-lightbulb me-1"></i>
-                                    <strong>小提示：</strong>
-                                    黃色背景行表示低庫存項目 | 直接修改安全庫存與補貨點後記得點擊儲存 | 點擊操作按鈕可快速進行庫存異動
-                                </small>
-                            </div>
-                            
-                            <div class="mt-2">
-                                <small class="text-success">
-                                    <i class="fas fa-calendar-plus me-1"></i>
-                                    <strong>新功能：</strong>
-                                    勾選多個項目可批量加入週期訂單 | 點擊欄位標題可排序 | 系統會自動綁定儲位並建議採購數量
-                                </small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- 低庫存警告 -->
 {% if low_stock_items %}
 <div class="row mb-4">
@@ -248,13 +102,11 @@
                 </h5>
                 <div>
                     <div class="btn-group">
-                        <!-- 批量操作按鈕 -->
+                        <!-- 批量週期訂單按鈕 -->
                         <button class="btn btn-success btn-sm" id="batchWeeklyOrderBtn" onclick="createBatchWeeklyOrder()" 
-                                style="display: none;" title="將選中項目加入批量週期訂單">
+                                style="display: none;" title="為選中的品項建立週期訂單">
                             <i class="fas fa-calendar-plus me-1"></i>批量週期訂單 (<span id="selectedCount">0</span>)
                         </button>
-                        
-                        <!-- 匯出按鈕群組 -->
                         <button class="btn btn-outline-primary btn-sm" onclick="exportInventory()">
                             <i class="fas fa-download me-1"></i>匯出
                         </button>
@@ -273,9 +125,6 @@
                             <li><a class="dropdown-item" href="#" onclick="exportLowStock()">
                                 <i class="fas fa-exclamation-triangle me-2"></i>匯出低庫存清單
                             </a></li>
-                            <li><a class="dropdown-item" href="#" onclick="exportSelectedItems()">
-                                <i class="fas fa-check-square me-2"></i>匯出選中項目
-                            </a></li>
                             <li><a class="dropdown-item" href="#" onclick="showExportOptions()">
                                 <i class="fas fa-cog me-2"></i>進階匯出選項
                             </a></li>
@@ -289,71 +138,56 @@
                     <table class="table table-hover table-sm">
                         <thead class="table-dark">
                             <tr>
-                                <th width="3%">
-                                    <input type="checkbox" id="selectAll" class="form-check-input" 
-                                           onchange="toggleSelectAll()" title="全選/取消全選">
+                                <th width="40">
+                                    <input type="checkbox" id="selectAll" class="form-check-input" onclick="toggleSelectAll(this)" title="全選/取消全選">
                                 </th>
-                                <th width="12%" class="sortable" data-sort="part_number">
-                                    零件編號 <i class="fas fa-sort text-muted ms-1"></i>
-                                </th>
-                                <th width="15%" class="sortable" data-sort="part_name">
-                                    零件名稱 <i class="fas fa-sort text-muted ms-1"></i>
-                                </th>
-                                <th width="12%" class="sortable" data-sort="location">
-                                    儲位 <i class="fas fa-sort text-muted ms-1"></i>
-                                </th>
-                                <th width="8%" class="sortable" data-sort="quantity_on_hand">
-                                    現有庫存 <i class="fas fa-sort text-muted ms-1"></i>
-                                </th>
-                                <th width="8%" class="sortable" data-sort="available_quantity">
-                                    可用庫存 <i class="fas fa-sort text-muted ms-1"></i>
-                                </th>
-                                <th width="8%">安全庫存</th>
-                                <th width="8%">補貨點</th>
-                                <th width="6%">單位</th>
-                                <th width="8%" class="sortable" data-sort="status">
-                                    狀態 <i class="fas fa-sort text-muted ms-1"></i>
-                                </th>
-                                <th width="12%">操作</th>
+                                <th>零件編號</th>
+                                <th>零件名稱</th>
+                                <th>儲位</th>
+                                <th>現有庫存</th>
+                                <th>可用庫存</th>
+                                <th>安全庫存</th>
+                                <th>補貨點</th>
+                                <th>單位</th>
+                                <th>狀態</th>
+                                <th>操作</th>
                             </tr>
                         </thead>
                         <tbody id="inventory-table-body">
                             {% for inventory in inventories %}
                             <tr class="inventory-row {{ 'table-warning' if inventory.available_quantity <= inventory.reorder_point else '' }}" 
                                 data-part-id="{{ inventory.part_id }}"
-                                data-part-number="{{ inventory.part_number }}"
-                                data-part-name="{{ inventory.part_name }}"
                                 data-warehouse-id="{{ inventory.warehouse_id }}"
                                 data-location-id="{{ inventory.location_id }}"
-                                data-location-code="{{ inventory.location_code }}"
+                                data-part-number="{{ inventory.part_number }}"
+                                data-part-name="{{ inventory.part_name }}"
+                                data-part-type="{{ inventory.part_type or '' }}"
                                 data-warehouse-name="{{ inventory.warehouse_name }}"
+                                data-location-code="{{ inventory.location_code }}"
                                 data-unit="{{ inventory.unit }}"
                                 data-available-quantity="{{ inventory.available_quantity }}"
                                 data-reorder-point="{{ inventory.reorder_point }}">
-                                <td class="text-center">
+                                <td>
                                     <input type="checkbox" class="form-check-input item-checkbox" 
-                                           data-item-data="{{ inventory | tojson | e }}"
-                                           onchange="updateSelectedCount()" 
-                                           title="選擇此項目">
+                                           onchange="updateSelectionCount()"
+                                           data-part-id="{{ inventory.part_id }}"
+                                           data-location-id="{{ inventory.location_id }}">
                                 </td>
                                 <td><strong>{{ inventory.part_number }}</strong></td>
                                 <td>{{ inventory.part_name }}</td>
                                 <td>
-                                    <small class="text-muted">{{ inventory.warehouse_name }}</small><br>
-                                    <strong>{{ inventory.location_code }}</strong>
+                                    {{ inventory.warehouse_name }} - {{ inventory.location_code }}
                                 </td>
-                                <td class="text-end">{{ inventory.quantity_on_hand }}</td>
-                                <td class="text-end">{{ inventory.available_quantity }}</td>
+                                <td>{{ inventory.quantity_on_hand }}</td>
+                                <td>{{ inventory.available_quantity }}</td>
                                 <td>
-                                    <input type="number" class="form-control form-control-sm safety-stock-input" 
-                                           value="{{ inventory.safety_stock }}" style="width: 70px;">
+                                    <input type="number" class="form-control form-control-sm safety-stock-input" value="{{ inventory.safety_stock }}" style="width: 80px;">
                                 </td>
                                 <td>
-                                    <input type="number" class="form-control form-control-sm reorder-point-input" 
-                                           value="{{ inventory.reorder_point }}" style="width: 70px;">
+                                    <input type="number" class="form-control form-control-sm reorder-point-input" value="{{ inventory.reorder_point }}" style="width: 80px;">
                                 </td>
-                                <td class="text-center">{{ inventory.unit }}</td>
-                                <td class="text-center">
+                                <td>{{ inventory.unit }}</td>
+                                <td>
                                     {% if inventory.available_quantity <= 0 %}
                                         <span class="badge bg-danger">缺貨</span>
                                     {% elif inventory.available_quantity <= inventory.reorder_point %}
@@ -368,16 +202,16 @@
                                             <i class="fas fa-save"></i>
                                         </button>
                                         <button class="btn btn-outline-success" 
-                                                onclick="quickStockIn('{{ inventory.part_number }}', {{ inventory.warehouse_id }}, {{ inventory.location_id }})"
+                                                onclick="quickStockIn('{{ inventory.part_number }}', {{ inventory.location_id }})"
                                                 title="快速入庫">
                                             <i class="fas fa-plus"></i>
                                         </button>
                                         <button class="btn btn-outline-warning" 
-                                                onclick="quickStockOut('{{ inventory.part_number }}', {{ inventory.warehouse_id }}, {{ inventory.location_id }})"
+                                                onclick="quickStockOut('{{ inventory.part_number }}', {{ inventory.location_id }})"
                                                 title="快速出庫">
                                             <i class="fas fa-minus"></i>
                                         </button>
-                                        <a href="{{ url_for('web.inventory_transactions') }}?part_id={{ inventory.part_id }}&warehouse_id={{ inventory.warehouse_id }}" 
+                                        <a href="{{ url_for('web.inventory_transactions') }}?part_id={{ inventory.part_id }}&location_id={{ inventory.location_id }}" 
                                            class="btn btn-outline-info" title="查看記錄">
                                             <i class="fas fa-history"></i>
                                         </a>
@@ -411,7 +245,6 @@
             <div class="modal-body">
                 <form id="quickActionForm">
                     <input type="hidden" id="actionPartNumber">
-                    <input type="hidden" id="actionWarehouseId">
                     <input type="hidden" id="actionLocationId">
                     <input type="hidden" id="actionType">
                     
@@ -464,505 +297,59 @@
 </div>
 {% endblock %}
 
-{% block extra_css %}
-<style>
-    /* 庫存狀態說明區塊樣式 */
-    #inventoryGuide .text-sm {
-        font-size: 0.875rem;
-    }
-    
-    #inventoryGuide .row > div {
-        margin-bottom: 0.25rem;
-    }
-    
-    /* 摺疊動畫效果 */
-    #inventoryGuide {
-        transition: all 0.3s ease;
-    }
-    
-    /* 狀態徽章樣式優化 */
-    #inventoryGuide .badge {
-        font-size: 0.75rem;
-        min-width: 60px;
-        text-align: center;
-    }
-    
-    /* 快捷操作按鈕樣式 */
-    #inventoryGuide .btn[disabled] {
-        opacity: 0.8;
-        cursor: default;
-    }
-    
-    /* 提示卡片樣式 */
-    .card.border-info {
-        border-color: #17a2b8 !important;
-    }
-    
-    .card.border-info .card-header {
-        border-bottom: 1px solid #17a2b8;
-    }
-    
-    /* 摺疊按鈕動畫 */
-    .collapse-btn {
-        transition: transform 0.3s ease;
-    }
-    
-    .collapse-btn[aria-expanded="true"] {
-        transform: rotate(180deg);
-    }
-    
-    /* 響應式調整 */
-    @media (max-width: 768px) {
-        #inventoryGuide .d-flex.flex-wrap > div {
-            width: 100%;
-            margin-bottom: 0.5rem;
-        }
-        
-        #inventoryGuide .row.text-sm > div {
-            margin-bottom: 0.5rem;
-        }
-    }
-    
-    /* 低庫存行高亮效果增強 */
-    .table-warning {
-        background-color: rgba(255, 193, 7, 0.2) !important;
-        border-left: 3px solid #ffc107;
-    }
-    
-    /* 工具提示樣式 */
-    .info-tooltip {
-        background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
-        border-radius: 8px;
-        padding: 0.5rem;
-        margin: 0.25rem 0;
-    }
-    
-    /* 排序功能樣式 */
-    .sortable {
-        cursor: pointer;
-        user-select: none;
-        transition: background-color 0.2s ease;
-    }
-    
-    .sortable:hover {
-        background-color: rgba(255, 165, 0, 0.3);
-        color: #ff6600 !important;
-    }
-    
-    .sortable:hover i {
-        color: #ff6600 !important;
-    }
-    
-    .sortable.sort-asc i {
-        color: #28a745 !important;
-        transform: rotate(180deg);
-    }
-    
-    .sortable.sort-desc i {
-        color: #dc3545 !important;
-    }
-    
-    /* 勾選框樣式 */
-    .item-checkbox {
-        cursor: pointer;
-        transform: scale(1.1);
-    }
-    
-    .item-checkbox:checked {
-        background-color: #28a745;
-        border-color: #28a745;
-    }
-    
-    /* 選中行樣式 */
-    .inventory-row.selected {
-        background-color: rgba(40, 167, 69, 0.1) !important;
-        border-left: 3px solid #28a745;
-    }
-    
-    /* 批量操作按鈕動畫 */
-    #batchWeeklyOrderBtn {
-        transition: all 0.3s ease;
-        animation: pulse 2s infinite;
-    }
-    
-    @keyframes pulse {
-        0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
-        70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
-    }
-    
-    /* 表格優化 */
-    .table th {
-        border-bottom: 2px solid #495057;
-        font-weight: 600;
-        font-size: 0.875rem;
-        white-space: nowrap;
-    }
-    
-    .table td {
-        font-size: 0.875rem;
-        vertical-align: middle;
-    }
-    
-    /* 全選按鈕樣式 */
-    #selectAll {
-        transform: scale(1.2);
-        cursor: pointer;
-    }
-</style>
-{% endblock %}
-
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/inventory/index.js') }}"></script>
 <script>
-// 庫存管理頁面交互功能
-document.addEventListener('DOMContentLoaded', function() {
-    // 初始化摺疊按鈕動畫
-    initCollapseAnimation();
-    
-    // 檢查是否需要顯示歡迎提示
-    checkWelcomeTip();
-    
-    // 初始化工具提示
-    initTooltips();
-    
-    // 初始化排序功能
-    initSortableTable();
-    
-    // 初始化勾選功能
-    initCheckboxFunctionality();
-    
-    // 預設按狀態排序（缺貨優先）
-    setTimeout(() => {
-        sortTable('status');
-    }, 500);
-});
-
-// 初始化勾選功能
-function initCheckboxFunctionality() {
-    // 為所有項目勾選框添加事件監聽
-    document.querySelectorAll('.item-checkbox').forEach(checkbox => {
-        checkbox.addEventListener('change', updateSelectedCount);
-    });
-    
-    // 初始化選中數量
-    updateSelectedCount();
-}
-
-// 摺疊按鈕動畫
-function initCollapseAnimation() {
-    const collapseButton = document.querySelector('[data-bs-target="#inventoryGuide"]');
-    const collapseIcon = collapseButton?.querySelector('i');
-    
-    if (collapseButton && collapseIcon) {
-        collapseButton.addEventListener('click', function() {
-            setTimeout(() => {
-                const isExpanded = this.getAttribute('aria-expanded') === 'true';
-                collapseIcon.className = isExpanded ? 'fas fa-chevron-up' : 'fas fa-chevron-down';
-            }, 150);
-        });
-    }
-}
-
-// 檢查歡迎提示
-function checkWelcomeTip() {
-    const isFirstVisit = !localStorage.getItem('inventory-welcome-seen');
-    const hasLowStock = document.querySelectorAll('.table-warning').length > 0;
-    
-    if (isFirstVisit || hasLowStock) {
-        showWelcomeTip();
-    }
-}
-
-// 顯示歡迎提示
-function showWelcomeTip() {
-    const welcomeTip = document.getElementById('welcomeTip');
-    if (welcomeTip) {
-        welcomeTip.style.display = 'block';
-        
-        // 平滑滾動到頂部
-        setTimeout(() => {
-            welcomeTip.scrollIntoView({ 
-                behavior: 'smooth', 
-                block: 'start' 
-            });
-        }, 100);
-    }
-}
-
-// 隱藏歡迎提示
-function hideWelcomeTip(remember = false) {
-    const welcomeTip = document.getElementById('welcomeTip');
-    if (welcomeTip) {
-        // 淡出動畫
-        welcomeTip.style.transition = 'opacity 0.3s ease';
-        welcomeTip.style.opacity = '0';
-        
-        setTimeout(() => {
-            welcomeTip.style.display = 'none';
-            welcomeTip.style.opacity = '1';
-        }, 300);
-        
-        // 記住用戶選擇
-        if (remember) {
-            localStorage.setItem('inventory-welcome-seen', 'true');
-        }
-    }
-}
-
-// 顯示功能說明
-function showInventoryGuide() {
-    const collapseElement = document.getElementById('inventoryGuide');
-    const collapseButton = document.querySelector('[data-bs-target="#inventoryGuide"]');
-    
-    if (collapseElement) {
-        // 展開說明區塊
-        const bsCollapse = new bootstrap.Collapse(collapseElement, {
-            show: true
-        });
-        
-        // 更新按鈕狀態
-        if (collapseButton) {
-            collapseButton.setAttribute('aria-expanded', 'true');
-            const icon = collapseButton.querySelector('i');
-            if (icon) {
-                icon.className = 'fas fa-chevron-up';
-            }
-        }
-        
-        // 隱藏歡迎提示
-        hideWelcomeTip();
-        
-        // 滾動到說明區域
-        setTimeout(() => {
-            collapseElement.scrollIntoView({ 
-                behavior: 'smooth', 
-                block: 'start' 
-            });
-        }, 350);
-    }
-}
-
-// 初始化工具提示
-function initTooltips() {
-    // 初始化 Bootstrap 工具提示
-    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
-    
-    // 為狀態徽章添加懸停效果
-    const statusBadges = document.querySelectorAll('#inventoryGuide .badge');
-    statusBadges.forEach(badge => {
-        badge.addEventListener('mouseenter', function() {
-            this.style.transform = 'scale(1.05)';
-            this.style.transition = 'transform 0.2s ease';
-        });
-        
-        badge.addEventListener('mouseleave', function() {
-            this.style.transform = 'scale(1)';
-        });
-    });
-}
-
-// 重置歡迎提示（開發用）
-function resetWelcomeTip() {
-    localStorage.removeItem('inventory-welcome-seen');
-    showWelcomeTip();
-}
-
-// ========== 新增功能：排序與勾選 ==========
-
-// 排序狀態
-let currentSort = {
-    column: null,
-    direction: null
-};
-
-// 初始化排序功能
-function initSortableTable() {
-    const sortableHeaders = document.querySelectorAll('.sortable');
-    sortableHeaders.forEach(header => {
-        header.addEventListener('click', function() {
-            const column = this.getAttribute('data-sort');
-            sortTable(column);
-        });
-    });
-}
-
-// 表格排序
-function sortTable(column) {
-    const table = document.getElementById('inventory-table-body');
-    const rows = Array.from(table.querySelectorAll('tr'));
-    
-    // 確定排序方向
-    let direction = 'asc';
-    if (currentSort.column === column && currentSort.direction === 'asc') {
-        direction = 'desc';
-    }
-    
-    // 更新排序狀態
-    currentSort.column = column;
-    currentSort.direction = direction;
-    
-    // 排序數據
-    rows.sort((a, b) => {
-        let aVal, bVal;
-        
-        switch(column) {
-            case 'part_number':
-                aVal = a.getAttribute('data-part-number');
-                bVal = b.getAttribute('data-part-number');
-                break;
-            case 'part_name':
-                aVal = a.getAttribute('data-part-name');
-                bVal = b.getAttribute('data-part-name');
-                break;
-            case 'location':
-                aVal = a.getAttribute('data-location-code');
-                bVal = b.getAttribute('data-location-code');
-                break;
-            case 'quantity_on_hand':
-                aVal = parseInt(a.querySelector('td:nth-child(5)').textContent);
-                bVal = parseInt(b.querySelector('td:nth-child(5)').textContent);
-                break;
-            case 'available_quantity':
-                aVal = parseInt(a.getAttribute('data-available-quantity'));
-                bVal = parseInt(b.getAttribute('data-available-quantity'));
-                break;
-            case 'status':
-                // 按狀態優先級排序：缺貨 > 低庫存 > 正常
-                const statusOrder = { '缺貨': 0, '低庫存': 1, '正常': 2 };
-                const aStatus = a.querySelector('.badge').textContent;
-                const bStatus = b.querySelector('.badge').textContent;
-                aVal = statusOrder[aStatus];
-                bVal = statusOrder[bStatus];
-                break;
-            default:
-                return 0;
-        }
-        
-        // 字符串比較
-        if (typeof aVal === 'string' && typeof bVal === 'string') {
-            aVal = aVal.toLowerCase();
-            bVal = bVal.toLowerCase();
-        }
-        
-        if (direction === 'asc') {
-            return aVal > bVal ? 1 : -1;
-        } else {
-            return aVal < bVal ? 1 : -1;
-        }
-    });
-    
-    // 重新排列表格
-    table.innerHTML = '';
-    rows.forEach(row => table.appendChild(row));
-    
-    // 更新排序圖標
-    updateSortIcons(column, direction);
-}
-
-// 更新排序圖標
-function updateSortIcons(activeColumn, direction) {
-    const sortableHeaders = document.querySelectorAll('.sortable');
-    
-    sortableHeaders.forEach(header => {
-        const column = header.getAttribute('data-sort');
-        const icon = header.querySelector('i');
-        
-        // 重置所有圖標
-        header.classList.remove('sort-asc', 'sort-desc');
-        icon.className = 'fas fa-sort text-muted ms-1';
-        
-        // 設置當前排序圖標
-        if (column === activeColumn) {
-            if (direction === 'asc') {
-                header.classList.add('sort-asc');
-                icon.className = 'fas fa-sort-up text-success ms-1';
-            } else {
-                header.classList.add('sort-desc');
-                icon.className = 'fas fa-sort-down text-danger ms-1';
-            }
-        }
-    });
-}
-
-// ========== 勾選功能 ==========
-
-// 全選/取消全選
-function toggleSelectAll() {
-    const selectAllCheckbox = document.getElementById('selectAll');
+// 批量週期訂單功能
+function toggleSelectAll(checkbox) {
     const itemCheckboxes = document.querySelectorAll('.item-checkbox');
-    
-    itemCheckboxes.forEach(checkbox => {
-        checkbox.checked = selectAllCheckbox.checked;
-        toggleRowSelection(checkbox.closest('tr'), selectAllCheckbox.checked);
+    itemCheckboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+        toggleRowSelection(cb.closest('tr'), checkbox.checked);
     });
-    
-    updateSelectedCount();
+    updateSelectionCount();
 }
 
-// 更新選中數量
-function updateSelectedCount() {
+function updateSelectionCount() {
     const checkedBoxes = document.querySelectorAll('.item-checkbox:checked');
     const count = checkedBoxes.length;
     const selectAllCheckbox = document.getElementById('selectAll');
     const batchBtn = document.getElementById('batchWeeklyOrderBtn');
     const selectedCountSpan = document.getElementById('selectedCount');
     
-    // 更新計數顯示
-    selectedCountSpan.textContent = count;
+    if (selectedCountSpan) {
+        selectedCountSpan.textContent = count;
+    }
     
-    // 顯示/隱藏批量操作按鈕
-    if (count > 0) {
-        batchBtn.style.display = 'inline-block';
-        batchBtn.classList.add('animated', 'pulse');
-    } else {
-        batchBtn.style.display = 'none';
-        batchBtn.classList.remove('animated', 'pulse');
+    if (batchBtn) {
+        batchBtn.style.display = count > 0 ? 'inline-block' : 'none';
     }
     
     // 更新全選框狀態
     const totalCheckboxes = document.querySelectorAll('.item-checkbox').length;
-    if (count === 0) {
-        selectAllCheckbox.checked = false;
-        selectAllCheckbox.indeterminate = false;
-    } else if (count === totalCheckboxes) {
-        selectAllCheckbox.checked = true;
-        selectAllCheckbox.indeterminate = false;
-    } else {
-        selectAllCheckbox.checked = false;
-        selectAllCheckbox.indeterminate = true;
-    }
-    
-    // 更新行選中樣式
-    document.querySelectorAll('.item-checkbox').forEach(checkbox => {
-        toggleRowSelection(checkbox.closest('tr'), checkbox.checked);
-    });
-}
-
-// 切換行選中樣式
-function toggleRowSelection(row, isSelected) {
-    if (isSelected) {
-        row.classList.add('selected');
-    } else {
-        row.classList.remove('selected');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = count > 0 && count === totalCheckboxes;
+        selectAllCheckbox.indeterminate = count > 0 && count < totalCheckboxes;
     }
 }
 
-// ========== 批量週期訂單功能 ==========
+function toggleRowSelection(row, selected) {
+    if (selected) {
+        row.classList.add('table-active');
+    } else {
+        row.classList.remove('table-active');
+    }
+}
 
-// 創建批量週期訂單
 function createBatchWeeklyOrder() {
     const checkedBoxes = document.querySelectorAll('.item-checkbox:checked');
     
     if (checkedBoxes.length === 0) {
-        alert('請先選擇要加入週期訂單的項目');
+        alert('請先選擇要建立週期訂單的品項');
         return;
     }
     
-    // 收集選中項目的數據
+    // 收集選中的品項資料
     const selectedItems = [];
     checkedBoxes.forEach(checkbox => {
         const row = checkbox.closest('tr');
@@ -970,40 +357,36 @@ function createBatchWeeklyOrder() {
             part_id: row.getAttribute('data-part-id'),
             part_number: row.getAttribute('data-part-number'),
             part_name: row.getAttribute('data-part-name'),
+            part_type: row.getAttribute('data-part-type'),
             warehouse_id: row.getAttribute('data-warehouse-id'),
             warehouse_location_id: row.getAttribute('data-location-id'),
-            location_code: row.getAttribute('data-location-code'),
             warehouse_name: row.getAttribute('data-warehouse-name'),
+            location_code: row.getAttribute('data-location-code'),
             unit: row.getAttribute('data-unit'),
-            available_quantity: row.getAttribute('data-available-quantity'),
-            reorder_point: row.getAttribute('data-reorder-point'),
-            // 建議訂購數量（補貨點的2倍）
-            suggested_quantity: Math.max(parseInt(row.getAttribute('data-reorder-point')) * 2, 10)
+            available_quantity: parseInt(row.getAttribute('data-available-quantity')),
+            reorder_point: parseInt(row.getAttribute('data-reorder-point'))
         };
         selectedItems.push(itemData);
     });
     
-    // 將數據編碼並跳轉到批量週期訂單頁面
-    const encodedItems = encodeURIComponent(JSON.stringify(selectedItems));
-    const url = `{{ url_for('weekly_order.batch_register_form') }}?source=inventory&items=${encodedItems}`;
+    console.log('準備傳送的品項資料：', selectedItems);
     
-    // 確認跳轉
-    if (confirm(`確定要將選中的 ${selectedItems.length} 個項目加入批量週期訂單嗎？`)) {
-        window.location.href = url;
-    }
+    // 將資料存入 sessionStorage
+    sessionStorage.setItem('batchOrderItems', JSON.stringify(selectedItems));
+    
+    // 跳轉到批量登記頁面
+    window.location.href = '/weekly-orders/batch-register';
 }
 
-// 匯出選中項目
-function exportSelectedItems() {
-    const checkedBoxes = document.querySelectorAll('.item-checkbox:checked');
-    
-    if (checkedBoxes.length === 0) {
-        alert('請先選擇要匯出的項目');
-        return;
-    }
-    
-    // TODO: 實現匯出選中項目功能
-    console.log('匯出選中項目功能開發中...');
-}
+// 頁面載入時初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 為每個 checkbox 添加事件監聽器
+    document.querySelectorAll('.item-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            toggleRowSelection(this.closest('tr'), this.checked);
+            updateSelectionCount();
+        });
+    });
+});
 </script>
 {% endblock %}
