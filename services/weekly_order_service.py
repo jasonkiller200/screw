@@ -42,9 +42,9 @@ class WeeklyOrderService:
             
             reviewers = set()
             for log in review_logs:
-                if log.reviewer_name:
+                if log.reviewer_name and log.reviewer_name not in ['主管', '系統']:
                     reviewers.add(log.reviewer_name)
-            reviewers_str = '、'.join(reviewers) if reviewers else '系統'
+            reviewers_str = '、'.join(sorted(reviewers)) if reviewers else '系統'
             
             # Helper function to get current time in UTC+8
             def get_taipei_time():
