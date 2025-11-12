@@ -1,8 +1,8 @@
 // 快速入庫
-function quickStockIn(partNumber, warehouseId) {
+function quickStockIn(partNumber, locationId) {
     document.getElementById('quickActionTitle').textContent = '快速入庫';
     document.getElementById('actionPartNumber').value = partNumber;
-    document.getElementById('actionWarehouseId').value = warehouseId;
+    document.getElementById('actionLocationId').value = locationId;
     document.getElementById('actionType').value = 'IN';
     document.getElementById('displayPartNumber').value = partNumber;
     document.getElementById('actionQuantity').value = '';
@@ -18,10 +18,10 @@ function quickStockIn(partNumber, warehouseId) {
 }
 
 // 快速出庫
-function quickStockOut(partNumber, warehouseId) {
+function quickStockOut(partNumber, locationId) {
     document.getElementById('quickActionTitle').textContent = '快速出庫';
     document.getElementById('actionPartNumber').value = partNumber;
-    document.getElementById('actionWarehouseId').value = warehouseId;
+    document.getElementById('actionLocationId').value = locationId;
     document.getElementById('actionType').value = 'OUT';
     document.getElementById('displayPartNumber').value = partNumber;
     document.getElementById('actionQuantity').value = '';
@@ -56,7 +56,7 @@ document.getElementById('actionTransactionTypeOut').addEventListener('change', f
 // 提交快速操作
 document.getElementById('submitQuickAction').addEventListener('click', function() {
     const partNumber = document.getElementById('actionPartNumber').value;
-    const warehouseId = document.getElementById('actionWarehouseId').value;
+    const locationId = document.getElementById('actionLocationId').value;
     const actionType = document.getElementById('actionType').value;
     const quantity = document.getElementById('actionQuantity').value;
     const notes = document.getElementById('actionNotes').value;
@@ -76,7 +76,7 @@ document.getElementById('submitQuickAction').addEventListener('click', function(
         }
         payload = {
             part_number: partNumber,
-            warehouse_id: parseInt(warehouseId),
+            warehouse_location_id: parseInt(locationId),
             quantity: parseInt(quantity),
             transaction_type: transactionType,
             notes: notes
@@ -90,7 +90,7 @@ document.getElementById('submitQuickAction').addEventListener('click', function(
         }
         payload = {
             part_number: partNumber,
-            warehouse_id: parseInt(warehouseId),
+            warehouse_location_id: parseInt(locationId),
             quantity: parseInt(quantity),
             transaction_type: transactionType,
             notes: notes

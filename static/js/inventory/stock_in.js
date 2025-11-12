@@ -63,26 +63,35 @@ function displayPartInfo(partNumber, partName, unit, locations) {
     const partInfoCard = document.getElementById('partInfoCard');
     const partInfoContent = document.getElementById('partInfoContent');
     const partNameDisplay = document.getElementById('partNameDisplay');
-    const warehouseSelect = document.getElementById('warehouse_id');
+    const locationSelect = document.getElementById('warehouse_location_id');
 
     partNameDisplay.textContent = partName || '';
     partInfoCard.style.display = 'block';
 
-    // 填充倉庫下拉選單
-    warehouseSelect.innerHTML = '<option value="">選擇倉庫</option>';
+    // 填充儲位下拉選單
+    locationSelect.innerHTML = '<option value="">選擇儲位</option>';
     if (locations && locations.length > 0) {
         locations.forEach(loc => {
             const option = document.createElement('option');
-            option.value = loc.warehouse_id;
+            option.value = loc.id; // 使用 id (WarehouseLocation 的 ID)
             option.textContent = `${loc.warehouse_name} - ${loc.location_code}`;
-            warehouseSelect.appendChild(option);
+            locationSelect.appendChild(option);
         });
+        
+        // 如果只有一個儲位，自動選擇
+        if (locations.length === 1) {
+            locationSelect.value = locations[0].id;
+            // 加上視覺提示
+            locationSelect.classList.add('border-success');
+            locationSelect.parentElement.insertAdjacentHTML('beforeend', 
+                '<small class="text-success d-block mt-1"><i class="fas fa-check-circle me-1"></i>已自動選擇唯一儲位</small>');
+        }
     } else {
         const option = document.createElement('option');
         option.value = '';
-        option.textContent = '無可用倉庫';
+        option.textContent = '此零件無儲位設定';
         option.disabled = true;
-        warehouseSelect.appendChild(option);
+        locationSelect.appendChild(option);
     }
 
     // 顯示基本資訊並準備載入庫存
@@ -90,24 +99,26 @@ function displayPartInfo(partNumber, partName, unit, locations) {
         <p><strong>編號：</strong>${partNumber}</p>
         <p><strong>名稱：</strong>${partName}</p>
         <p><strong>單位：</strong>${unit}</p>
+        <p><strong>儲位數量：</strong>${locations.length} 個</p>
         <div id="stockInfoContainer" class="mt-2"></div>
     `;
     
     AppUtils.showLoading('#stockInfoContainer');
 
-    // 獲取並顯示庫存資訊
+    // 獲取並顯示各儲位庫存資訊
     AppUtils.makeRequest(`/api/inventory/stock/${encodeURIComponent(partNumber)}`)
         .then(data => {
             const stockContainer = document.getElementById('stockInfoContainer');
             if (stockContainer) {
                 if (data.stock_info && data.stock_info.length > 0) {
-                    let stockHtml = '<h6>現有庫存：</h6>';
+                    let stockHtml = '<h6>各儲位庫存：</h6><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>倉庫</th><th>儲位</th><th>數量</th></tr></thead><tbody>';
                     data.stock_info.forEach(stock => {
-                        stockHtml += `<small>${stock.warehouse_name}: ${stock.quantity_on_hand} ${unit}</small><br>`;
+                        stockHtml += `<tr><td>${stock.warehouse_name}</td><td><strong>${stock.location_code || '-'}</strong></td><td>${stock.quantity_on_hand} ${unit}</td></tr>`;
                     });
+                    stockHtml += '</tbody></table></div>';
                     stockContainer.innerHTML = stockHtml;
                 } else {
-                    stockContainer.innerHTML = '<small class="text-muted">此零件無庫存記錄</small>';
+                    stockContainer.innerHTML = '<small class="text-muted">此零件各儲位無庫存記錄</small>';
                 }
             }
         })
@@ -123,7 +134,12 @@ function displayPartInfo(partNumber, partName, unit, locations) {
 function clearPartInfo() {
     document.getElementById('partInfoCard').style.display = 'none';
     document.getElementById('partNameDisplay').textContent = '';
-    document.getElementById('warehouse_id').innerHTML = '<option value="">選擇倉庫</option>';
+    const locationSelect = document.getElementById('warehouse_location_id');
+    locationSelect.innerHTML = '<option value="">選擇儲位</option>';
+    locationSelect.classList.remove('border-success');
+    // 移除自動選擇提示
+    const successHint = locationSelect.parentElement.querySelector('.text-success');
+    if (successHint) successHint.remove();
     document.getElementById('partInfoContent').innerHTML = '';
 }
 
@@ -145,7 +161,7 @@ function handleFormSubmit(event) {
 
     const form = event.target;
     const partNumber = document.getElementById('part_number').value.trim();
-    const warehouseId = document.getElementById('warehouse_id').value;
+    const locationId = document.getElementById('warehouse_location_id').value;
     const quantity = document.getElementById('quantity').value;
     const transactionType = document.getElementById('transaction_type').value;
 
@@ -155,9 +171,9 @@ function handleFormSubmit(event) {
     if (!partNumber) {
         isValid = false;
         errorMessage = '請輸入或選擇一個零件編號';
-    } else if (!warehouseId) {
+    } else if (!locationId) {
         isValid = false;
-        errorMessage = '請選擇目標倉庫';
+        errorMessage = '請選擇目標儲位';
     } else if (!quantity) {
         isValid = false;
         errorMessage = '請輸入入庫數量';

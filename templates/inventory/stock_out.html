@@ -41,10 +41,11 @@
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="warehouse_id" class="form-label">來源倉庫 <span class="text-danger">*</span></label>
-                                <select class="form-select" id="warehouse_id" name="warehouse_id" required>
-                                    <option value="">選擇倉庫</option>
+                                <label for="warehouse_location_id" class="form-label">來源儲位 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="warehouse_location_id" name="warehouse_location_id" required>
+                                    <option value="">選擇儲位</option>
                                 </select>
+                                <small class="form-text text-muted">格式：倉庫名稱 - 儲位代碼</small>
                             </div>
                         </div>
                     </div>
@@ -56,7 +57,7 @@
                                 <input type="number" class="form-control" id="quantity" name="quantity" 
                                        min="1" placeholder="輸入數量" required>
                                 <div class="form-text">
-                                    可用庫存：<span id="availableStock" class="text-muted">請先選擇零件和倉庫</span>
+                                    可用庫存：<span id="availableStock" class="text-muted">請先選擇零件和儲位</span>
                                 </div>
                             </div>
                         </div>

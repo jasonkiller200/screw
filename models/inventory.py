@@ -85,7 +85,10 @@ class CurrentInventory(db.Model):
         .join(PartWarehouseLocation, Part.id == PartWarehouseLocation.part_id)
         .join(WarehouseLocation, PartWarehouseLocation.warehouse_location_id == WarehouseLocation.id)
         .join(Warehouse, WarehouseLocation.warehouse_id == Warehouse.id)
-        .outerjoin(cls, sa.and_(Part.id == cls.part_id, Warehouse.id == cls.warehouse_id)))
+        .outerjoin(cls, sa.and_(
+            Part.id == cls.part_id, 
+            WarehouseLocation.id == cls.warehouse_location_id
+        )))
 
         if warehouse_id:
             query = query.filter(Warehouse.id == warehouse_id)
@@ -133,7 +136,7 @@ class CurrentInventory(db.Model):
         return [item.to_dict() for item in items]
 
     @classmethod
-    def update_stock(cls, part_id, warehouse_location_id, quantity_change, transaction_type, reference_type=None, reference_id=None, notes=None, commit=True):
+    def update_stock(cls, part_id, warehouse_location_id, quantity_change, transaction_type, reference_type=None, reference_id=None, notes=None, user_id=None, commit=True):
         from .part import WarehouseLocation
         
         # Find the specific inventory record for the part at the given location
@@ -167,7 +170,7 @@ class CurrentInventory(db.Model):
             current_stock.quantity_on_hand = max(0, current_stock.quantity_on_hand)
             current_stock.available_quantity = max(0, current_stock.available_quantity)
         
-        # Record transaction with location information
+        # Record transaction with location information and user
         transaction = InventoryTransaction(
             part_id=part_id,
             warehouse_id=warehouse_id,
@@ -177,6 +180,7 @@ class CurrentInventory(db.Model):
             reference_type=reference_type,
             reference_id=reference_id,
             notes=notes,
+            user_id=user_id,
             transaction_date=get_taipei_time()
         )
         db.session.add(transaction)
@@ -205,13 +209,15 @@ class InventoryTransaction(db.Model):
     reference_id = db.Column(db.Integer)
     notes = db.Column(db.Text)
     transaction_date = db.Column(db.DateTime, nullable=False)
-    created_by = db.Column(db.String(100), default='system')
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, comment='操作人員ID')
+    created_by = db.Column(db.String(100), default='system', comment='建立者（系統/遷移用）')
     created_at = db.Column(db.DateTime, default=get_taipei_time)
 
     # Relationships
     part = relationship("Part", backref="transactions")
     warehouse = relationship("Warehouse", backref="transactions")
     warehouse_location = relationship("WarehouseLocation", backref="transactions")
+    user = relationship("User", foreign_keys=[user_id], backref="inventory_transactions")
 
     def to_dict(self):
         return {
@@ -227,6 +233,8 @@ class InventoryTransaction(db.Model):
             'reference_id': self.reference_id,
             'notes': self.notes,
             'transaction_date': self.transaction_date.isoformat() if self.transaction_date else None,
+            'user_id': self.user_id,
+            'user_name': self.user.full_name if self.user else None,
             'created_by': self.created_by,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'part_number': self.part.part_number if self.part else None,
@@ -511,7 +519,7 @@ class StockCount(db.Model):
         return False
 
     @classmethod
-    def complete_count(cls, count_id, verified_by='', apply_adjustments=False):
+    def complete_count(cls, count_id, verified_by='', apply_adjustments=False, user_id=None):
         count = cls.query.get(count_id)
         if not count:
             return False
@@ -531,7 +539,8 @@ class StockCount(db.Model):
                         transaction_type='ADJUST',
                         reference_type='COUNT', 
                         reference_id=count.id, 
-                        notes=f'盤點調整 (差異: {detail.variance_quantity})'
+                        notes=f'盤點調整 (差異: {detail.variance_quantity})',
+                        user_id=user_id
                     )
         
         try:

@@ -180,16 +180,16 @@
                                             <i class="fas fa-save"></i>
                                         </button>
                                         <button class="btn btn-outline-success" 
-                                                onclick="quickStockIn('{{ inventory.part_number }}', {{ inventory.warehouse_id }})"
+                                                onclick="quickStockIn('{{ inventory.part_number }}', {{ inventory.location_id }})"
                                                 title="快速入庫">
                                             <i class="fas fa-plus"></i>
                                         </button>
                                         <button class="btn btn-outline-warning" 
-                                                onclick="quickStockOut('{{ inventory.part_number }}', {{ inventory.warehouse_id }})"
+                                                onclick="quickStockOut('{{ inventory.part_number }}', {{ inventory.location_id }})"
                                                 title="快速出庫">
                                             <i class="fas fa-minus"></i>
                                         </button>
-                                        <a href="{{ url_for('web.inventory_transactions') }}?part_id={{ inventory.part_id }}&warehouse_id={{ inventory.warehouse_id }}" 
+                                        <a href="{{ url_for('web.inventory_transactions') }}?part_id={{ inventory.part_id }}&location_id={{ inventory.location_id }}" 
                                            class="btn btn-outline-info" title="查看記錄">
                                             <i class="fas fa-history"></i>
                                         </a>
@@ -223,7 +223,7 @@
             <div class="modal-body">
                 <form id="quickActionForm">
                     <input type="hidden" id="actionPartNumber">
-                    <input type="hidden" id="actionWarehouseId">
+                    <input type="hidden" id="actionLocationId">
                     <input type="hidden" id="actionType">
                     
                     <div class="mb-3">

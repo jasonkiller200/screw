@@ -4,6 +4,7 @@ AI查詢控制器
 """
 
 from flask import Blueprint, request, jsonify, render_template
+from flask_login import login_required
 from services.ai_service import AIService
 from datetime import datetime
 import logging
@@ -15,6 +16,7 @@ ai_bp = Blueprint('ai', __name__, url_prefix='/ai')
 ai_service = AIService()
 
 @ai_bp.route('/query', methods=['POST'])
+@login_required
 def ai_query():
     """處理AI查詢請求"""
     try:
@@ -48,6 +50,7 @@ def ai_query():
         }), 500
 
 @ai_bp.route('/status', methods=['GET'])
+@login_required
 def ai_status():
     """檢查AI服務狀態"""
     try:
@@ -61,6 +64,7 @@ def ai_status():
         }), 500
 
 @ai_bp.route('/suggestions', methods=['GET'])
+@login_required
 def ai_suggestions():
     """獲取建議的查詢問題"""
     try:
@@ -77,6 +81,7 @@ def ai_suggestions():
         }), 500
 
 @ai_bp.route('/models', methods=['GET'])
+@login_required
 def get_available_models():
     """獲取可用的AI模型列表"""
     try:
@@ -102,6 +107,7 @@ def get_available_models():
         }), 500
 
 @ai_bp.route('/set-model', methods=['POST'])
+@login_required
 def set_model():
     """設定使用的AI模型"""
     try:
@@ -138,6 +144,7 @@ def set_model():
         }), 500
 
 @ai_bp.route('/conversation/clear', methods=['POST'])
+@login_required
 def clear_conversation():
     """清除對話歷史"""
     try:
@@ -158,6 +165,7 @@ def clear_conversation():
         }), 500
 
 @ai_bp.route('/conversation/summary/<session_id>', methods=['GET'])
+@login_required
 def get_conversation_summary(session_id):
     """獲取對話摘要"""
     try:
@@ -174,6 +182,7 @@ def get_conversation_summary(session_id):
         }), 500
 
 @ai_bp.route('/conversation/history/<session_id>', methods=['GET'])
+@login_required
 def get_conversation_history(session_id):
     """獲取完整對話歷史"""
     try:

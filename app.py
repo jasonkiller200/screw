@@ -5,7 +5,9 @@ from controllers.web_controller import web_bp
 from controllers.inventory_controller import inventory_api_bp
 from controllers.weekly_order_controller import weekly_order_bp
 from controllers.ai_controller import ai_bp
-from extensions import db, migrate # Import from extensions
+from controllers.auth_controller import auth_bp  # 新增
+from extensions import db, migrate, login_manager  # 新增 login_manager
+from datetime import timedelta
 
 def create_app():
     """應用程式工廠函數"""
@@ -16,13 +18,32 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///hardware.db' # Use the existing database file
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False # Suppress warning
     
+    # Configure Session
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    
+    # Initialize extensions
     db.init_app(app) # Initialize db with the app
     migrate.init_app(app, db) # Initialize migrate with the app and db
+    
+    # Initialize Flask-Login
+    login_manager.init_app(app)
+    login_manager.login_view = 'auth.login'
+    login_manager.login_message = '請先登入才能訪問此頁面'
+    login_manager.login_message_category = 'info'
+    
+    # User loader callback for Flask-Login
+    @login_manager.user_loader
+    def load_user(user_id):
+        from models.weekly_order import User
+        return User.query.get(int(user_id))
     
     # Enable Cross-Origin Resource Sharing for mobile app
     CORS(app)
     
     # 註冊藍圖
+    app.register_blueprint(auth_bp)             # 驗證路由 (/login, /register, /logout)
     app.register_blueprint(api_bp)              # API 路由 (/api/...)
     app.register_blueprint(inventory_api_bp)    # 庫存 API 路由 (/api/inventory/...)
     app.register_blueprint(web_bp)              # 網頁路由 (/...)

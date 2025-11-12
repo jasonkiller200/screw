@@ -99,20 +99,23 @@ class InventoryService:
         return output.getvalue(), filename
 
     @staticmethod
-    def perform_stock_out_from_api(data):
+    def perform_stock_out_from_api(data, user_id=None):
         """Handles the business logic for stocking out from an API request."""
-        required_fields = ['part_number', 'warehouse_id', 'quantity', 'transaction_type']
-        for field in required_fields:
-            if field not in data:
-                return {'success': False, 'error': f'Missing required field: {field}'}
-
-        part_number = data['part_number']
-        warehouse_id = data['warehouse_id']
-        quantity = data['quantity']
-        transaction_type = data['transaction_type']
+        part_number = data.get('part_number')
+        warehouse_location_id = data.get('warehouse_location_id')
+        warehouse_id = data.get('warehouse_id')  # 向下兼容舊API
+        quantity = data.get('quantity')
+        transaction_type = data.get('transaction_type')
         reference_type = data.get('reference_type', 'MANUAL')
         reference_id = data.get('reference_id')
         notes = data.get('notes', '')
+
+        # 檢查必要欄位
+        if not part_number or not quantity or not transaction_type:
+            return {'success': False, 'error': 'Missing required field: part_number, quantity, or transaction_type'}
+        
+        if not warehouse_location_id and not warehouse_id:
+            return {'success': False, 'error': 'Missing required field: warehouse_location_id or warehouse_id'}
 
         part = Part.get_by_part_number(part_number)
         if not part:
@@ -129,18 +132,34 @@ class InventoryService:
         if transaction_type not in valid_out_types:
             return {'success': False, 'error': 'Invalid transaction type for stock out'}
 
-        # Find warehouse_location_id from warehouse_id
-        target_location = None
-        if part.location_associations:
-            for assoc in part.location_associations:
-                if assoc.warehouse_location.warehouse_id == warehouse_id:
-                    target_location = assoc.warehouse_location
-                    break
-        
-        if not target_location:
-            return {'success': False, 'error': f'零件 {part.part_number} 在所選倉庫中沒有指定的儲位，無法出庫。'}
-        
-        warehouse_location_id = target_location.id
+        # 如果提供了 warehouse_location_id，直接使用；否則從 warehouse_id 查找
+        if warehouse_location_id:
+            from models.part import WarehouseLocation
+            location = WarehouseLocation.query.get(warehouse_location_id)
+            if not location:
+                return {'success': False, 'error': '選擇的儲位不存在'}
+            
+            # 檢查零件是否關聯此儲位
+            has_location = any(
+                assoc.warehouse_location_id == warehouse_location_id 
+                for assoc in part.location_associations
+            )
+            if not has_location:
+                return {'success': False, 'error': f'零件 {part.part_number} 未關聯到所選儲位'}
+        else:
+            # 向下兼容：從 warehouse_id 查找第一個儲位
+            target_location = None
+            if part.location_associations:
+                for assoc in part.location_associations:
+                    if assoc.warehouse_location.warehouse_id == warehouse_id:
+                        target_location = assoc.warehouse_location
+                        break
+            
+            if not target_location:
+                return {'success': False, 'error': f'零件 {part.part_number} 在所選倉庫中沒有指定的儲位，無法出庫。'}
+            
+            warehouse_location_id = target_location.id
+            location = target_location
 
         current_stock = CurrentInventory.get_current_stock(part.id, warehouse_location_id)
         if not current_stock or current_stock['available_quantity'] < quantity:
@@ -149,7 +168,7 @@ class InventoryService:
 
         success = CurrentInventory.update_stock(
             part.id, warehouse_location_id, -quantity, transaction_type,
-            reference_type, reference_id, notes
+            reference_type, reference_id, notes, user_id=user_id
         )
         
         if success:
@@ -158,20 +177,23 @@ class InventoryService:
             return {'success': False, 'error': 'Stock out operation failed'}
 
     @staticmethod
-    def perform_stock_in_from_api(data):
+    def perform_stock_in_from_api(data, user_id=None):
         """Handles the business logic for stocking in from an API request."""
-        required_fields = ['part_number', 'warehouse_id', 'quantity', 'transaction_type']
-        for field in required_fields:
-            if field not in data:
-                return {'success': False, 'error': f'Missing required field: {field}'}
-
-        part_number = data['part_number']
-        warehouse_id = data['warehouse_id']
-        quantity = data['quantity']
-        transaction_type = data['transaction_type']
+        part_number = data.get('part_number')
+        warehouse_location_id = data.get('warehouse_location_id')
+        warehouse_id = data.get('warehouse_id')  # 向下兼容舊API
+        quantity = data.get('quantity')
+        transaction_type = data.get('transaction_type')
         reference_type = data.get('reference_type', 'MANUAL')
         reference_id = data.get('reference_id')
         notes = data.get('notes', '')
+
+        # 檢查必要欄位
+        if not part_number or not quantity or not transaction_type:
+            return {'success': False, 'error': 'Missing required field: part_number, quantity, or transaction_type'}
+        
+        if not warehouse_location_id and not warehouse_id:
+            return {'success': False, 'error': 'Missing required field: warehouse_location_id or warehouse_id'}
 
         part = Part.get_by_part_number(part_number)
         if not part:
@@ -188,22 +210,38 @@ class InventoryService:
         if transaction_type not in valid_in_types:
             return {'success': False, 'error': 'Invalid transaction type for stock in'}
 
-        # Find warehouse_location_id from warehouse_id
-        target_location = None
-        if part.location_associations:
-            for assoc in part.location_associations:
-                if assoc.warehouse_location.warehouse_id == warehouse_id:
-                    target_location = assoc.warehouse_location
-                    break
-        
-        if not target_location:
-            return {'success': False, 'error': f'零件 {part.part_number} 在所選倉庫中沒有指定的儲位，無法入庫。'}
-        
-        warehouse_location_id = target_location.id
+        # 如果提供了 warehouse_location_id，直接使用；否則從 warehouse_id 查找
+        if warehouse_location_id:
+            from models.part import WarehouseLocation
+            location = WarehouseLocation.query.get(warehouse_location_id)
+            if not location:
+                return {'success': False, 'error': '選擇的儲位不存在'}
+            
+            # 檢查零件是否關聯此儲位
+            has_location = any(
+                assoc.warehouse_location_id == warehouse_location_id 
+                for assoc in part.location_associations
+            )
+            if not has_location:
+                return {'success': False, 'error': f'零件 {part.part_number} 未關聯到所選儲位'}
+        else:
+            # 向下兼容：從 warehouse_id 查找第一個儲位
+            target_location = None
+            if part.location_associations:
+                for assoc in part.location_associations:
+                    if assoc.warehouse_location.warehouse_id == warehouse_id:
+                        target_location = assoc.warehouse_location
+                        break
+            
+            if not target_location:
+                return {'success': False, 'error': f'零件 {part.part_number} 在所選倉庫中沒有指定的儲位，無法入庫。'}
+            
+            warehouse_location_id = target_location.id
+            location = target_location
 
         success = CurrentInventory.update_stock(
             part.id, warehouse_location_id, quantity, transaction_type,
-            reference_type, reference_id, notes
+            reference_type, reference_id, notes, user_id=user_id
         )
         
         if success:
@@ -212,16 +250,16 @@ class InventoryService:
             return {'success': False, 'error': 'Stock in operation failed'}
 
     @staticmethod
-    def perform_stock_out_from_form(form_data):
+    def perform_stock_out_from_form(form_data, user_id=None):
         """Handles the business logic for stocking out from a web form."""
         part_number = form_data.get('part_number')
-        warehouse_id_str = form_data.get('warehouse_id')
+        warehouse_location_id_str = form_data.get('warehouse_location_id')
         quantity_str = form_data.get('quantity')
         transaction_type = form_data.get('transaction_type')
         work_order_id = form_data.get('work_order_id')
         notes = form_data.get('notes', '')
 
-        if not all([part_number, warehouse_id_str, quantity_str, transaction_type]):
+        if not all([part_number, warehouse_location_id_str, quantity_str, transaction_type]):
             return {'success': False, 'message': '所有欄位都是必填的'}
 
         valid_out_types = ['OUT_ISSUE', 'OUT_WORK_ORDER', 'OUT_TRANSFER', 'OUT_SCRAP', 'OUT_AFTER_SALES']
@@ -236,30 +274,31 @@ class InventoryService:
             return {'success': False, 'message': f'找不到零件編號: {part_number}'}
 
         try:
-            warehouse_id = int(warehouse_id_str)
+            warehouse_location_id = int(warehouse_location_id_str)
             quantity = int(quantity_str)
             if quantity <= 0:
                 raise ValueError("數量必須大於0")
         except (ValueError, TypeError):
             return {'success': False, 'message': '請輸入有效的數量'}
 
-        # Find warehouse_location_id from warehouse_id
-        target_location = None
-        if part.location_associations:
-            for assoc in part.location_associations:
-                if assoc.warehouse_location.warehouse_id == warehouse_id:
-                    target_location = assoc.warehouse_location
-                    break
+        # 驗證該零件是否有此儲位的關聯
+        from models.part import WarehouseLocation
+        location = WarehouseLocation.query.get(warehouse_location_id)
+        if not location:
+            return {'success': False, 'message': '選擇的儲位不存在'}
         
-        if not target_location:
-            return {'success': False, 'message': f'零件 {part.part_number} 在所選倉庫中沒有指定的儲位，無法出庫。'}
-        
-        warehouse_location_id = target_location.id
+        # 檢查零件是否關聯此儲位
+        has_location = any(
+            assoc.warehouse_location_id == warehouse_location_id 
+            for assoc in part.location_associations
+        )
+        if not has_location:
+            return {'success': False, 'message': f'零件 {part.part_number} 未關聯到所選儲位'}
 
         current_stock = CurrentInventory.get_current_stock(part.id, warehouse_location_id)
         if not current_stock or current_stock.get('available_quantity', 0) < quantity:
             available = current_stock.get('available_quantity', 0) if current_stock else 0
-            return {'success': False, 'message': f'庫存不足。可用數量: {available}'}
+            return {'success': False, 'message': f'庫存不足。可用數量: {available} (儲位: {location.location_code})'}
 
         final_notes = notes
         if transaction_type == 'OUT_WORK_ORDER' and work_order_id:
@@ -269,27 +308,27 @@ class InventoryService:
 
         success = CurrentInventory.update_stock(
             part.id, warehouse_location_id, -quantity, transaction_type,
-            'MANUAL', None, final_notes
+            'MANUAL', None, final_notes, user_id=user_id
         )
 
         if success:
-            success_msg = f'{part_number} 出庫 {quantity} {part.unit} 成功'
+            success_msg = f'{part_number} 出庫 {quantity} {part.unit} 成功 ({location.warehouse.name} - {location.location_code})'
             if transaction_type == 'OUT_WORK_ORDER':
-                success_msg += f' (工單: {work_order_id})'
+                success_msg += f' [工單: {work_order_id}]'
             return {'success': True, 'message': success_msg}
         else:
             return {'success': False, 'message': '出庫作業失敗'}
 
     @staticmethod
-    def perform_stock_in_from_form(form_data):
+    def perform_stock_in_from_form(form_data, user_id=None):
         """Handles the business logic for stocking in from a web form."""
         part_number = form_data.get('part_number')
-        warehouse_id_str = form_data.get('warehouse_id')
+        warehouse_location_id_str = form_data.get('warehouse_location_id')
         quantity_str = form_data.get('quantity')
         transaction_type = form_data.get('transaction_type')
         notes = form_data.get('notes', '')
 
-        if not all([part_number, warehouse_id_str, quantity_str, transaction_type]):
+        if not all([part_number, warehouse_location_id_str, quantity_str, transaction_type]):
             return {'success': False, 'message': '所有欄位都是必填的'}
 
         part = Part.get_by_part_number(part_number)
@@ -297,39 +336,39 @@ class InventoryService:
             return {'success': False, 'message': f'找不到零件編號: {part_number}'}
 
         try:
-            warehouse_id = int(warehouse_id_str)
+            warehouse_location_id = int(warehouse_location_id_str)
             quantity = int(quantity_str)
             if quantity <= 0:
                 raise ValueError("數量必須大於0")
-        except (ValueError, TypeError):
-            return {'success': False, 'message': '請輸入有效的數量'}
+        except (ValueError, TypeError) as e:
+            return {'success': False, 'message': f'請輸入有效的數量'}
 
-        # --- NEW LOGIC: Find warehouse_location_id from warehouse_id ---
-        target_location = None
-        if part.location_associations:
-            for assoc in part.location_associations:
-                if assoc.warehouse_location.warehouse_id == warehouse_id:
-                    target_location = assoc.warehouse_location
-                    break
+        # 驗證該零件是否有此儲位的關聯
+        from models.part import WarehouseLocation
+        location = WarehouseLocation.query.get(warehouse_location_id)
+        if not location:
+            return {'success': False, 'message': '選擇的儲位不存在'}
         
-        if not target_location:
-            return {'success': False, 'message': f'零件 {part.part_number} 在所選倉庫中沒有指定的儲位，無法入庫。'}
-        
-        warehouse_location_id = target_location.id
-        # --- END NEW LOGIC ---
+        # 檢查零件是否關聯此儲位
+        has_location = any(
+            assoc.warehouse_location_id == warehouse_location_id 
+            for assoc in part.location_associations
+        )
+        if not has_location:
+            return {'success': False, 'message': f'零件 {part.part_number} 未關聯到所選儲位'}
 
         success = CurrentInventory.update_stock(
             part.id, warehouse_location_id, quantity, transaction_type,
-            'MANUAL', None, notes
+            'MANUAL', None, notes, user_id=user_id
         )
 
         if success:
-            return {'success': True, 'message': f'{part_number} 入庫 {quantity} {part.unit} 成功'}
+            return {'success': True, 'message': f'{part_number} 入庫 {quantity} {part.unit} 成功 ({location.warehouse.name} - {location.location_code})'}
         else:
             return {'success': False, 'message': '入庫作業失敗'}
 
     @staticmethod
-    def receive_stock(registration_id, inbound_quantity, notes=''):
+    def receive_stock(registration_id, inbound_quantity, notes='', user_id=None):
         """
         Processes the receipt of stock for a weekly order registration.
         Updates inventory and the order registration status.
@@ -361,7 +400,8 @@ class InventoryService:
                 transaction_type='INBOUND',
                 reference_type='OrderRegistration',
                 reference_id=registration.id,
-                notes=f'週期訂單入庫: {notes}'
+                notes=f'週期訂單入庫: {notes}',
+                user_id=user_id
             )
 
             if not update_success:
@@ -385,7 +425,7 @@ class InventoryService:
             return {'success': False, 'error': f'資料庫操作失敗: {str(e)}'}
 
     @staticmethod
-    def perform_batch_stock_out(data):
+    def perform_batch_stock_out(data, user_id=None):
         """
         Handles the business logic for batch stocking out from an API request.
         This entire operation is a single database transaction.
@@ -444,7 +484,7 @@ class InventoryService:
                     # Update stock without committing
                     success = CurrentInventory.update_stock(
                         part_id, warehouse_location_id, -quantity, transaction_type,
-                        'MANUAL_BATCH', None, final_notes, commit=False
+                        'MANUAL_BATCH', None, final_notes, user_id=user_id, commit=False
                     )
                     if not success:
                         raise ValueError(f"為零件 {part.part_number} 更新庫存失敗")

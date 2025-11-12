@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, send_file, make_response
+from flask_login import login_required, current_user
 from extensions import db
 from models.weekly_order import WeeklyOrderCycle, OrderRegistration, OrderReviewLog, User
 from models.part import WarehouseLocation # Import for relationship loading
@@ -19,6 +20,7 @@ def get_taipei_time():
     return datetime.now(tz_taipei)
 
 @weekly_order_bp.route('/weekly-orders')
+@login_required
 def weekly_orders():
     """週期訂單管理主頁"""
     current_cycle = WeeklyOrderCycle.get_current_cycle()
@@ -36,6 +38,7 @@ def weekly_orders():
                          historical_cycles=historical_cycles)
 
 @weekly_order_bp.route('/weekly-orders/pending-inbound')
+@login_required
 def pending_inbound_orders():
     """顯示所有已核准待入庫的訂單項目"""
     pending_items = OrderRegistration.query.options(
@@ -52,6 +55,7 @@ def pending_inbound_orders():
     return render_template('weekly_orders/pending_inbound.html', items=pending_items)
 
 @weekly_order_bp.route('/weekly-orders/register', methods=['GET', 'POST'])
+@login_required
 def register_order():
     """登記申請項目"""
     from models.part import WarehouseLocation # New import
@@ -105,6 +109,7 @@ def register_order():
                          prefill_data=prefill_data,
                          all_warehouse_locations=all_warehouse_locations)
 @weekly_order_bp.route('/weekly_orders/batch_register', methods=['POST'])
+@login_required
 def batch_register():
     """批量登記申請項目（從其他系統匯入）"""
     current_cycle = WeeklyOrderCycle.get_current_cycle()
@@ -127,6 +132,7 @@ def batch_register():
         return jsonify(result), 500
 
 @weekly_order_bp.route('/weekly-orders/batch-register', methods=['GET', 'POST'])
+@login_required
 def batch_register_form():
     """批量申請表單頁面"""
     from models.part import WarehouseLocation # New import
@@ -246,6 +252,7 @@ def batch_register_form():
             return redirect(request.url)
 
 @weekly_order_bp.route('/weekly-orders/batch_register.js')
+@login_required
 def batch_register_js():
     """Renders the javascript for the batch register page."""
     current_cycle = WeeklyOrderCycle.get_current_cycle()
@@ -269,6 +276,7 @@ def batch_register_js():
     return response
 
 @weekly_order_bp.route('/weekly-orders/cycle/<int:cycle_id>', methods=['GET', 'DELETE'])
+@login_required
 def manage_cycle(cycle_id):
     """查看或刪除特定週期"""
     cycle = WeeklyOrderCycle.query.get_or_404(cycle_id)
@@ -294,6 +302,7 @@ def manage_cycle(cycle_id):
                          review_logs=review_logs)
 
 @weekly_order_bp.route('/weekly-orders/review/<int:cycle_id>')
+@login_required
 def review_cycle(cycle_id):
     """主管審查頁面"""
     cycle = WeeklyOrderCycle.query.get_or_404(cycle_id)
@@ -309,6 +318,7 @@ def review_cycle(cycle_id):
 
 # 審查相關 API 路由
 @weekly_order_bp.route('/weekly_orders/review/<int:registration_id>', methods=['POST'])
+@login_required
 def review_registration(registration_id):
     """審查單個登記項目"""
     data = request.get_json()
@@ -324,6 +334,7 @@ def review_registration(registration_id):
         return jsonify(result), 500
 
 @weekly_order_bp.route('/weekly_orders/batch_review', methods=['POST'])
+@login_required
 def batch_review():
     """批量審查登記項目"""
     data = request.get_json()
@@ -339,12 +350,14 @@ def batch_review():
         return jsonify(result), 500
 
 @weekly_order_bp.route('/weekly_orders/registration/<int:registration_id>')
+@login_required
 def get_registration_detail(registration_id):
     """獲取登記項目詳細信息"""
     registration = OrderRegistration.query.get_or_404(registration_id)
     return jsonify(registration.to_dict())
 
 @weekly_order_bp.route('/api/weekly_orders/inbound_item', methods=['POST'])
+@login_required
 def inbound_item():
     """處理單個訂單項目的入庫操作"""
     data = request.get_json()
@@ -365,7 +378,8 @@ def inbound_item():
     result = InventoryService.receive_stock(
         registration_id=registration_id, 
         inbound_quantity=inbound_quantity, 
-        notes=notes
+        notes=notes,
+        user_id=current_user.id
     )
 
     if result.get('success'):
@@ -374,6 +388,7 @@ def inbound_item():
         return jsonify(result), 500
 
 @weekly_order_bp.route('/api/weekly_orders/batch_inbound', methods=['POST'])
+@login_required
 def batch_inbound_items():
     """處理批量訂單項目的入庫操作"""
     data = request.get_json()
@@ -385,6 +400,7 @@ def batch_inbound_items():
     return jsonify(result), status_code
 
 @weekly_order_bp.route('/weekly_orders/export_excel/<int:cycle_id>')
+@login_required
 def export_excel(cycle_id):
     """生成Excel申請單"""
     result = WeeklyOrderService.export_weekly_order_excel(cycle_id)
@@ -401,6 +417,7 @@ def export_excel(cycle_id):
         return redirect(url_for('weekly_order.review_cycle', cycle_id=cycle_id))
 
 @weekly_order_bp.route('/weekly-orders/api/cycle-summary')
+@login_required
 def cycle_summary():
     """獲取週期摘要信息"""
     current_cycle = WeeklyOrderCycle.get_current_cycle()
@@ -446,6 +463,7 @@ def cycle_summary():
     return jsonify(summary)
 
 @weekly_order_bp.route('/weekly-orders/api/create-cycle', methods=['POST'])
+@login_required
 def create_new_cycle():
     """手動創建新週期（管理員功能）"""
     try:
@@ -470,6 +488,7 @@ def create_new_cycle():
         return jsonify({'success': False, 'error': str(e)})
 
 @weekly_order_bp.route('/api/weekly-orders/register', methods=['POST'])
+@login_required
 def api_register_order():
     """API endpoint to register a new order, typically from a modal."""
     current_cycle = WeeklyOrderCycle.get_current_cycle()
