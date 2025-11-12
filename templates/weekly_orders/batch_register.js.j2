@@ -59,7 +59,8 @@ function loadInventoryItems(items) {
                 
                 if (partNumberInput) partNumberInput.value = item.part_number || '';
                 if (partNameInput) partNameInput.value = item.part_name || '';
-                if (quantityInput) quantityInput.value = item.suggested_quantity || '';
+                // 移除數量預填，讓使用者手動輸入
+                // if (quantityInput) quantityInput.value = item.suggested_quantity || '';
                 if (unitSelect) unitSelect.value = item.unit || '個';
                 if (typeInput) typeInput.value = item.part_type || '';
                 
