@@ -63,12 +63,13 @@ class CurrentInventory(db.Model):
     @classmethod
     def get_detailed_inventory_view(cls, warehouse_id=None):
         from models.part import Part, Warehouse, WarehouseLocation, PartWarehouseLocation
-        
+
         # Start with all part-location associations
         query = (db.session.query(
             Part.id.label('part_id'),
             Part.part_number,
             Part.name.label('part_name'),
+            Part.type.label('part_type'),
             Part.unit,
             Warehouse.id.label('warehouse_id'),
             Warehouse.name.label('warehouse_name'),
@@ -86,24 +87,25 @@ class CurrentInventory(db.Model):
         .join(WarehouseLocation, PartWarehouseLocation.warehouse_location_id == WarehouseLocation.id)
         .join(Warehouse, WarehouseLocation.warehouse_id == Warehouse.id)
         .outerjoin(cls, sa.and_(
-            Part.id == cls.part_id, 
+            Part.id == cls.part_id,
             WarehouseLocation.id == cls.warehouse_location_id
         )))
 
         if warehouse_id:
             query = query.filter(Warehouse.id == warehouse_id)
-            
+
         # Order by warehouse code, part number, and location code for consistent display
         query = query.order_by(Warehouse.code, Part.part_number, WarehouseLocation.location_code)
-        
+
         results = query.all()
-        
+
         detailed_inventory = []
         for row in results:
             detailed_inventory.append({
                 'part_id': row.part_id,
                 'part_number': row.part_number,
                 'part_name': row.part_name,
+                'part_type': row.part_type,
                 'unit': row.unit,
                 'warehouse_id': row.warehouse_id,
                 'warehouse_name': row.warehouse_name,

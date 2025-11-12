@@ -161,6 +161,7 @@
                                 data-location-id="{{ inventory.location_id }}"
                                 data-part-number="{{ inventory.part_number }}"
                                 data-part-name="{{ inventory.part_name }}"
+                                data-part-type="{{ inventory.part_type or '' }}"
                                 data-warehouse-name="{{ inventory.warehouse_name }}"
                                 data-location-code="{{ inventory.location_code }}"
                                 data-unit="{{ inventory.unit }}"
@@ -356,6 +357,7 @@ function createBatchWeeklyOrder() {
             part_id: row.getAttribute('data-part-id'),
             part_number: row.getAttribute('data-part-number'),
             part_name: row.getAttribute('data-part-name'),
+            part_type: row.getAttribute('data-part-type'),
             warehouse_id: row.getAttribute('data-warehouse-id'),
             warehouse_location_id: row.getAttribute('data-location-id'),
             warehouse_name: row.getAttribute('data-warehouse-name'),
