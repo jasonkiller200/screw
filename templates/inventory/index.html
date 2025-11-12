@@ -102,6 +102,11 @@
                 </h5>
                 <div>
                     <div class="btn-group">
+                        <!-- 批量週期訂單按鈕 -->
+                        <button class="btn btn-success btn-sm" id="batchWeeklyOrderBtn" onclick="createBatchWeeklyOrder()" 
+                                style="display: none;" title="為選中的品項建立週期訂單">
+                            <i class="fas fa-calendar-plus me-1"></i>批量週期訂單 (<span id="selectedCount">0</span>)
+                        </button>
                         <button class="btn btn-outline-primary btn-sm" onclick="exportInventory()">
                             <i class="fas fa-download me-1"></i>匯出
                         </button>
@@ -133,6 +138,9 @@
                     <table class="table table-hover table-sm">
                         <thead class="table-dark">
                             <tr>
+                                <th width="40">
+                                    <input type="checkbox" id="selectAll" class="form-check-input" onclick="toggleSelectAll(this)" title="全選/取消全選">
+                                </th>
                                 <th>零件編號</th>
                                 <th>零件名稱</th>
                                 <th>儲位</th>
@@ -150,7 +158,15 @@
                             <tr class="inventory-row {{ 'table-warning' if inventory.available_quantity <= inventory.reorder_point else '' }}" 
                                 data-part-id="{{ inventory.part_id }}"
                                 data-warehouse-id="{{ inventory.warehouse_id }}"
-                                data-location-id="{{ inventory.location_id }}">
+                                data-location-id="{{ inventory.location_id }}"
+                                data-part-number="{{ inventory.part_number }}"
+                                data-part-name="{{ inventory.part_name }}">
+                                <td>
+                                    <input type="checkbox" class="form-check-input item-checkbox" 
+                                           onchange="updateSelectionCount()"
+                                           data-part-id="{{ inventory.part_id }}"
+                                           data-location-id="{{ inventory.location_id }}">
+                                </td>
                                 <td><strong>{{ inventory.part_number }}</strong></td>
                                 <td>{{ inventory.part_name }}</td>
                                 <td>
@@ -277,4 +293,86 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/inventory/index.js') }}"></script>
+<script>
+// 批量週期訂單功能
+function toggleSelectAll(checkbox) {
+    const itemCheckboxes = document.querySelectorAll('.item-checkbox');
+    itemCheckboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+        toggleRowSelection(cb.closest('tr'), checkbox.checked);
+    });
+    updateSelectionCount();
+}
+
+function updateSelectionCount() {
+    const checkedBoxes = document.querySelectorAll('.item-checkbox:checked');
+    const count = checkedBoxes.length;
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const batchBtn = document.getElementById('batchWeeklyOrderBtn');
+    const selectedCountSpan = document.getElementById('selectedCount');
+    
+    if (selectedCountSpan) {
+        selectedCountSpan.textContent = count;
+    }
+    
+    if (batchBtn) {
+        batchBtn.style.display = count > 0 ? 'inline-block' : 'none';
+    }
+    
+    // 更新全選框狀態
+    const totalCheckboxes = document.querySelectorAll('.item-checkbox').length;
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = count > 0 && count === totalCheckboxes;
+        selectAllCheckbox.indeterminate = count > 0 && count < totalCheckboxes;
+    }
+}
+
+function toggleRowSelection(row, selected) {
+    if (selected) {
+        row.classList.add('table-active');
+    } else {
+        row.classList.remove('table-active');
+    }
+}
+
+function createBatchWeeklyOrder() {
+    const checkedBoxes = document.querySelectorAll('.item-checkbox:checked');
+    
+    if (checkedBoxes.length === 0) {
+        alert('請先選擇要建立週期訂單的品項');
+        return;
+    }
+    
+    // 收集選中的品項資料
+    const selectedItems = [];
+    checkedBoxes.forEach(checkbox => {
+        const row = checkbox.closest('tr');
+        const itemData = {
+            part_id: row.getAttribute('data-part-id'),
+            part_number: row.getAttribute('data-part-number'),
+            part_name: row.getAttribute('data-part-name'),
+            warehouse_id: row.getAttribute('data-warehouse-id'),
+            warehouse_location_id: row.getAttribute('data-location-id')
+        };
+        selectedItems.push(itemData);
+    });
+    
+    // 將資料存入 sessionStorage
+    sessionStorage.setItem('batchOrderItems', JSON.stringify(selectedItems));
+    
+    // 跳轉到批量登記頁面
+    window.location.href = '/weekly-orders/batch-register';
+}
+
+// 頁面載入時初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 為每個 checkbox 添加事件監聽器
+    document.querySelectorAll('.item-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            toggleRowSelection(this.closest('tr'), this.checked);
+            updateSelectionCount();
+        });
+    });
+});
+</script>
 {% endblock %}
