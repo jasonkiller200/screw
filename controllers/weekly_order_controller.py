@@ -482,10 +482,40 @@ def create_new_cycle():
             'message': f'新週期「{new_cycle.cycle_name}」創建成功',
             'cycle': new_cycle.to_dict()
         })
-        
     except Exception as e:
-        db.session.rollback()
         return jsonify({'success': False, 'error': str(e)})
+
+@weekly_order_bp.route('/weekly-orders/history')
+@login_required
+def order_history():
+    """統一的訂單歷史頁面 - 包含週期記錄和舊系統記錄"""
+    # 獲取已完成的週期歷史（新系統）
+    historical_cycles = WeeklyOrderCycle.query\
+        .filter(WeeklyOrderCycle.is_active == False)\
+        .order_by(WeeklyOrderCycle.created_at.desc())\
+        .limit(50).all()
+    
+    # 獲取舊系統歷史
+    try:
+        from models.order import Order
+        legacy_orders = Order.query.filter(
+            Order.status.in_(['migrated', 'confirmed'])
+        ).order_by(Order.order_date.desc()).all()
+        migrated_count = len([o for o in legacy_orders if o.status == 'migrated'])
+        confirmed_count = len([o for o in legacy_orders if o.status == 'confirmed'])
+    except Exception as e:
+        # 如果 Order 模型不存在或查詢失敗，使用空列表
+        legacy_orders = []
+        migrated_count = 0
+        confirmed_count = 0
+    
+    return render_template('weekly_orders/history.html',
+                         historical_cycles=historical_cycles,
+                         legacy_orders=legacy_orders,
+                         cycle_count=len(historical_cycles),
+                         legacy_count=len(legacy_orders),
+                         migrated_count=migrated_count,
+                         confirmed_count=confirmed_count)
 
 @weekly_order_bp.route('/api/weekly-orders/register', methods=['POST'])
 @login_required

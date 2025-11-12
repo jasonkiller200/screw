@@ -60,16 +60,9 @@ def orders():
 @web_bp.route('/order-history')
 @login_required
 def order_history():
-    """歷史訂單記錄頁面 - 只顯示已遷移的訂單"""
-    migrated_orders = Order.query.filter_by(status='migrated').order_by(db.desc(Order.order_date)).all()
-    confirmed_orders = Order.query.filter_by(status='confirmed').order_by(db.desc(Order.order_date)).all()
-    
-    all_history_orders = migrated_orders + confirmed_orders
-    
-    return render_template('order_history.html', 
-                         history_orders=all_history_orders,
-                         migrated_count=len(migrated_orders),
-                         confirmed_count=len(confirmed_orders))
+    """歷史訂單記錄頁面 - 重定向到新的統一歷史頁面"""
+    flash('歷史記錄已整合到訂單管理模組', 'info')
+    return redirect(url_for('weekly_order.order_history'))
 
 @web_bp.route('/work-orders')
 @login_required

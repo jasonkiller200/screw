@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}訂單歷史記錄 - 五金零件庫存管理系統{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 麵包屑導航 -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('web.index') }}">首頁</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('weekly_order.weekly_orders') }}">訂單管理</a></li>
+            <li class="breadcrumb-item active">歷史記錄</li>
+        </ol>
+    </nav>
+
+    <!-- 頁面標題 -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2><i class="fas fa-history me-2"></i>訂單歷史記錄</h2>
+            <p class="text-muted">查看所有已完成的週期訂單和舊系統記錄</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{{ url_for('weekly_order.weekly_orders') }}" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left me-1"></i>返回訂單管理
+            </a>
+        </div>
+    </div>
+
+    <!-- Tab 導航 -->
+    <ul class="nav nav-tabs mb-4" id="historyTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="cycles-tab" data-bs-toggle="tab" 
+                    data-bs-target="#cycles" type="button" role="tab">
+                <i class="fas fa-calendar-alt me-1"></i>週期記錄
+                <span class="badge bg-primary ms-1">{{ cycle_count }}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="legacy-tab" data-bs-toggle="tab" 
+                    data-bs-target="#legacy" type="button" role="tab">
+                <i class="fas fa-archive me-1"></i>舊系統記錄
+                <span class="badge bg-secondary ms-1">{{ legacy_count }}</span>
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab 內容 -->
+    <div class="tab-content" id="historyTabContent">
+        <!-- Tab 1: 週期歷史 -->
+        <div class="tab-pane fade show active" id="cycles" role="tabpanel">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calendar-check me-2"></i>已完成的週期訂單
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if historical_cycles %}
+                        {% for cycle in historical_cycles %}
+                        <div class="card mb-3 border-success">
+                            <div class="card-header">
+                                <div class="row align-items-center">
+                                    <div class="col-md-6">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-calendar-week me-2"></i>{{ cycle.cycle_name }}
+                                            <span class="badge bg-success ms-2">已完成</span>
+                                        </h5>
+                                    </div>
+                                    <div class="col-md-6 text-end">
+                                        <small class="text-muted">
+                                            <i class="fas fa-clock me-1"></i>
+                                            {{ cycle.start_date.strftime('%Y-%m-%d') }} ~ 
+                                            {{ cycle.end_date.strftime('%Y-%m-%d') }}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="row text-center">
+                                    <div class="col-md-3">
+                                        <div class="border rounded p-3 bg-light">
+                                            <small class="text-muted d-block">申請項目</small>
+                                            <h4 class="mb-0 text-primary">
+                                                {{ cycle.registrations|length }}
+                                            </h4>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="border rounded p-3 bg-light">
+                                            <small class="text-muted d-block">核准項目</small>
+                                            <h4 class="mb-0 text-success">
+                                                {{ cycle.registrations|selectattr('status', 'equalto', 'approved')|list|length }}
+                                            </h4>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="border rounded p-3 bg-light">
+                                            <small class="text-muted d-block">已入庫</small>
+                                            <h4 class="mb-0 text-info">
+                                                {{ cycle.registrations|selectattr('is_received', 'equalto', true)|list|length }}
+                                            </h4>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="border rounded p-3">
+                                            <a href="{{ url_for('weekly_order.weekly_orders') }}?cycle_id={{ cycle.id }}" 
+                                               class="btn btn-outline-primary btn-sm w-100">
+                                                <i class="fas fa-eye me-1"></i>查看詳情
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 週期備註 -->
+                                {% if cycle.notes %}
+                                <div class="mt-3">
+                                    <small class="text-muted">
+                                        <i class="fas fa-sticky-note me-1"></i>備註：{{ cycle.notes }}
+                                    </small>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="alert alert-info text-center">
+                            <i class="fas fa-info-circle me-2"></i>
+                            目前尚無已完成的週期訂單記錄
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: 舊系統歷史 -->
+        <div class="tab-pane fade" id="legacy" role="tabpanel">
+            <!-- 提示訊息 -->
+            <div class="alert alert-info d-flex align-items-center mb-4">
+                <i class="fas fa-info-circle me-3 fa-2x"></i>
+                <div>
+                    <strong>系統升級說明：</strong>
+                    以下是從舊系統遷移過來的歷史訂單記錄。
+                    所有新的訂單申請現在都使用 
+                    <a href="{{ url_for('weekly_order.weekly_orders') }}" class="alert-link">週期訂單系統</a>。
+                </div>
+            </div>
+
+            <!-- 統計卡片 -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="flex-grow-1">
+                                    <h6 class="card-title mb-1">已遷移訂單</h6>
+                                    <h2 class="mb-0">{{ migrated_count }}</h2>
+                                    <small>已移至週期申請系統</small>
+                                </div>
+                                <div class="ms-3">
+                                    <i class="fas fa-arrow-right fa-3x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="flex-grow-1">
+                                    <h6 class="card-title mb-1">已確認訂單</h6>
+                                    <h2 class="mb-0">{{ confirmed_count }}</h2>
+                                    <small>歷史已處理訂單</small>
+                                </div>
+                                <div class="ms-3">
+                                    <i class="fas fa-check fa-3x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-secondary text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="flex-grow-1">
+                                    <h6 class="card-title mb-1">總歷史記錄</h6>
+                                    <h2 class="mb-0">{{ legacy_count }}</h2>
+                                    <small>所有處理過的訂單</small>
+                                </div>
+                                <div class="ms-3">
+                                    <i class="fas fa-list fa-3x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 歷史記錄表格 -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-table me-2"></i>訂單明細
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if legacy_orders %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th><i class="fas fa-calendar me-1"></i>訂單日期</th>
+                                        <th><i class="fas fa-barcode me-1"></i>品號</th>
+                                        <th><i class="fas fa-tag me-1"></i>品名</th>
+                                        <th class="text-center"><i class="fas fa-boxes me-1"></i>數量</th>
+                                        <th class="text-center"><i class="fas fa-info-circle me-1"></i>狀態</th>
+                                        <th>備註</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for order in legacy_orders %}
+                                    <tr>
+                                        <td>
+                                            <small>{{ order.order_date.strftime('%Y-%m-%d %H:%M') }}</small>
+                                        </td>
+                                        <td>
+                                            <strong>{{ order.part_number }}</strong>
+                                        </td>
+                                        <td>{{ order.part_name }}</td>
+                                        <td class="text-center">
+                                            <span class="badge bg-light text-dark">
+                                                {{ order.quantity }} {{ order.unit }}
+                                            </span>
+                                        </td>
+                                        <td class="text-center">
+                                            {% if order.status == 'migrated' %}
+                                                <span class="badge bg-info">
+                                                    <i class="fas fa-arrow-right me-1"></i>已遷移
+                                                </span>
+                                            {% elif order.status == 'confirmed' %}
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-check me-1"></i>已確認
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ order.status }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">
+                                                {{ order.notes if order.notes else '-' }}
+                                            </small>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-secondary text-center">
+                            <i class="fas fa-inbox me-2"></i>
+                            目前沒有舊系統訂單記錄
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Tab 切換時記住狀態
+document.addEventListener('DOMContentLoaded', function() {
+    const triggerTabList = [].slice.call(document.querySelectorAll('#historyTabs button'));
+    triggerTabList.forEach(function (triggerEl) {
+        const tabTrigger = new bootstrap.Tab(triggerEl);
+        
+        triggerEl.addEventListener('click', function (event) {
+            event.preventDefault();
+            tabTrigger.show();
+            
+            // 儲存當前 tab 到 localStorage
+            localStorage.setItem('historyActiveTab', event.target.id);
+        });
+    });
+    
+    // 恢復上次選擇的 tab
+    const activeTab = localStorage.getItem('historyActiveTab');
+    if (activeTab) {
+        const tab = document.getElementById(activeTab);
+        if (tab) {
+            const tabTrigger = new bootstrap.Tab(tab);
+            tabTrigger.show();
+        }
+    }
+});
+</script>
+{% endblock %}

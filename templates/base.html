@@ -58,16 +58,39 @@
                             <i class="fas fa-map-marked-alt me-1"></i>倉位管理
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('weekly_order.weekly_orders') }}">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="ordersDropdown" role="button" 
+                           data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-calendar-week me-1"></i>訂單管理
-                            <span class="badge bg-success ms-1">NEW</span>
                         </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('web.order_history') }}">
-                            <i class="fas fa-history me-1"></i>歷史記錄
-                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="ordersDropdown">
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('weekly_order.weekly_orders') }}">
+                                    <i class="fas fa-home me-2"></i>訂單首頁
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('weekly_order.register_order') }}">
+                                    <i class="fas fa-plus-circle me-2"></i>申請登記
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('weekly_order.batch_register_form') }}">
+                                    <i class="fas fa-list-plus me-2"></i>批量申請
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('weekly_order.pending_inbound_orders') }}">
+                                    <i class="fas fa-dolly-flatbed me-2"></i>待入庫管理
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('weekly_order.order_history') }}">
+                                    <i class="fas fa-history me-2"></i>歷史記錄
+                                </a>
+                            </li>
+                        </ul>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('web.work_orders') }}">
