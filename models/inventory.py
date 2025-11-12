@@ -512,13 +512,18 @@ class StockCount(db.Model):
     def update_count_detail(cls, detail_id, counted_quantity, notes=''):
         detail = StockCountDetail.query.get(detail_id)
         if detail:
-            detail.counted_quantity = counted_quantity
-            detail.variance_quantity = counted_quantity - detail.system_quantity
-            detail.notes = notes
-            detail.counted_at = get_taipei_time()
-            db.session.commit()
-            return True
-        return False
+            try:
+                detail.counted_quantity = counted_quantity
+                detail.variance_quantity = counted_quantity - detail.system_quantity
+                detail.notes = notes
+                detail.counted_at = get_taipei_time()
+                db.session.commit()
+                return True, detail.to_dict()
+            except Exception as e:
+                db.session.rollback()
+                print(f"Error updating count detail: {e}")
+                return False, None
+        return False, None
 
     @classmethod
     def complete_count(cls, count_id, verified_by='', apply_adjustments=False, user_id=None):
