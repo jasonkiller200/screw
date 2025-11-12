@@ -160,7 +160,12 @@
                                 data-warehouse-id="{{ inventory.warehouse_id }}"
                                 data-location-id="{{ inventory.location_id }}"
                                 data-part-number="{{ inventory.part_number }}"
-                                data-part-name="{{ inventory.part_name }}">
+                                data-part-name="{{ inventory.part_name }}"
+                                data-warehouse-name="{{ inventory.warehouse_name }}"
+                                data-location-code="{{ inventory.location_code }}"
+                                data-unit="{{ inventory.unit }}"
+                                data-available-quantity="{{ inventory.available_quantity }}"
+                                data-reorder-point="{{ inventory.reorder_point }}">
                                 <td>
                                     <input type="checkbox" class="form-check-input item-checkbox" 
                                            onchange="updateSelectionCount()"
@@ -352,10 +357,17 @@ function createBatchWeeklyOrder() {
             part_number: row.getAttribute('data-part-number'),
             part_name: row.getAttribute('data-part-name'),
             warehouse_id: row.getAttribute('data-warehouse-id'),
-            warehouse_location_id: row.getAttribute('data-location-id')
+            warehouse_location_id: row.getAttribute('data-location-id'),
+            warehouse_name: row.getAttribute('data-warehouse-name'),
+            location_code: row.getAttribute('data-location-code'),
+            unit: row.getAttribute('data-unit'),
+            available_quantity: parseInt(row.getAttribute('data-available-quantity')),
+            reorder_point: parseInt(row.getAttribute('data-reorder-point'))
         };
         selectedItems.push(itemData);
     });
+    
+    console.log('準備傳送的品項資料：', selectedItems);
     
     // 將資料存入 sessionStorage
     sessionStorage.setItem('batchOrderItems', JSON.stringify(selectedItems));

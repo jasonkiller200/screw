@@ -22,15 +22,32 @@ function updateTimeRemaining() {
 
 // 頁面載入時初始化
 document.addEventListener('DOMContentLoaded', function() {
-    // 檢查是否有從庫存頁面傳來的預填數據
-    const prefillItems = {{ prefill_items | tojson | safe }};
+    // 優先檢查 sessionStorage 中的批量訂單數據（從庫存頁面點擊批量週期訂單按鈕）
+    const batchOrderItems = sessionStorage.getItem('batchOrderItems');
     
-    if (prefillItems && prefillItems.length > 0) {
-        // 處理從庫存頁面傳來的數據
-        loadInventoryItems(prefillItems);
+    if (batchOrderItems) {
+        try {
+            const items = JSON.parse(batchOrderItems);
+            if (items && items.length > 0) {
+                console.log('從 sessionStorage 載入品項：', items);
+                loadInventoryItems(items);
+                // 清除 sessionStorage，避免重複載入
+                sessionStorage.removeItem('batchOrderItems');
+            }
+        } catch (e) {
+            console.error('解析 sessionStorage 資料失敗：', e);
+        }
     } else {
-        // 添加第一個空白項目
-        addNewItem();
+        // 檢查是否有從後端傳來的預填數據
+        const prefillItems = {{ prefill_items | tojson | safe }};
+        
+        if (prefillItems && prefillItems.length > 0) {
+            // 處理從後端傳來的數據
+            loadInventoryItems(prefillItems);
+        } else {
+            // 添加第一個空白項目
+            addNewItem();
+        }
     }
     
     updateTimeRemaining();
