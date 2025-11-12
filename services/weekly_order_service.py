@@ -35,7 +35,7 @@ class WeeklyOrderService:
                 return {'success': False, 'message': '沒有已核准的項目可生成申請單'}
             
             data = []
-            for reg in registrations:
+            for idx, reg in enumerate(registrations, start=1):
                 location_str = ''
                 if reg.warehouse_location and reg.warehouse_location.warehouse:
                     location_str = f"{reg.warehouse_location.warehouse.name} - {reg.warehouse_location.location_code}"
@@ -45,7 +45,7 @@ class WeeklyOrderService:
                 priority_str = '緊急' if reg.priority == 'urgent' else '一般'
 
                 data.append({
-                    '項次': reg.item_sequence,
+                    '項次': idx,
                     '品號': reg.part_number,
                     '品名': reg.part_name,
                     '儲位': location_str,
