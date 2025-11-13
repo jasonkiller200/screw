@@ -1,116 +1,351 @@
 {% extends "base.html" %}
 
-{% block title %}首頁 - 五金零件庫存管理系統{% endblock %}
+{% block title %}儀表板 - 五金零件庫存管理系統{% endblock %}
+
+{% block extra_css %}
+<style>
+    .card-metric {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+    .card-metric .card-body {
+        flex-grow: 1;
+    }
+    .card-metric .metric-value {
+        font-size: 2.5rem;
+        font-weight: bold;
+    }
+    .card-metric .metric-label {
+        font-size: 1rem;
+        color: #6c757d;
+    }
+    .trend-up {
+        color: #28a745;
+    }
+    .trend-down {
+        color: #dc3545;
+    }
+    .trend-icon {
+        margin-left: 5px;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="row">
+<div class="row mb-4">
     <div class="col-12">
-        <div class="jumbotron bg-primary text-white rounded p-5 mb-4">
-            <h1 class="display-4">歡迎使用五金零件庫存管理系統</h1>
-            <p class="lead">一個高效的零件庫存管理解決方案，支援條碼掃描、即時查詢和訂單管理。</p>
-            <hr class="my-4">
-            <p>快速開始使用系統的各項功能。</p>
-        </div>
+        <h2><i class="fas fa-tachometer-alt me-2"></i>數據儀表板</h2>
+        <p class="text-muted">一覽系統關鍵數據與庫存狀況。</p>
     </div>
 </div>
 
-<div class="row">
-    <div class="col-md-6 col-lg-3 mb-4">
-        <div class="card h-100 text-center">
+<!-- 頂部關鍵指標區 -->
+<div class="row mb-4">
+    <!-- 總庫存狀況 -->
+    <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card card-metric text-center">
             <div class="card-body">
-                <i class="fas fa-search fa-3x text-info mb-3"></i>
-                <h5 class="card-title">零件查詢</h5>
-                <p class="card-text">掃描條碼或輸入零件編號，快速查詢零件資訊和訂購歷史。</p>
-                <a href="{{ url_for('web.part_lookup') }}" class="btn btn-info">開始查詢</a>
+                <i class="fas fa-boxes fa-2x text-primary mb-2"></i>
+                <div class="metric-value">1,234</div>
+                <div class="metric-label">品項數</div>
+                <div class="metric-value">56,789</div>
+                <div class="metric-label">總數量</div>
+            </div>
+            <div class="card-footer text-muted small">
+                <i class="fas fa-info-circle me-1"></i>所有倉庫總計
             </div>
         </div>
     </div>
 
-    <div class="col-md-6 col-lg-3 mb-4">
-        <div class="card h-100 text-center">
+    <!-- 本週出庫 -->
+    <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card card-metric text-center">
             <div class="card-body">
-                <i class="fas fa-cogs fa-3x text-success mb-3"></i>
-                <h5 class="card-title">零件管理</h5>
-                <p class="card-text">新增、編輯或刪除零件資料，維護完整的零件主檔。</p>
-                <a href="{{ url_for('web.parts') }}" class="btn btn-success">管理零件</a>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-6 col-lg-3 mb-4">
-        <div class="card h-100 text-center">
-            <div class="card-body">
-                <i class="fas fa-warehouse fa-3x text-warning mb-3"></i>
-                <h5 class="card-title">庫存管理</h5>
-                <p class="card-text">管理入出庫作業、庫存盤點和交易記錄。</p>
-                <a href="{{ url_for('web.inventory') }}" class="btn btn-warning">庫存管理</a>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-6 col-lg-3 mb-4">
-        <div class="card h-100 text-center border-success">
-            <div class="card-body">
-                <i class="fas fa-calendar-week fa-3x text-success mb-3"></i>
-                <h5 class="card-title">週期訂單 <span class="badge bg-success">推薦</span></h5>
-                <p class="card-text">統一的週期性零件申請管理系統，簡化申請流程。</p>
-                <a href="{{ url_for('weekly_order.weekly_orders') }}" class="btn btn-success">進入週期訂單</a>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-6 col-lg-3 mb-4">
-        <div class="card h-100 text-center">
-            <div class="card-body">
-                <i class="fas fa-history fa-3x text-secondary mb-3"></i>
-                <h5 class="card-title">歷史記錄</h5>
-                <p class="card-text">查看已處理和已遷移的訂單歷史記錄。</p>
-                <a href="{{ url_for('web.order_history') }}" class="btn btn-secondary">查看記錄</a>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-6 col-lg-3 mb-4">
-        <div class="card h-100 text-center">
-            <div class="card-body">
-                <i class="fas fa-chart-bar fa-3x text-info mb-3"></i>
-                <h5 class="card-title">統計報表</h5>
-                <p class="card-text">查看庫存統計和訂購分析報表。</p>
-                <a href="#" class="btn btn-info disabled">開發中</a>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>系統功能</h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>手機 App 功能</h6>
-                        <ul>
-                            <li>條碼掃描查詢</li>
-                            <li>零件資訊顯示</li>
-                            <li>訂購清單管理</li>
-                            <li>訂單提交</li>
-                        </ul>
-                    </div>
-                    <div class="col-md-6">
-                        <h6>網頁管理功能</h6>
-                        <ul>
-                            <li>零件主檔維護</li>
-                            <li>訂單審核處理</li>
-                            <li>庫存查詢統計</li>
-                            <li>報表匯出功能</li>
-                        </ul>
-                    </div>
+                <i class="fas fa-truck-loading fa-2x text-danger mb-2"></i>
+                <div class="metric-value">1,500</div>
+                <div class="metric-label">本週出庫數</div>
+                <div class="small mt-2">
+                    <span class="trend-up">+5%</span>
+                    <i class="fas fa-arrow-up trend-icon trend-up"></i>
+                    <span class="text-muted ms-1">vs 上週</span>
                 </div>
             </div>
+            <div class="card-footer text-muted small">
+                <i class="fas fa-calendar-week me-1"></i>工作日統計
+            </div>
+        </div>
+    </div>
+
+    <!-- 本週入庫 -->
+    <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card card-metric text-center">
+            <div class="card-body">
+                <i class="fas fa-dolly-flatbed fa-2x text-success mb-2"></i>
+                <div class="metric-value">2,100</div>
+                <div class="metric-label">本週入庫數</div>
+                <div class="small mt-2">
+                    <span class="trend-down">-10%</span>
+                    <i class="fas fa-arrow-down trend-icon trend-down"></i>
+                    <span class="text-muted ms-1">vs 上週</span>
+                </div>
+            </div>
+            <div class="card-footer text-muted small">
+                <i class="fas fa-calendar-week me-1"></i>工作日統計
+            </div>
+        </div>
+    </div>
+
+    <!-- 庫存預警 -->
+    <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card card-metric text-center">
+            <div class="card-body">
+                <i class="fas fa-exclamation-triangle fa-2x text-warning mb-2"></i>
+                <div class="metric-value text-warning">42</div>
+                <div class="metric-label">低庫存品項</div>
+                <div class="metric-value text-danger">8</div>
+                <div class="metric-label">缺貨品項</div>
+            </div>
+            <div class="card-footer text-muted small">
+                <i class="fas fa-bell me-1"></i>需立即關注
+            </div>
         </div>
     </div>
 </div>
+
+<!-- 圖表分析區 & 快速統計面板 -->
+<div class="row mb-4">
+    <!-- 左側：圖表與清單 -->
+    <div class="col-lg-8 mb-3">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>本週出入庫趨勢圖 (工作日)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="inOutTrendChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-fire me-2"></i>出庫頻率排行 TOP 5 (零件 - 儲位)</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        SC-001 - M5螺絲 (W01:A-01-01)
+                        <span class="badge bg-primary rounded-pill">32 次</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        PN-005 - 墊片 (W02:B-02-03)
+                        <span class="badge bg-primary rounded-pill">28 次</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        PN-010 - 軸承 (W01:C-01-02)
+                        <span class="badge bg-primary rounded-pill">25 次</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        SC-003 - M8螺帽 (W03:D-03-01)
+                        <span class="badge bg-primary rounded-pill">20 次</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        PN-020 - 電線 (W02:E-01-05)
+                        <span class="badge bg-primary rounded-pill">18 次</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-bell me-2"></i>庫存預警清單 (缺貨 & 低庫存)</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <!-- 缺貨品項 -->
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="badge bg-danger me-2">缺貨</span>
+                                <strong>PN-007</strong> - 彈簧 (W01:A-01-01)
+                            </div>
+                            <div class="text-end">
+                                <small class="text-danger">0 / 50</small>
+                                <div class="progress" style="width: 100px; height: 8px;">
+                                    <div class="progress-bar bg-danger" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="badge bg-danger me-2">缺貨</span>
+                                <strong>PN-012</strong> - 螺絲刀 (W02:B-02-03)
+                            </div>
+                            <div class="text-end">
+                                <small class="text-danger">0 / 10</small>
+                                <div class="progress" style="width: 100px; height: 8px;">
+                                    <div class="progress-bar bg-danger" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                    <!-- 低庫存品項 -->
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="badge bg-warning me-2">低庫存</span>
+                                <strong>PN-002</strong> - 螺帽 (W01:A-01-01)
+                            </div>
+                            <div class="text-end">
+                                <small class="text-warning">5 / 50</small>
+                                <div class="progress" style="width: 100px; height: 8px;">
+                                    <div class="progress-bar bg-warning" role="progressbar" style="width: 10%;" aria-valuenow="10" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="badge bg-warning me-2">低庫存</span>
+                                <strong>PN-008</strong> - 墊圈 (W03:C-01-02)
+                            </div>
+                            <div class="text-end">
+                                <small class="text-warning">15 / 100</small>
+                                <div class="progress" style="width: 100px; height: 8px;">
+                                    <div class="progress-bar bg-warning" role="progressbar" style="width: 15%;" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="badge bg-warning me-2">低庫存</span>
+                                <strong>PN-015</strong> - 螺栓 (W02:D-02-01)
+                            </div>
+                            <div class="text-end">
+                                <small class="text-warning">20 / 80</small>
+                                <div class="progress" style="width: 100px; height: 8px;">
+                                    <div class="progress-bar bg-warning" role="progressbar" style="width: 25%;" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右側：快速統計面板 -->
+    <div class="col-lg-4 mb-3">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>快速統計</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        本週總入庫
+                        <span class="badge bg-success rounded-pill">2,100</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        本週總出庫
+                        <span class="badge bg-danger rounded-pill">1,500</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        庫存周轉率 (月)
+                        <span class="badge bg-info rounded-pill">0.85</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-clipboard-list me-2"></i>待辦事項</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        待審查週期訂單
+                        <span class="badge bg-warning rounded-pill">3</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        待入庫品項總量
+                        <span class="badge bg-primary rounded-pill">850</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 本週出入庫趨勢圖
+        const ctx = document.getElementById('inOutTrendChart').getContext('2d');
+        const inOutTrendChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['11/06', '11/07', '11/10', '11/11', '11/12', '11/13', '11/14'], // 7個工作日
+                datasets: [{
+                    label: '入庫量',
+                    data: [150, 200, 180, 220, 250, 210, 230],
+                    borderColor: 'rgba(40, 167, 69, 1)',
+                    backgroundColor: 'rgba(40, 167, 69, 0.2)',
+                    fill: true,
+                    tension: 0.3
+                }, {
+                    label: '出庫量',
+                    data: [100, 120, 150, 130, 180, 160, 170],
+                    borderColor: 'rgba(220, 53, 69, 1)',
+                    backgroundColor: 'rgba(220, 53, 69, 0.2)',
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: false,
+                        text: '本週出入庫趨勢'
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                },
+                hover: {
+                    mode: 'nearest',
+                    intersect: true
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: '日期'
+                        }
+                    },
+                    y: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: '數量'
+                        },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    });
+</script>
 {% endblock %}
