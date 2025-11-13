@@ -88,14 +88,14 @@
                                 <label for="global_priority" class="form-label">批量優先級</label>
                                 <select class="form-select" id="global_priority" onchange="applyGlobalPriority()">
                                     <option value="">個別設定...</option>
-                                    <option value="normal">一般申請（套用全部）</option>
+                                    <option value="normal" selected>一般申請（套用全部）</option>
                                     <option value="urgent">緊急申請（套用全部）</option>
                                 </select>
                                 <div class="form-text">選擇後將套用到所有項目</div>
                             </div>
                             <div class="col-md-6">
-                                <label for="global_required_date" class="form-label">批量需用日期</label>
-                                <input type="date" class="form-control" id="global_required_date" onchange="applyGlobalDate()">
+                                <label for="global_required_date" class="form-label">批量需用日期 <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="global_required_date" onchange="applyGlobalDate()" required>
                                 <div class="form-text">選擇後將套用到所有項目</div>
                             </div>
                         </div>

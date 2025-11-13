@@ -34,6 +34,7 @@ class Warehouse(db.Model):
 
     # Relationship to WarehouseLocation
     locations = relationship("WarehouseLocation", back_populates="warehouse")
+    inventory_records = relationship("CurrentInventory", back_populates="warehouse", cascade="all, delete-orphan")
 
     def __init__(self, code, name, description=None, is_active=True, created_at=None):
         self.code = code
@@ -76,6 +77,7 @@ class WarehouseLocation(db.Model):
     # Relationships
     warehouse = relationship("Warehouse", back_populates="locations")
     part_associations = relationship("PartWarehouseLocation", back_populates="warehouse_location")
+    current_inventory_records = relationship("CurrentInventory", back_populates="warehouse_location", cascade="all, delete-orphan")
 
     def __init__(self, warehouse_id, location_code, description=None):
         self.warehouse_id = warehouse_id
@@ -109,6 +111,9 @@ class Part(db.Model):
 
     # Relationship to PartWarehouseLocation
     location_associations = relationship("PartWarehouseLocation", back_populates="part", cascade="all, delete-orphan")
+    inventory_records = relationship("CurrentInventory", back_populates="part", cascade="all, delete-orphan")
+    transactions = relationship("InventoryTransaction", back_populates="part", cascade="all, delete-orphan")
+    stock_count_details = relationship("StockCountDetail", back_populates="part", cascade="all, delete-orphan")
 
     def __init__(self, part_number, name, type=None, description=None, unit='個', quantity_per_box=1,
                  lead_time=5, standard_cost=0, is_active=True, created_at=None): # Update __init__
@@ -482,7 +487,14 @@ class Part(db.Model):
 
     @classmethod
     def delete(cls, part_id):
-        part = cls.query.get(part_id)
+        from sqlalchemy.orm import selectinload
+        part = cls.query.options(
+            selectinload(cls.inventory_records),
+            selectinload(cls.transactions),
+            selectinload(cls.stock_count_details),
+            selectinload(cls.location_associations)
+        ).get(part_id)
+
         if part:
             db.session.delete(part)
             db.session.commit()

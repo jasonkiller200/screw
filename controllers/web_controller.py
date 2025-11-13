@@ -325,15 +325,24 @@ def import_parts_example():
 def inventory():
     """庫存管理首頁"""
     warehouse_id = request.args.get('warehouse_id', type=int)
+    sort_by = request.args.get('sort_by', 'status')
+    sort_order = request.args.get('sort_order', 'asc')
+    
     warehouses = Warehouse.get_all()
-    inventories = CurrentInventory.get_detailed_inventory_view(warehouse_id)
+    inventories = CurrentInventory.get_detailed_inventory_view(
+        warehouse_id=warehouse_id,
+        sort_by=sort_by,
+        sort_order=sort_order
+    )
     low_stock_items = CurrentInventory.get_low_stock_items(warehouse_id)
     
     return render_template('inventory/index.html', 
                          warehouses=warehouses, 
                          inventories=inventories,
                          low_stock_items=low_stock_items,
-                         selected_warehouse_id=warehouse_id)
+                         selected_warehouse_id=warehouse_id,
+                         sort_by=sort_by,
+                         sort_order=sort_order)
 
 @web_bp.route('/inventory/adjustment')
 @login_required

@@ -66,6 +66,64 @@
     </div>
 </div>
 
+<!-- 說明與建議 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="accordion" id="helpAccordion">
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingOne">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
+                        <i class="fas fa-info-circle me-2"></i>設定建議與狀態說明
+                    </button>
+                </h2>
+                <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#helpAccordion">
+                    <div class="accordion-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5><i class="fas fa-shield-alt me-1 text-primary"></i>安全庫存 (Safety Stock)</h5>
+                                <p>這是為了防止因市場需求突然增加或供應商延遲交貨等不確定因素而導致缺貨的額外庫存。合理的安全庫存是維持產線順暢的關鍵。</p>
+                                <div class="alert alert-light">
+                                    <strong>設定建議：</strong><br>
+                                    <ul>
+                                        <li><strong>穩定物料：</strong>可設定較低的安全庫存，例如 3-5 天的用量。</li>
+                                        <li><strong>關鍵或不穩定物料：</strong>建議設定較高的安全庫存，例如 7-14 天的用量，或根據歷史最大延遲天數來估算。</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h5><i class="fas fa-calculator me-1 text-primary"></i>補貨點 (Reorder Point)</h5>
+                                <p>當庫存量降低到此水準時，就應該觸發新的採購訂單。它的目的是確保在新貨到達之前，現有庫存（包含安全庫存）足以應付需求。</p>
+                                <div class="alert alert-light">
+                                    <strong>建議公式：</strong><br>
+                                    <code>補貨點 = (平均每日用量 × 採購前置期天數) + 安全庫存</code>
+                                    <br><br>
+                                    <small><strong>例如：</strong>某螺絲每日平均用掉 100 個，採購前置期為 5 天，安全庫存設定為 300 個。則補貨點為 (100 × 5) + 300 = 800 個。</small>
+                                </div>
+                            </div>
+                        </div>
+                        <hr>
+                        <h5><i class="fas fa-tags me-1 text-primary"></i>物料狀態說明</h5>
+                        <div class="d-flex justify-content-around">
+                            <div class="text-center">
+                                <span class="badge bg-danger fs-6">缺貨</span>
+                                <p class="mt-2"><small>可用庫存 ≤ 0</small></p>
+                            </div>
+                            <div class="text-center">
+                                <span class="badge bg-warning fs-6">低庫存</span>
+                                <p class="mt-2"><small>0 &lt; 可用庫存 ≤ 補貨點</small></p>
+                            </div>
+                            <div class="text-center">
+                                <span class="badge bg-success fs-6">正常</span>
+                                <p class="mt-2"><small>可用庫存 > 補貨點</small></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 低庫存警告 -->
 {% if low_stock_items %}
 <div class="row mb-4">
@@ -141,15 +199,15 @@
                                 <th width="40">
                                     <input type="checkbox" id="selectAll" class="form-check-input" onclick="toggleSelectAll(this)" title="全選/取消全選">
                                 </th>
-                                <th>零件編號</th>
-                                <th>零件名稱</th>
-                                <th>儲位</th>
-                                <th>現有庫存</th>
-                                <th>可用庫存</th>
-                                <th>安全庫存</th>
-                                <th>補貨點</th>
-                                <th>單位</th>
-                                <th>狀態</th>
+                                <th><a href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, sort_by='part_number', sort_order='desc' if sort_by == 'part_number' and sort_order == 'asc' else 'asc') }}">零件編號 {% if sort_by == 'part_number' %}<i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{% endif %}</a></th>
+                                <th><a href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, sort_by='part_name', sort_order='desc' if sort_by == 'part_name' and sort_order == 'asc' else 'asc') }}">零件名稱 {% if sort_by == 'part_name' %}<i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{% endif %}</a></th>
+                                <th><a href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, sort_by='location', sort_order='desc' if sort_by == 'location' and sort_order == 'asc' else 'asc') }}">儲位 {% if sort_by == 'location' %}<i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{% endif %}</a></th>
+                                <th><a href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, sort_by='quantity_on_hand', sort_order='desc' if sort_by == 'quantity_on_hand' and sort_order == 'asc' else 'asc') }}">現有庫存 {% if sort_by == 'quantity_on_hand' %}<i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{% endif %}</a></th>
+                                <th><a href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, sort_by='available_quantity', sort_order='desc' if sort_by == 'available_quantity' and sort_order == 'asc' else 'asc') }}">可用庫存 {% if sort_by == 'available_quantity' %}<i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{% endif %}</a></th>
+                                <th><a href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, sort_by='safety_stock', sort_order='desc' if sort_by == 'safety_stock' and sort_order == 'asc' else 'asc') }}">安全庫存 {% if sort_by == 'safety_stock' %}<i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{% endif %}</a></th>
+                                <th><a href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, sort_by='reorder_point', sort_order='desc' if sort_by == 'reorder_point' and sort_order == 'asc' else 'asc') }}">補貨點 {% if sort_by == 'reorder_point' %}<i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{% endif %}</a></th>
+                                <th><a href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, sort_by='unit', sort_order='desc' if sort_by == 'unit' and sort_order == 'asc' else 'asc') }}">單位 {% if sort_by == 'unit' %}<i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{% endif %}</a></th>
+                                <th><a href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, sort_by='status', sort_order='desc' if sort_by == 'status' and sort_order == 'asc' else 'asc') }}">狀態 {% if sort_by == 'status' %}<i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{% endif %}</a></th>
                                 <th>操作</th>
                             </tr>
                         </thead>

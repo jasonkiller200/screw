@@ -25,9 +25,9 @@ class CurrentInventory(db.Model):
     last_updated = db.Column(db.DateTime, default=get_taipei_time, onupdate=get_taipei_time)
 
     # Relationships
-    part = relationship("Part", backref="inventory_records")
-    warehouse = relationship("Warehouse", backref="inventory_records")
-    warehouse_location = relationship("WarehouseLocation", backref="current_inventory_records")
+    part = relationship("Part", back_populates="inventory_records")
+    warehouse = relationship("Warehouse", back_populates="inventory_records")
+    warehouse_location = relationship("WarehouseLocation", back_populates="current_inventory_records")
 
     __table_args__ = (db.UniqueConstraint('part_id', 'warehouse_location_id', name='_part_warehouse_location_uc'),)
 
@@ -61,8 +61,9 @@ class CurrentInventory(db.Model):
         return [stock.to_dict() for stock in stocks]
 
     @classmethod
-    def get_detailed_inventory_view(cls, warehouse_id=None):
+    def get_detailed_inventory_view(cls, warehouse_id=None, sort_by='part_number', sort_order='asc'):
         from models.part import Part, Warehouse, WarehouseLocation, PartWarehouseLocation
+        from sqlalchemy import func
 
         # Start with all part-location associations
         query = (db.session.query(
@@ -94,8 +95,40 @@ class CurrentInventory(db.Model):
         if warehouse_id:
             query = query.filter(Warehouse.id == warehouse_id)
 
-        # Order by warehouse code, part number, and location code for consistent display
-        query = query.order_by(Warehouse.code, Part.part_number, WarehouseLocation.location_code)
+        # Sorting logic
+        sort_column = None
+        if sort_by == 'status':
+            status_case = db.case(
+                (func.coalesce(cls.available_quantity, 0) <= 0, 1),
+                (func.coalesce(cls.available_quantity, 0) <= func.coalesce(cls.reorder_point, 0), 2),
+                else_=3
+            )
+            sort_column = status_case
+        elif sort_by == 'part_number':
+            sort_column = Part.part_number
+        elif sort_by == 'part_name':
+            sort_column = Part.name
+        elif sort_by == 'location':
+            sort_column = func.concat(Warehouse.name, '-', WarehouseLocation.location_code)
+        elif sort_by == 'quantity_on_hand':
+            sort_column = func.coalesce(cls.quantity_on_hand, 0)
+        elif sort_by == 'available_quantity':
+            sort_column = func.coalesce(cls.available_quantity, 0)
+        elif sort_by == 'safety_stock':
+            sort_column = func.coalesce(cls.safety_stock, 0)
+        elif sort_by == 'reorder_point':
+            sort_column = func.coalesce(cls.reorder_point, 0)
+        elif sort_by == 'unit':
+            sort_column = Part.unit
+
+        if sort_column is not None:
+            if sort_order == 'desc':
+                query = query.order_by(db.desc(sort_column))
+            else:
+                query = query.order_by(sort_column)
+        else:
+            # Default order
+            query = query.order_by(Warehouse.code, Part.part_number, WarehouseLocation.location_code)
 
         results = query.all()
 
@@ -216,7 +249,7 @@ class InventoryTransaction(db.Model):
     created_at = db.Column(db.DateTime, default=get_taipei_time)
 
     # Relationships
-    part = relationship("Part", backref="transactions")
+    part = relationship("Part", back_populates="transactions")
     warehouse = relationship("Warehouse", backref="transactions")
     warehouse_location = relationship("WarehouseLocation", backref="transactions")
     user = relationship("User", foreign_keys=[user_id], backref="inventory_transactions")
@@ -648,7 +681,7 @@ class StockCountDetail(db.Model):
 
     # Relationships
     stock_count = relationship("StockCount", back_populates="details")
-    part = relationship("Part", backref="stock_count_details")
+    part = relationship("Part", back_populates="stock_count_details")
     warehouse_location = relationship("WarehouseLocation", backref="stock_count_details")
 
     __table_args__ = (db.UniqueConstraint('stock_count_id', 'part_id', 'warehouse_location_id', name='_stock_count_part_location_uc'),)

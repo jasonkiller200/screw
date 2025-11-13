@@ -94,7 +94,7 @@
                                             <i class="fas fa-edit"></i>
                                         </a>
                                         <button class="btn btn-outline-danger" 
-                                                onclick="deletePart({{ part.id }}, '{{ part.part_number }}')" 
+                                                onclick='deletePart({{ part.id }}, {{ part.part_number|tojson }})' 
                                                 title="刪除">
                                             <i class="fas fa-trash"></i>
                                         </button>
