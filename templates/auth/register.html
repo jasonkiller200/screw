@@ -65,12 +65,13 @@
                         </div>
                         
                         <div class="mb-3">
-                            <label for="department" class="form-label">部門</label>
+                            <label for="department" class="form-label">部門 <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="fas fa-building"></i></span>
                                 <input type="text" class="form-control" id="department" name="department" 
-                                       autocomplete="organization"
-                                       placeholder="選填，例如：倉儲部、生產部">
+                                       autocomplete="organization" required
+                                       value="組件課"
+                                       placeholder="請輸入部門名稱">
                             </div>
                         </div>
                         
@@ -83,10 +84,12 @@
                                     <span class="input-group-text"><i class="fas fa-lock"></i></span>
                                     <input type="password" class="form-control" id="password" name="password" 
                                            required autocomplete="new-password"
-                                           minlength="8"
-                                           placeholder="請輸入密碼">
+                                           minlength="6"
+                                           pattern="[0-9]{6,}"
+                                           title="請輸入至少6位數字"
+                                           placeholder="請輸入6位數字密碼">
                                 </div>
-                                <small class="text-muted">至少8個字元，需包含英文和數字</small>
+                                <small class="text-muted">至少6位數字</small>
                             </div>
                             
                             <div class="col-md-6 mb-3">
@@ -97,8 +100,10 @@
                                     <span class="input-group-text"><i class="fas fa-lock"></i></span>
                                     <input type="password" class="form-control" id="password_confirm" 
                                            name="password_confirm" required autocomplete="new-password"
-                                           minlength="8"
-                                           placeholder="再次輸入密碼">
+                                           minlength="6"
+                                           pattern="[0-9]{6,}"
+                                           title="請輸入至少6位數字"
+                                           placeholder="再次輸入6位數字密碼">
                                 </div>
                             </div>
                         </div>
@@ -108,9 +113,8 @@
                                 <i class="fas fa-info-circle me-2"></i>
                                 <strong>密碼要求：</strong>
                                 <ul class="mb-0 mt-2">
-                                    <li>至少 8 個字元</li>
-                                    <li>必須包含英文字母</li>
-                                    <li>必須包含數字</li>
+                                    <li>至少 6 位數字</li>
+                                    <li>只能使用數字 0-9</li>
                                 </ul>
                             </div>
                         </div>
@@ -150,13 +154,12 @@ document.getElementById('registerForm').addEventListener('submit', function(e) {
 // 即時顯示密碼強度提示
 document.getElementById('password').addEventListener('input', function(e) {
     const password = e.target.value;
-    const hasLetter = /[A-Za-z]/.test(password);
-    const hasNumber = /\d/.test(password);
-    const isLongEnough = password.length >= 8;
+    const isOnlyNumbers = /^[0-9]+$/.test(password);
+    const isLongEnough = password.length >= 6;
     
     // 更新輸入框邊框顏色
     if (password.length > 0) {
-        if (isLongEnough && hasLetter && hasNumber) {
+        if (isLongEnough && isOnlyNumbers) {
             e.target.classList.remove('is-invalid');
             e.target.classList.add('is-valid');
         } else {

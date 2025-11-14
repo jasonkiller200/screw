@@ -119,6 +119,13 @@
                                                 title="{{ '停用' if user.is_active else '啟用' }}">
                                             <i class="fas fa-{{ 'ban' if user.is_active else 'check' }}"></i>
                                         </button>
+                                        {% if user.role != 'admin' %}
+                                        <button class="btn btn-outline-danger btn-sm" 
+                                                onclick="deleteUser({{ user.id }}, '{{ user.username }}')"
+                                                title="刪除">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                        {% endif %}
                                         {% endif %}
                                     </div>
                                 </td>
@@ -182,8 +189,8 @@
                         <input type="email" class="form-control" name="email">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">部門</label>
-                        <input type="text" class="form-control" name="department">
+                        <label class="form-label">部門 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="department" value="組件課" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">角色 <span class="text-danger">*</span></label>
@@ -235,8 +242,8 @@
                         <input type="email" class="form-control" name="email">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">部門</label>
-                        <input type="text" class="form-control" name="department">
+                        <label class="form-label">部門 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="department" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">角色 <span class="text-danger">*</span></label>
@@ -372,6 +379,28 @@ function toggleUserStatus(userId, currentStatus) {
 
     fetch(`/users/api/${userId}/toggle-status`, {
         method: 'POST'
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert(result.message);
+            location.reload();
+        } else {
+            alert('錯誤：' + result.message);
+        }
+    })
+    .catch(error => {
+        alert('發生錯誤：' + error);
+    });
+}
+
+function deleteUser(userId, username) {
+    if (!confirm(`確定要永久刪除使用者「${username}」嗎？\n\n⚠️ 警告：此操作將從資料庫中完全移除該使用者，無法復原！\n\n如果只想停用帳號，請使用「停用」按鈕。`)) {
+        return;
+    }
+
+    fetch(`/users/api/${userId}`, {
+        method: 'DELETE'
     })
     .then(response => response.json())
     .then(result => {

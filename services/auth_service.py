@@ -57,6 +57,9 @@ class AuthService:
         if not username or not password or not full_name:
             return {'success': False, 'message': '使用者名稱、密碼和姓名為必填項目'}
         
+        if not department:
+            return {'success': False, 'message': '部門為必填項目'}
+        
         # 驗證使用者名稱格式
         is_valid, message = AuthService.validate_username(username)
         if not is_valid:
@@ -135,14 +138,13 @@ class AuthService:
         驗證密碼強度
         
         規則：
-        - 至少 8 個字元
-        - 包含英文字母
-        - 包含數字
+        - 至少 6 位數字
+        - 只能包含數字 0-9
         """
         if len(password) < 6:
             return False, "密碼長度必須至少為6位數字。"
-        if not re.search(r'\d', password):
-            return False, "密碼必須包含至少一位數字。"
+        if not re.match(r'^[0-9]+$', password):
+            return False, "密碼只能包含數字 0-9。"
         
         return True, ''
     

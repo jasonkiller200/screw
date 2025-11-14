@@ -93,6 +93,8 @@ def api_create_user():
             return jsonify({'success': False, 'message': '全名為必填'}), 400
         if not data.get('password'):
             return jsonify({'success': False, 'message': '密碼為必填'}), 400
+        if not data.get('department'):
+            return jsonify({'success': False, 'message': '部門為必填'}), 400
         
         # 檢查使用者名稱是否已存在
         if User.query.filter_by(username=data['username']).first():
@@ -223,7 +225,7 @@ def api_reset_password(user_id):
 @user_bp.route('/api/<int:user_id>', methods=['DELETE'])
 @admin_required
 def api_delete_user(user_id):
-    """API：刪除使用者（軟刪除，實際上是停用）"""
+    """API：刪除使用者（真正從資料庫中移除）"""
     try:
         user = User.query.get_or_404(user_id)
         
@@ -235,12 +237,14 @@ def api_delete_user(user_id):
         if user.is_admin:
             return jsonify({'success': False, 'message': '不能刪除管理員帳號'}), 400
         
-        user.is_active = False
+        # 真正從資料庫中刪除使用者
+        username = user.username
+        db.session.delete(user)
         db.session.commit()
         
         return jsonify({
             'success': True,
-            'message': '使用者已刪除（停用）'
+            'message': f'使用者「{username}」已永久刪除'
         })
     except Exception as e:
         db.session.rollback()
