@@ -107,6 +107,9 @@
                                 <th>參考類型</th>
                                 <th>參考編號</th>
                                 <th>備註</th>
+                                {% if current_user.is_admin %}
+                                <th width="100">管理操作</th>
+                                {% endif %}
                             </tr>
                         </thead>
                         <tbody>
@@ -134,6 +137,16 @@
                                 <td>{{ reference_type_map.get(transaction.reference_type, transaction.reference_type or 'N/A') }}</td>
                                 <td>{{ transaction.reference_id or 'N/A' }}</td>
                                 <td>{{ transaction.notes }}</td>
+                                {% if current_user.is_admin %}
+                                <td>
+                                    <button type="button" 
+                                            class="btn btn-outline-danger btn-sm" 
+                                            onclick="deleteTransaction({{ transaction.id }}, '{{ transaction.part_number }}', '{{ transaction.transaction_type }}', {{ transaction.quantity }})"
+                                            title="刪除交易記錄">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                                {% endif %}
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -187,11 +200,137 @@
         </div>
     </div>
 </div>
+<!-- 刪除交易確認Modal -->
+<div class="modal fade" id="deleteTransactionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    刪除交易記錄
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>警告：這是不可逆的操作！</strong>
+                </div>
+                
+                <p>您即將刪除以下交易記錄：</p>
+                <ul>
+                    <li><strong>零件：</strong><span id="deletePartNumber"></span></li>
+                    <li><strong>交易類型：</strong><span id="deleteTransactionType"></span></li>
+                    <li><strong>數量變化：</strong><span id="deleteQuantity"></span></li>
+                </ul>
+                
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-shield-alt me-2"></i>刪除後的影響：</h6>
+                    <ul class="mb-0">
+                        <li>庫存數量將會重新計算</li>
+                        <li>歷史記錄將永久消失</li>
+                        <li>可能影響庫存報表的準確性</li>
+                    </ul>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="deleteReason" class="form-label">刪除原因（必填）</label>
+                    <textarea class="form-control" id="deleteReason" rows="3" 
+                              placeholder="請說明刪除此交易記錄的原因..."></textarea>
+                </div>
+                
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="confirmDeletion">
+                    <label class="form-check-label text-danger" for="confirmDeletion">
+                        我了解刪除交易記錄的風險，並確認要執行此操作
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" id="confirmDeleteBtn" class="btn btn-danger" onclick="confirmDeleteTransaction()">
+                    <i class="fas fa-trash me-1"></i>確認刪除
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
     window.TRANSACTIONS_URL = "{{ url_for('web.inventory_transactions') }}";
+    
+    let pendingDeleteTransactionId = null;
+    
+    function deleteTransaction(transactionId, partNumber, transactionType, quantity) {
+        pendingDeleteTransactionId = transactionId;
+        
+        // 設置Modal內容
+        document.getElementById('deletePartNumber').textContent = partNumber;
+        document.getElementById('deleteTransactionType').textContent = transactionType;
+        document.getElementById('deleteQuantity').textContent = quantity > 0 ? `+${quantity}` : quantity;
+        
+        // 重置表單
+        document.getElementById('deleteReason').value = '';
+        document.getElementById('confirmDeletion').checked = false;
+        document.getElementById('confirmDeleteBtn').disabled = true;
+        
+        // 顯示Modal
+        new bootstrap.Modal(document.getElementById('deleteTransactionModal')).show();
+    }
+    
+    // 監聽確認checkbox變化
+    document.getElementById('confirmDeletion').addEventListener('change', function() {
+        const reason = document.getElementById('deleteReason').value.trim();
+        const confirmed = this.checked;
+        document.getElementById('confirmDeleteBtn').disabled = !(confirmed && reason.length > 0);
+    });
+    
+    // 監聽刪除原因輸入
+    document.getElementById('deleteReason').addEventListener('input', function() {
+        const reason = this.value.trim();
+        const confirmed = document.getElementById('confirmDeletion').checked;
+        document.getElementById('confirmDeleteBtn').disabled = !(confirmed && reason.length > 0);
+    });
+    
+    function confirmDeleteTransaction() {
+        const reason = document.getElementById('deleteReason').value.trim();
+        
+        if (!pendingDeleteTransactionId || !reason) {
+            alert('請填寫刪除原因');
+            return;
+        }
+        
+        // 發送刪除請求
+        fetch(`/admin/transactions/${pendingDeleteTransactionId}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                reason: reason
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('交易記錄已刪除');
+                location.reload(); // 重新載入頁面
+            } else {
+                alert('刪除失敗：' + (data.message || '未知錯誤'));
+            }
+        })
+        .catch(error => {
+            alert('刪除失敗：' + error.message);
+        })
+        .finally(() => {
+            // 關閉Modal
+            bootstrap.Modal.getInstance(document.getElementById('deleteTransactionModal')).hide();
+            pendingDeleteTransactionId = null;
+        });
+    }
 </script>
 <script src="{{ url_for('static', filename='js/inventory/transactions.js') }}" defer></script>
 {% endblock %}

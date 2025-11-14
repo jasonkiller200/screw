@@ -214,6 +214,39 @@
         </div>
     </div>
 
+    <!-- 自動登出功能 -->
+    {% if current_user.is_authenticated %}
+    <script>
+        // 當使用者關閉瀏覽器或分頁時自動登出
+        window.addEventListener('beforeunload', function(event) {
+            // 使用 sendBeacon API 確保請求能夠發送
+            if (navigator.sendBeacon) {
+                navigator.sendBeacon('/auth/logout-silent');
+            } else {
+                // 備用方案：同步 AJAX 請求
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', '/auth/logout-silent', false);
+                xhr.send();
+            }
+        });
+        
+        // 監聽頁面可見性變化（當分頁被隱藏或切換時）
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'hidden') {
+                // 頁面被隱藏時，準備登出
+                setTimeout(function() {
+                    if (document.visibilityState === 'hidden') {
+                        // 如果5秒後頁面仍然隱藏，執行登出
+                        if (navigator.sendBeacon) {
+                            navigator.sendBeacon('/auth/logout-silent');
+                        }
+                    }
+                }, 5000); // 5秒延遲
+            }
+        });
+    </script>
+    {% endif %}
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>
