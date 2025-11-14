@@ -68,7 +68,7 @@
                 <div class="row mt-3">
                     <div class="col-md-3">
                         <strong>盤點日期：</strong><br>
-                        {{ count_info.count_date }}
+                        {{ count_info.count_date | datetimeformat('%Y-%m-%d') }}
                     </div>
                     <div class="col-md-3">
                         <strong>盤點人員：</strong><br>
@@ -80,7 +80,7 @@
                     </div>
                     <div class="col-md-3">
                         <strong>完成時間：</strong><br>
-                        {{ count_info.completed_at or '-' }}
+                        {{ (count_info.completed_at | datetimeformat('%Y-%m-%d %H:%M')) if count_info.completed_at else '-' }}
                     </div>
                 </div>
                 {% if count_info.notes %}
@@ -212,7 +212,7 @@
                                         <span class="text-muted">-</span>
                                     {% endif %}
                                 </td>
-                                <td class="counted-at">{{ detail.counted_at or '-' }}</td>
+                                <td class="counted-at">{{ (detail.counted_at | datetimeformat('%Y-%m-%d %H:%M')) if detail.counted_at else '-' }}</td>
                                 {% if count_info.status == 'counting' %}
                                 <td>
                                     <button class="btn btn-outline-success btn-sm" 

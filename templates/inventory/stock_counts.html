@@ -41,7 +41,7 @@
                             <tr>
                                 <td><strong>{{ count.count_number }}</strong></td>
                                 <td>{{ count.warehouse_name }}</td>
-                                <td>{{ count.count_date }}</td>
+                                <td>{{ count.count_date | datetimeformat('%Y-%m-%d') }}</td>
                                 <td>
                                     {% if count.count_type == 'full' %}
                                         <span class="badge bg-primary">全盤點</span>
@@ -63,7 +63,7 @@
                                     {% endif %}
                                 </td>
                                 <td>{{ count.counted_by or '-' }}</td>
-                                <td>{{ count.completed_at or '-' }}</td>
+                                <td>{{ (count.completed_at | datetimeformat('%Y-%m-%d %H:%M')) if count.completed_at else '-' }}</td>
                                 <td>
                                     <div class="btn-group btn-group-sm" role="group">
                                         <a href="{{ url_for('web.stock_count_detail', count_id=count.id) }}" 

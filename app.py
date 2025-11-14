@@ -8,7 +8,7 @@ from controllers.ai_controller import ai_bp
 from controllers.auth_controller import auth_bp  # 新增
 from controllers.user_controller import user_bp  # 使用者管理
 from extensions import db, migrate, login_manager  # 新增 login_manager
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 def create_app():
     """應用程式工廠函數"""
@@ -23,6 +23,39 @@ def create_app():
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+    # Jinja2 filter for datetime formatting
+    @app.template_filter('datetimeformat')
+    def datetimeformat(value, format='%Y-%m-%d %H:%M'):
+        if not value:
+            return ""
+        
+        if isinstance(value, str):
+            # First, try to parse ISO format with 'T' separator
+            try:
+                if '.' in value and 'T' in value:
+                    dt_obj = datetime.strptime(value, '%Y-%m-%dT%H:%M:%S.%f')
+                elif 'T' in value:
+                    dt_obj = datetime.strptime(value, '%Y-%m-%dT%H:%M:%S')
+                else:
+                    # Fallback to formats with space separator
+                    if '.' in value:
+                        dt_obj = datetime.strptime(value, '%Y-%m-%d %H:%M:%S.%f')
+                    else:
+                        dt_obj = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                try:
+                    # Fallback to date-only format
+                    dt_obj = datetime.strptime(value, '%Y-%m-%d')
+                except ValueError:
+                    return value # Return original string if all parsing fails
+            return dt_obj.strftime(format)
+        
+        # If it's already a date/datetime object
+        if hasattr(value, 'strftime'):
+            return value.strftime(format)
+        
+        return value
     
     # Initialize extensions
     db.init_app(app) # Initialize db with the app

@@ -139,14 +139,10 @@ class AuthService:
         - 包含英文字母
         - 包含數字
         """
-        if len(password) < 8:
-            return False, '密碼至少需要 8 個字元'
-        
-        if not re.search(r'[A-Za-z]', password):
-            return False, '密碼必須包含英文字母'
-        
+        if len(password) < 6:
+            return False, "密碼長度必須至少為6位數字。"
         if not re.search(r'\d', password):
-            return False, '密碼必須包含數字'
+            return False, "密碼必須包含至少一位數字。"
         
         return True, ''
     
