@@ -336,7 +336,7 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="weeklyOrderApplicant" class="form-label">申請人 <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="weeklyOrderApplicant" required>
+                            <input type="text" class="form-control" id="weeklyOrderApplicant" value="{{ current_user.full_name }}" required readonly>
                         </div>
 
                     </div>
