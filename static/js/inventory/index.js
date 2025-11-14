@@ -33,12 +33,20 @@ function quickStockOut(partNumber, locationId) {
     
     // Trigger change event to show/hide work order field based on default selection
     const transactionTypeOut = document.getElementById('actionTransactionTypeOut');
+    const workOrderIdInput = document.getElementById('actionWorkOrderId');
+    const actionNotesInput = document.getElementById('actionNotes');
+
     if (transactionTypeOut.value === 'OUT_WORK_ORDER') {
         document.getElementById('workOrderGroup').style.display = 'block';
+        // Set initial notes for work order
+        if (workOrderIdInput.value) {
+            actionNotesInput.value = `工單領用 - 工單編號: ${workOrderIdInput.value}`;
+        }
     } else {
         document.getElementById('workOrderGroup').style.display = 'none';
+        actionNotesInput.value = ''; // Clear notes if not work order
     }
-
+    validateQuickActionWorkOrderId(); // Initial validation on modal open
     const modal = new bootstrap.Modal(document.getElementById('quickActionModal'));
     modal.show();
 }
@@ -46,11 +54,33 @@ function quickStockOut(partNumber, locationId) {
 // Listen for changes on the stock-out transaction type dropdown
 document.getElementById('actionTransactionTypeOut').addEventListener('change', function() {
     const workOrderGroup = document.getElementById('workOrderGroup');
+    const workOrderIdInput = document.getElementById('actionWorkOrderId');
+    const actionNotesInput = document.getElementById('actionNotes');
+
     if (this.value === 'OUT_WORK_ORDER') {
         workOrderGroup.style.display = 'block';
+        if (workOrderIdInput.value) {
+            actionNotesInput.value = `工單領用 - 工單編號: ${workOrderIdInput.value}`;
+        }
     } else {
         workOrderGroup.style.display = 'none';
+        actionNotesInput.value = ''; // Clear notes if not work order
     }
+    validateQuickActionWorkOrderId(); // Re-validate on type change
+});
+
+// Listen for changes on the work order ID input to update notes
+document.getElementById('actionWorkOrderId').addEventListener('input', function() {
+    const transactionTypeOut = document.getElementById('actionTransactionTypeOut');
+    const actionNotesInput = document.getElementById('actionNotes');
+    if (transactionTypeOut.value === 'OUT_WORK_ORDER') {
+        if (this.value) {
+            actionNotesInput.value = `工單領用 - 工單編號: ${this.value}`;
+        } else {
+            actionNotesInput.value = '工單領用 - 工單編號: ';
+        }
+    }
+    validateQuickActionWorkOrderId(); // Re-validate on input change
 });
 
 // 提交快速操作
@@ -88,6 +118,13 @@ document.getElementById('submitQuickAction').addEventListener('click', function(
             alert('請選擇一個有效的出庫類型');
             return;
         }
+
+        // Perform work order ID validation before proceeding
+        if (transactionType === 'OUT_WORK_ORDER' && !validateQuickActionWorkOrderId()) {
+            alert('請修正工單編號。');
+            return;
+        }
+
         payload = {
             part_number: partNumber,
             warehouse_location_id: parseInt(locationId),
@@ -162,6 +199,41 @@ function exportLowStock() {
 // 顯示進階匯出選項（未來擴展用）
 function showExportOptions() {
     alert('進階匯出選項功能將在下個版本中提供');
+}
+
+// Function to validate work order ID for quick action modal
+function validateQuickActionWorkOrderId() {
+    const transactionTypeSelect = document.getElementById('actionTransactionTypeOut');
+    const workOrderIdInput = document.getElementById('actionWorkOrderId');
+    const workOrderIdFeedback = document.getElementById('action-work-order-id-feedback');
+    
+    const isWorkOrderType = transactionTypeSelect.value === 'OUT_WORK_ORDER';
+    let isValid = true;
+    let feedbackMessage = '';
+
+    if (isWorkOrderType) {
+        workOrderIdInput.setAttribute('required', 'required');
+        if (workOrderIdInput.value.trim() === '') {
+            isValid = false;
+            feedbackMessage = '工單編號為必填項。';
+        } else if (workOrderIdInput.value.trim().length < 9) {
+            isValid = false;
+            feedbackMessage = '工單編號至少需要9碼。';
+        }
+    } else {
+        workOrderIdInput.removeAttribute('required');
+    }
+
+    if (isValid) {
+        workOrderIdInput.classList.remove('is-invalid');
+        workOrderIdInput.classList.add('is-valid');
+        workOrderIdFeedback.textContent = '';
+    } else {
+        workOrderIdInput.classList.add('is-invalid');
+        workOrderIdInput.classList.remove('is-valid');
+        workOrderIdFeedback.textContent = feedbackMessage;
+    }
+    return isValid;
 }
 
 document.addEventListener('DOMContentLoaded', () => {

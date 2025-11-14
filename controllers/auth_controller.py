@@ -3,7 +3,7 @@
 處理登入、註冊、登出相關路由
 """
 
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from models.weekly_order import User
 from services.auth_service import AuthService
@@ -85,6 +85,18 @@ def logout():
     logout_user()
     flash('您已成功登出', 'info')
     return redirect(url_for('auth.login'))
+
+
+@auth_bp.route('/logout-silent', methods=['POST'])
+@login_required
+def logout_silent():
+    """靜默登出（當瀏覽器關閉時）"""
+    try:
+        AuthService.log_logout(current_user.id)
+        logout_user()
+        return '', 204  # 返回空響應
+    except Exception:
+        return '', 204  # 即使發生錯誤也返回成功，避免前端報錯
 
 
 @auth_bp.route('/change-password', methods=['GET', 'POST'])

@@ -434,6 +434,45 @@ class Part(db.Model):
         part.standard_cost = standard_cost
         part.is_active = is_active
 
+        # Update locations: 檢查要移除的儲位是否有庫存
+        from models.inventory import CurrentInventory
+        
+        # 獲取目前所有儲位
+        current_location_ids = {assoc.warehouse_location_id for assoc in part.location_associations}
+        
+        # 獲取新的儲位ID列表
+        new_location_ids = set()
+        if locations_data:
+            for loc_data in locations_data:
+                warehouse_id = loc_data.get('warehouse_id')
+                location_code = loc_data.get('location_code')
+                if warehouse_id and location_code:
+                    wh_loc = WarehouseLocation.query.filter_by(
+                        warehouse_id=warehouse_id, location_code=location_code
+                    ).first()
+                    if wh_loc:
+                        new_location_ids.add(wh_loc.id)
+        
+        # 找出要移除的儲位
+        locations_to_remove = current_location_ids - new_location_ids
+        
+        # 檢查要移除的儲位是否有庫存
+        for location_id in locations_to_remove:
+            stock_record = CurrentInventory.query.filter_by(
+                part_id=part_id, warehouse_location_id=location_id
+            ).first()
+            
+            if stock_record and stock_record.quantity_on_hand > 0:
+                # 獲取儲位資訊用於錯誤訊息
+                location = WarehouseLocation.query.get(location_id)
+                warehouse_name = location.warehouse.name if location and location.warehouse else '未知倉庫'
+                location_code = location.location_code if location else '未知儲位'
+                
+                return {
+                    'success': False, 
+                    'error': f'無法移除儲位 {warehouse_name}-{location_code}：此儲位仍有庫存 {stock_record.quantity_on_hand} {part.unit}，請先清空庫存'
+                }
+
         # Update locations: delete all existing and insert new ones
         # Clear existing associations
         part.location_associations = []
@@ -488,6 +527,8 @@ class Part(db.Model):
     @classmethod
     def delete(cls, part_id):
         from sqlalchemy.orm import selectinload
+        from models.inventory import CurrentInventory
+        
         part = cls.query.options(
             selectinload(cls.inventory_records),
             selectinload(cls.transactions),
@@ -495,12 +536,54 @@ class Part(db.Model):
             selectinload(cls.location_associations)
         ).get(part_id)
 
-        if part:
+        if not part:
+            return {'success': False, 'message': '找不到零件'}
+
+        # 檢查是否有設定儲位
+        if part.location_associations:
+            location_names = []
+            for assoc in part.location_associations:
+                warehouse_name = assoc.warehouse_location.warehouse.name
+                location_code = assoc.warehouse_location.location_code
+                location_names.append(f"{warehouse_name}-{location_code}")
+            
+            return {
+                'success': False, 
+                'message': f'無法刪除零件：此零件已設定儲位 ({", ".join(location_names)})，請先移除所有儲位設定'
+            }
+
+        # 檢查是否有庫存
+        stock_records = CurrentInventory.query.filter_by(part_id=part_id).all()
+        if stock_records:
+            has_stock = any(record.quantity_on_hand > 0 for record in stock_records)
+            if has_stock:
+                stock_locations = []
+                for record in stock_records:
+                    if record.quantity_on_hand > 0:
+                        warehouse_name = record.warehouse.name
+                        location_code = record.warehouse_location.location_code if record.warehouse_location else '未知位置'
+                        stock_locations.append(f"{warehouse_name}-{location_code} (庫存: {record.quantity_on_hand})")
+                
+                return {
+                    'success': False, 
+                    'message': f'無法刪除零件：此零件仍有庫存 ({", ".join(stock_locations)})，請先清空所有庫存'
+                }
+
+        # 檢查是否有交易記錄
+        if part.transactions:
+            return {
+                'success': False, 
+                'message': '無法刪除零件：此零件存在交易記錄，為保持資料完整性，建議使用停用功能而非刪除'
+            }
+
+        try:
             db.session.delete(part)
             db.session.commit()
             cls._cleanup_unused_locations_and_warehouses() # Call cleanup after commit
-            return True
-        return False
+            return {'success': True, 'message': '零件刪除成功'}
+        except Exception as e:
+            db.session.rollback()
+            return {'success': False, 'message': f'刪除失敗：{str(e)}'}
     
     @classmethod
     def exists(cls, part_number):

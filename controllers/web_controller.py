@@ -4,6 +4,7 @@ from models.part import Part, Warehouse, WarehouseLocation, PartWarehouseLocatio
 from models.order import Order
 from models.inventory import CurrentInventory, InventoryTransaction, StockCount
 from extensions import db
+from controllers.user_controller import admin_required
 from datetime import datetime, timedelta
 import os
 import pandas as pd
@@ -237,7 +238,8 @@ def edit_part(part_id):
     part_locations_with_stock = []
     for assoc in part.location_associations:
         location_dict = assoc.warehouse_location.to_dict()
-        stock_info = CurrentInventory.get_current_stock(part.id, location_dict['warehouse_id'])
+        # 使用 warehouse_location_id 而不是 warehouse_id
+        stock_info = CurrentInventory.get_current_stock(part.id, location_dict['id'])
         location_dict['stock_quantity'] = stock_info['quantity_on_hand'] if stock_info else 0
         part_locations_with_stock.append(location_dict)
 
@@ -250,12 +252,12 @@ def edit_part(part_id):
 @login_required
 def delete_part(part_id):
     """Delete part."""
-    success = Part.delete(part_id)
+    result = Part.delete(part_id)
     
-    if success:
-        flash('零件刪除成功', 'success')
+    if result['success']:
+        flash(result['message'], 'success')
     else:
-        flash('零件刪除失敗', 'error')
+        flash(result['message'], 'error')
     
     return redirect(url_for('web.parts'))
 
@@ -470,7 +472,16 @@ def inventory_transactions():
     reference_type_map = {
         'OrderRegistration': '週期訂單',
         'StockCount': '庫存盤點',
-        'MANUAL': '手動操作'
+        'MANUAL': '手動操作',
+        'MANUAL_BATCH': '批量操作',
+        'ADMIN_ACTION': '管理員操作',
+        'PURCHASE': '採購入庫',
+        'TRANSFER': '倉位轉移',
+        'WORK_ORDER': '工單領料',
+        'ADJUSTMENT': '庫存調整',
+        'RETURN': '退料入庫',
+        'SCRAP': '報廢處理',
+        'COUNT': '盤點調整'
     }
     
     return render_template('inventory/transactions.html',
@@ -952,3 +963,117 @@ def delete_warehouse(warehouse_id):
     else:
         flash(result['message'], 'error')
     return redirect(url_for('web.warehouse_locations'))
+
+# ==================== 管理員專用：交易記錄管理 ====================
+
+@web_bp.route('/admin/transactions/<int:transaction_id>/delete', methods=['POST'])
+@admin_required
+def delete_transaction_record(transaction_id):
+    """
+    管理員專用：刪除交易記錄（開發/測試用）
+    
+    ⚠️ 警告：此功能僅供開發階段清理測試數據使用
+    生產環境中不建議刪除交易記錄，會影響庫存一致性
+    """
+    try:
+        data = request.get_json()
+        reason = data.get('reason', '').strip() if data else ''
+        
+        if not reason:
+            return jsonify({
+                'success': False,
+                'message': '請提供刪除原因'
+            }), 400
+        
+        # 查找交易記錄
+        transaction = InventoryTransaction.query.get(transaction_id)
+        if not transaction:
+            return jsonify({
+                'success': False,
+                'message': '找不到指定的交易記錄'
+            }), 404
+        
+        # 記錄刪除資訊（用於審計）
+        deleted_info = {
+            'id': transaction.id,
+            'part_id': transaction.part_id,
+            'part_number': transaction.part.part_number if transaction.part else 'N/A',
+            'warehouse_location_id': transaction.warehouse_location_id,
+            'transaction_type': transaction.transaction_type,
+            'quantity': transaction.quantity,
+            'transaction_date': transaction.transaction_date.isoformat() if transaction.transaction_date else None,
+            'user_id': transaction.user_id,
+            'reference_type': transaction.reference_type,
+            'reference_id': transaction.reference_id,
+            'notes': transaction.notes,
+            'deleted_by': current_user.id,
+            'deleted_at': datetime.now().isoformat(),
+            'delete_reason': reason
+        }
+        
+        # 重新計算庫存（反向操作）
+        stock_update_info = "無庫存更新"
+        if transaction.warehouse_location_id:
+            current_stock = CurrentInventory.query.filter_by(
+                part_id=transaction.part_id,
+                warehouse_location_id=transaction.warehouse_location_id
+            ).first()
+            
+            if current_stock:
+                # 記錄原始庫存
+                old_quantity = current_stock.quantity_on_hand
+                old_available = current_stock.available_quantity
+                
+                # 反向調整庫存
+                reverse_quantity = -transaction.quantity
+                current_stock.quantity_on_hand += reverse_quantity
+                current_stock.available_quantity = current_stock.quantity_on_hand - current_stock.reserved_quantity
+                
+                # 確保庫存不為負數
+                current_stock.quantity_on_hand = max(0, current_stock.quantity_on_hand)
+                current_stock.available_quantity = max(0, current_stock.available_quantity)
+                
+                # 記錄更新資訊
+                stock_update_info = f"庫存更新: {old_quantity} → {current_stock.quantity_on_hand} (變化: {reverse_quantity})"
+            else:
+                stock_update_info = f"找不到庫存記錄 (零件ID: {transaction.part_id}, 儲位ID: {transaction.warehouse_location_id})"
+        else:
+            stock_update_info = f"無儲位ID，跳過庫存更新 (交易ID: {transaction_id})"
+        
+        # 建立審計記錄（新增一筆特殊的交易記錄）
+        audit_transaction = InventoryTransaction(
+            part_id=transaction.part_id,
+            warehouse_id=transaction.warehouse_id,
+            warehouse_location_id=transaction.warehouse_location_id,
+            transaction_type='ADMIN_DELETE',
+            quantity=0,  # 不影響庫存，純記錄用
+            reference_type='ADMIN_ACTION',
+            reference_id=transaction_id,
+            notes=f'管理員刪除交易記錄 #{transaction_id}。原因：{reason}。原交易：{transaction.transaction_type} {transaction.quantity}',
+            user_id=current_user.id,
+            transaction_date=datetime.now()
+        )
+        db.session.add(audit_transaction)
+        
+        # 刪除原交易記錄
+        db.session.delete(transaction)
+        
+        # 提交更改
+        db.session.commit()
+        
+        # 記錄到系統日誌（如果有的話）
+        print(f"ADMIN_DELETE_TRANSACTION: {deleted_info}")
+        print(f"STOCK_UPDATE: {stock_update_info}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'交易記錄已刪除。{stock_update_info}。審計記錄已建立。'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"刪除交易記錄時發生錯誤: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'刪除失敗：{str(e)}'
+        }), 500

@@ -94,10 +94,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const stockQuantity = parseInt(removeBtn.dataset.stockQuantity || '0');
                 
                 if (stockQuantity > 0) {
-                    const confirmDelete = confirm(`此儲位所屬的倉庫中仍有 ${stockQuantity} 個零件庫存。您確定要刪除此儲位嗎？`);
-                    if (!confirmDelete) {
-                        return; // 如果用戶取消，則停止刪除
-                    }
+                    alert(`無法移除此儲位：仍有 ${stockQuantity} 個零件庫存，請先清空庫存後再移除。`);
+                    return; // 直接阻止刪除，不提供確認選項
                 }
                 removeBtn.closest('.location-input-group').remove();
             }
