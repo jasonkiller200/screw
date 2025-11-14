@@ -409,9 +409,9 @@ def delete_stock_count(count_id):
     if not count:
         return jsonify({'error': 'Stock count not found'}), 404
     
-    # 只允許刪除「規劃中」的盤點
-    if count.status != 'planning':
-        return jsonify({'error': 'Only planning status counts can be deleted'}), 400
+    # 只允許刪除「規劃中」或「盤點中」的盤點
+    if count.status not in ['planning', 'counting']:
+        return jsonify({'error': 'Only counts with planning or counting status can be deleted'}), 400
     
     try:
         # 刪除相關的盤點明細

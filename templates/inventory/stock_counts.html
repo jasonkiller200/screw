@@ -79,6 +79,8 @@
                                                 onclick="editCount({{ count.id }})" title="編輯">
                                             <i class="fas fa-edit"></i>
                                         </button>
+                                        {% endif %}
+                                        {% if count.status == 'planning' or count.status == 'counting' %}
                                         <button class="btn btn-outline-danger" 
                                                 onclick="deleteCount({{ count.id }}, '{{ count.count_number }}')" title="刪除">
                                             <i class="fas fa-trash"></i>
