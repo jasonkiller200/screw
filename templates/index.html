@@ -27,8 +27,15 @@
     .trend-down {
         color: #dc3545;
     }
+    .trend-neutral {
+        color: #6c757d;
+    }
     .trend-icon {
         margin-left: 5px;
+    }
+    .btn-group .btn {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
     }
 </style>
 {% endblock %}
@@ -48,10 +55,10 @@
         <div class="card card-metric text-center">
             <div class="card-body">
                 <i class="fas fa-boxes fa-2x text-primary mb-2"></i>
-                <div class="metric-value">1,234</div>
-                <div class="metric-label">品項數</div>
-                <div class="metric-value">56,789</div>
-                <div class="metric-label">總數量</div>
+                <div id="kpi-parts-with-location" class="metric-value">...</div>
+                <div class="metric-label">有儲位品項</div>
+                <div id="kpi-total-stock" class="metric-value">...</div>
+                <div class="metric-label">總庫存數量</div>
             </div>
             <div class="card-footer text-muted small">
                 <i class="fas fa-info-circle me-1"></i>所有倉庫總計
@@ -64,11 +71,11 @@
         <div class="card card-metric text-center">
             <div class="card-body">
                 <i class="fas fa-truck-loading fa-2x text-danger mb-2"></i>
-                <div class="metric-value">1,500</div>
+                <div id="kpi-weekly-out" class="metric-value">...</div>
                 <div class="metric-label">本週出庫數</div>
-                <div class="small mt-2">
-                    <span class="trend-up">+5%</span>
-                    <i class="fas fa-arrow-up trend-icon trend-up"></i>
+                <div id="kpi-weekly-out-trend" class="small mt-2">
+                    <span>...</span>
+                    <i class="fas"></i>
                     <span class="text-muted ms-1">vs 上週</span>
                 </div>
             </div>
@@ -83,11 +90,11 @@
         <div class="card card-metric text-center">
             <div class="card-body">
                 <i class="fas fa-dolly-flatbed fa-2x text-success mb-2"></i>
-                <div class="metric-value">2,100</div>
+                <div id="kpi-weekly-in" class="metric-value">...</div>
                 <div class="metric-label">本週入庫數</div>
-                <div class="small mt-2">
-                    <span class="trend-down">-10%</span>
-                    <i class="fas fa-arrow-down trend-icon trend-down"></i>
+                <div id="kpi-weekly-in-trend" class="small mt-2">
+                    <span>...</span>
+                    <i class="fas"></i>
                     <span class="text-muted ms-1">vs 上週</span>
                 </div>
             </div>
@@ -102,9 +109,9 @@
         <div class="card card-metric text-center">
             <div class="card-body">
                 <i class="fas fa-exclamation-triangle fa-2x text-warning mb-2"></i>
-                <div class="metric-value text-warning">42</div>
+                <div id="kpi-low-stock" class="metric-value text-warning">...</div>
                 <div class="metric-label">低庫存品項</div>
-                <div class="metric-value text-danger">8</div>
+                <div id="kpi-out-of-stock" class="metric-value text-danger">...</div>
                 <div class="metric-label">缺貨品項</div>
             </div>
             <div class="card-footer text-muted small">
@@ -119,40 +126,26 @@
     <!-- 左側：圖表與清單 -->
     <div class="col-lg-8 mb-3">
         <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>本週出入庫趨勢圖 (工作日)</h5>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 id="chart-title" class="mb-0"><i class="fas fa-chart-line me-2"></i>綜合趨勢圖</h5>
+                <div class="btn-group" role="group" aria-label="時間範圍">
+                    <button type="button" class="btn btn-outline-secondary timespan-btn active" data-timespan="daily">日</button>
+                    <button type="button" class="btn btn-outline-secondary timespan-btn" data-timespan="weekly">週</button>
+                    <button type="button" class="btn btn-outline-secondary timespan-btn" data-timespan="monthly">月</button>
+                </div>
             </div>
             <div class="card-body">
-                <canvas id="inOutTrendChart"></canvas>
+                <canvas id="trendChart"></canvas>
             </div>
         </div>
 
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-fire me-2"></i>出庫頻率排行 TOP 5 (零件 - 儲位)</h5>
+                <h5 class="mb-0"><i class="fas fa-fire me-2"></i>出庫頻率排行 TOP 5 (近30天)</h5>
             </div>
             <div class="card-body">
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        SC-001 - M5螺絲 (W01:A-01-01)
-                        <span class="badge bg-primary rounded-pill">32 次</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        PN-005 - 墊片 (W02:B-02-03)
-                        <span class="badge bg-primary rounded-pill">28 次</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        PN-010 - 軸承 (W01:C-01-02)
-                        <span class="badge bg-primary rounded-pill">25 次</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        SC-003 - M8螺帽 (W03:D-03-01)
-                        <span class="badge bg-primary rounded-pill">20 次</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        PN-020 - 電線 (W02:E-01-05)
-                        <span class="badge bg-primary rounded-pill">18 次</span>
-                    </li>
+                <ul id="top-items-list" class="list-group list-group-flush">
+                    <!-- 動態生成 -->
                 </ul>
             </div>
         </div>
@@ -162,79 +155,8 @@
                 <h5 class="mb-0"><i class="fas fa-bell me-2"></i>庫存預警清單 (缺貨 & 低庫存)</h5>
             </div>
             <div class="card-body">
-                <ul class="list-group list-group-flush">
-                    <!-- 缺貨品項 -->
-                    <li class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <span class="badge bg-danger me-2">缺貨</span>
-                                <strong>PN-007</strong> - 彈簧 (W01:A-01-01)
-                            </div>
-                            <div class="text-end">
-                                <small class="text-danger">0 / 50</small>
-                                <div class="progress" style="width: 100px; height: 8px;">
-                                    <div class="progress-bar bg-danger" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </li>
-                    <li class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <span class="badge bg-danger me-2">缺貨</span>
-                                <strong>PN-012</strong> - 螺絲刀 (W02:B-02-03)
-                            </div>
-                            <div class="text-end">
-                                <small class="text-danger">0 / 10</small>
-                                <div class="progress" style="width: 100px; height: 8px;">
-                                    <div class="progress-bar bg-danger" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </li>
-                    <!-- 低庫存品項 -->
-                    <li class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <span class="badge bg-warning me-2">低庫存</span>
-                                <strong>PN-002</strong> - 螺帽 (W01:A-01-01)
-                            </div>
-                            <div class="text-end">
-                                <small class="text-warning">5 / 50</small>
-                                <div class="progress" style="width: 100px; height: 8px;">
-                                    <div class="progress-bar bg-warning" role="progressbar" style="width: 10%;" aria-valuenow="10" aria-valuemin="0" aria-valuemax="100"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </li>
-                    <li class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <span class="badge bg-warning me-2">低庫存</span>
-                                <strong>PN-008</strong> - 墊圈 (W03:C-01-02)
-                            </div>
-                            <div class="text-end">
-                                <small class="text-warning">15 / 100</small>
-                                <div class="progress" style="width: 100px; height: 8px;">
-                                    <div class="progress-bar bg-warning" role="progressbar" style="width: 15%;" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </li>
-                    <li class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <span class="badge bg-warning me-2">低庫存</span>
-                                <strong>PN-015</strong> - 螺栓 (W02:D-02-01)
-                            </div>
-                            <div class="text-end">
-                                <small class="text-warning">20 / 80</small>
-                                <div class="progress" style="width: 100px; height: 8px;">
-                                    <div class="progress-bar bg-warning" role="progressbar" style="width: 25%;" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </li>
+                <ul id="stock-alerts-list" class="list-group list-group-flush">
+                    <!-- 動態生成 -->
                 </ul>
             </div>
         </div>
@@ -250,15 +172,15 @@
                 <ul class="list-group list-group-flush">
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                         本週總入庫
-                        <span class="badge bg-success rounded-pill">2,100</span>
+                        <span id="stat-weekly-in" class="badge bg-success rounded-pill">...</span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                         本週總出庫
-                        <span class="badge bg-danger rounded-pill">1,500</span>
+                        <span id="stat-weekly-out" class="badge bg-danger rounded-pill">...</span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                         庫存周轉率 (月)
-                        <span class="badge bg-info rounded-pill">0.85</span>
+                        <span id="stat-turnover" class="badge bg-info rounded-pill">...</span>
                     </li>
                 </ul>
             </div>
@@ -272,11 +194,11 @@
                 <ul class="list-group list-group-flush">
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                         待審查週期訂單
-                        <span class="badge bg-warning rounded-pill">3</span>
+                        <span id="todo-pending-reviews" class="badge bg-warning rounded-pill">...</span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                         待入庫品項總量
-                        <span class="badge bg-primary rounded-pill">850</span>
+                        <span id="todo-pending-inbound" class="badge bg-primary rounded-pill">...</span>
                     </li>
                 </ul>
             </div>
@@ -287,65 +209,5 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // 本週出入庫趨勢圖
-        const ctx = document.getElementById('inOutTrendChart').getContext('2d');
-        const inOutTrendChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: ['11/06', '11/07', '11/10', '11/11', '11/12', '11/13', '11/14'], // 7個工作日
-                datasets: [{
-                    label: '入庫量',
-                    data: [150, 200, 180, 220, 250, 210, 230],
-                    borderColor: 'rgba(40, 167, 69, 1)',
-                    backgroundColor: 'rgba(40, 167, 69, 0.2)',
-                    fill: true,
-                    tension: 0.3
-                }, {
-                    label: '出庫量',
-                    data: [100, 120, 150, 130, 180, 160, 170],
-                    borderColor: 'rgba(220, 53, 69, 1)',
-                    backgroundColor: 'rgba(220, 53, 69, 0.2)',
-                    fill: true,
-                    tension: 0.3
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    title: {
-                        display: false,
-                        text: '本週出入庫趨勢'
-                    },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false,
-                    },
-                },
-                hover: {
-                    mode: 'nearest',
-                    intersect: true
-                },
-                scales: {
-                    x: {
-                        display: true,
-                        title: {
-                            display: true,
-                            text: '日期'
-                        }
-                    },
-                    y: {
-                        display: true,
-                        title: {
-                            display: true,
-                            text: '數量'
-                        },
-                        beginAtZero: true
-                    }
-                }
-            }
-        });
-    });
-</script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}

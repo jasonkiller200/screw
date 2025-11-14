@@ -17,6 +17,7 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 from services.inventory_service import InventoryService # Import InventoryService
 from services.part_service import PartService # Import PartService
 from services.work_order_service import WorkOrderService # Import WorkOrderService
+from services.dashboard_service import DashboardService # Import DashboardService
 
 @api_bp.route('/inventory/stock/export', methods=['GET'])
 @login_required
@@ -430,4 +431,15 @@ def batch_stock_out():
         return jsonify(result), 200
     else:
         return jsonify(result), 400
+
+@api_bp.route('/dashboard', methods=['GET'])
+def get_dashboard_data():
+    """
+    提供儀表板所需的所有數據。
+    可接受 timespan 查詢參數 ('daily', 'weekly', 'monthly')。
+    """
+    timespan = request.args.get('timespan', 'daily', type=str)
+    service = DashboardService()
+    data = service.get_dashboard_data(timespan=timespan)
+    return jsonify(data)
 
