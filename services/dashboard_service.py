@@ -52,8 +52,8 @@ class DashboardService:
 
         def get_weekly_turnover(start_date, end_date):
             turnover = db.session.query(
-                func.sum(case((InventoryTransaction.transaction_type == 'STOCK_IN', InventoryTransaction.quantity), else_=0)).label('total_in'),
-                func.sum(case((InventoryTransaction.transaction_type == 'STOCK_OUT', func.abs(InventoryTransaction.quantity)), else_=0)).label('total_out')
+                func.sum(case((InventoryTransaction.transaction_type.like('IN_%'), InventoryTransaction.quantity), else_=0)).label('total_in'),
+                func.sum(case((InventoryTransaction.transaction_type.like('OUT_%'), func.abs(InventoryTransaction.quantity)), else_=0)).label('total_out')
             ).filter(
                 InventoryTransaction.transaction_date >= start_date,
                 InventoryTransaction.transaction_date < (end_date + timedelta(days=1))
@@ -127,8 +127,8 @@ class DashboardService:
 
         turnover_query = db.session.query(
             func.strftime(group_format, InventoryTransaction.transaction_date).label('period'),
-            func.sum(case((InventoryTransaction.transaction_type == 'STOCK_IN', InventoryTransaction.quantity), else_=0)).label('total_in'),
-            func.sum(case((InventoryTransaction.transaction_type == 'STOCK_OUT', func.abs(InventoryTransaction.quantity)), else_=0)).label('total_out')
+            func.sum(case((InventoryTransaction.transaction_type.like('IN_%'), InventoryTransaction.quantity), else_=0)).label('total_in'),
+            func.sum(case((InventoryTransaction.transaction_type.like('OUT_%'), func.abs(InventoryTransaction.quantity)), else_=0)).label('total_out')
         ).filter(
             InventoryTransaction.transaction_date >= start_date
         ).group_by('period').all()
@@ -181,7 +181,7 @@ class DashboardService:
             func.count(InventoryTransaction.id).label('checkout_count')
         ).join(Part, InventoryTransaction.part_id == Part.id)\
         .filter(
-            InventoryTransaction.transaction_type == 'STOCK_OUT',
+            InventoryTransaction.transaction_type.like('OUT_%'),
             InventoryTransaction.transaction_date >= thirty_days_ago
         ).group_by(Part.id, Part.part_number, Part.name)\
         .order_by(func.count(InventoryTransaction.id).desc())\
