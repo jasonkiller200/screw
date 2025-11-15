@@ -181,7 +181,13 @@
                         <span id="stat-weekly-out" class="badge bg-danger rounded-pill">...</span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                        庫存周轉率 (月)
+                        <div>
+                            庫存周轉率 (月)
+                            <i class="fas fa-info-circle text-muted ms-1" 
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top" 
+                               title="計算公式：(本月出庫總量 ÷ 當前總庫存) × 100%"></i>
+                        </div>
                         <span id="stat-turnover" class="badge bg-info rounded-pill">...</span>
                     </li>
                 </ul>
@@ -195,11 +201,17 @@
             <div class="card-body">
                 <ul class="list-group list-group-flush">
                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                        待審查週期訂單
+                        <a href="{{ url_for('weekly_order.weekly_orders') }}" class="text-decoration-none text-dark d-flex align-items-center">
+                            待審查週期訂單
+                            <i class="fas fa-external-link-alt text-muted ms-2 small"></i>
+                        </a>
                         <span id="todo-pending-reviews" class="badge bg-warning rounded-pill">...</span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                        待入庫品項總量
+                        <a href="{{ url_for('weekly_order.pending_inbound_orders') }}" class="text-decoration-none text-dark d-flex align-items-center">
+                            待入庫品項總量
+                            <i class="fas fa-external-link-alt text-muted ms-2 small"></i>
+                        </a>
                         <span id="todo-pending-inbound" class="badge bg-primary rounded-pill">...</span>
                     </li>
                 </ul>

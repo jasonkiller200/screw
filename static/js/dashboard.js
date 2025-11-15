@@ -3,6 +3,12 @@ let trendChartInstance = null; // 全域變數，用於儲存 Chart.js 實例
 document.addEventListener('DOMContentLoaded', function() {
     console.log("儀表板腳本已載入。");
 
+    // 初始化 Bootstrap tooltip
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+
     // 時間範圍切換按鈕的事件監聽
     const timespanButtons = document.querySelectorAll('.timespan-btn');
     timespanButtons.forEach(button => {
@@ -107,10 +113,12 @@ function updateKPIs(kpiData) {
     // 更新快速統計面板 (如果需要，這裡可以從 KPI 數據中提取)
     document.getElementById('stat-weekly-in').textContent = kpiData.weekly_stock_in.value.toLocaleString();
     document.getElementById('stat-weekly-out').textContent = kpiData.weekly_stock_out.value.toLocaleString();
-    // 庫存周轉率和待辦事項目前後端未提供，先留空或使用預設值
-    document.getElementById('stat-turnover').textContent = 'N/A'; // 待後端提供
-    document.getElementById('todo-pending-reviews').textContent = 'N/A'; // 待後端提供
-    document.getElementById('todo-pending-inbound').textContent = 'N/A'; // 待後端提供
+    // 更新庫存周轉率 (顯示為百分比)
+    document.getElementById('stat-turnover').textContent = kpiData.monthly_turnover_rate + '%';
+    
+    // 更新待辦事項
+    document.getElementById('todo-pending-reviews').textContent = kpiData.pending_reviews.toLocaleString();
+    document.getElementById('todo-pending-inbound').textContent = kpiData.pending_inbound_items.toLocaleString();
 }
 
 /**

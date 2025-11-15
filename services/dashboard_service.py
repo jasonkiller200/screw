@@ -2,6 +2,7 @@
 
 from models.inventory import CurrentInventory, InventoryTransaction
 from models.part import Part, PartWarehouseLocation, WarehouseLocation
+from models.weekly_order import WeeklyOrderCycle, OrderRegistration
 from extensions import db
 from sqlalchemy import func, case, extract
 from datetime import datetime, timedelta, date
@@ -71,6 +72,38 @@ class DashboardService:
         inbound_trend = calculate_trend(this_week_in, last_week_in)
         outbound_trend = calculate_trend(this_week_out, last_week_out)
 
+        # 計算待辦事項統計
+        # 1. 待審查週期訂單 (狀態為 registered 的申請項目)
+        pending_reviews = db.session.query(func.count(OrderRegistration.id)).filter(
+            OrderRegistration.status == 'registered'
+        ).scalar() or 0
+
+        # 2. 待入庫品項總量 (狀態為 approved 但未完全入庫且有指定儲位的項目筆數)
+        pending_inbound_items = db.session.query(func.count(OrderRegistration.id)).filter(
+            OrderRegistration.status == 'approved',
+            OrderRegistration.quantity > OrderRegistration.quantity_received,
+            OrderRegistration.warehouse_location_id.isnot(None)  # 排除未指定儲位的項目
+        ).scalar() or 0
+
+        # 3. 計算月度庫存周轉率 (本月出庫總量 / 平均庫存)
+        # 獲取本月開始日期
+        today = date.today()
+        first_day_of_month = today.replace(day=1)
+        
+        # 計算本月出庫總量
+        monthly_outbound = db.session.query(
+            func.sum(func.abs(InventoryTransaction.quantity))
+        ).filter(
+            InventoryTransaction.transaction_type.like('OUT_%'),
+            InventoryTransaction.transaction_date >= first_day_of_month
+        ).scalar() or 0
+
+        # 計算平均庫存 (簡化為當前總庫存，實際應該用月初和月末的平均值)
+        current_total_inventory = total_stock_quantity or 1  # 避免除零錯誤
+        
+        # 庫存周轉率 = 出庫量 / 平均庫存
+        monthly_turnover_rate = round((monthly_outbound / current_total_inventory) * 100, 2) if current_total_inventory > 0 else 0
+
         return {
             'total_locations_count': total_locations_count or 0,
             'parts_with_location_count': stock_status.parts_with_location_count or 0,
@@ -85,7 +118,10 @@ class DashboardService:
             'weekly_stock_out': {
                 'value': int(this_week_out),
                 'trend': outbound_trend
-            }
+            },
+            'pending_reviews': pending_reviews,
+            'pending_inbound_items': pending_inbound_items,
+            'monthly_turnover_rate': monthly_turnover_rate
         }
 
     def _get_trend_data(self, timespan):
