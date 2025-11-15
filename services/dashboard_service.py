@@ -34,6 +34,9 @@ class DashboardService:
         ).select_from(PartWarehouseLocation)
         stock_status = stock_status_query.first()
 
+        # 計算儲位總數 (所有倉庫儲位)
+        total_locations_count = db.session.query(func.count(WarehouseLocation.id)).scalar()
+
         total_stock_quantity = db.session.query(func.sum(CurrentInventory.quantity_on_hand)).scalar()
 
         alert_status = db.session.query(
@@ -69,6 +72,7 @@ class DashboardService:
         outbound_trend = calculate_trend(this_week_out, last_week_out)
 
         return {
+            'total_locations_count': total_locations_count or 0,
             'parts_with_location_count': stock_status.parts_with_location_count or 0,
             'total_part_locations': stock_status.total_part_locations or 0,
             'total_stock_quantity': int(total_stock_quantity or 0),

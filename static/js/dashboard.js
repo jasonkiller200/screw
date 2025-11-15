@@ -91,6 +91,7 @@ function updateTrendDisplay(element, trendValue) {
 function updateKPIs(kpiData) {
     console.log("正在更新 KPI...");
     
+    document.getElementById('kpi-total-locations').textContent = kpiData.total_locations_count.toLocaleString();
     document.getElementById('kpi-parts-with-location').textContent = kpiData.parts_with_location_count.toLocaleString();
     document.getElementById('kpi-total-stock').textContent = kpiData.total_stock_quantity.toLocaleString();
 
