@@ -385,10 +385,11 @@ def export_inventory_transactions():
 def update_inventory_policy(part_id):
     data = request.get_json()
     warehouse_id = data.get('warehouse_id')
+    warehouse_location_id = data.get('warehouse_location_id')
     safety_stock = data.get('safety_stock')
     reorder_point = data.get('reorder_point')
 
-    result = InventoryService.update_inventory_policy(part_id, warehouse_id, safety_stock, reorder_point)
+    result = InventoryService.update_inventory_policy(part_id, warehouse_id, safety_stock, reorder_point, warehouse_location_id)
     
     if result['success']:
         return jsonify(result), 200

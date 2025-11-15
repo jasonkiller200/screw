@@ -505,28 +505,90 @@ class InventoryService:
             return {'success': False, 'error': f'批量出庫失敗: {str(e)}'}
 
     @staticmethod
-    def update_inventory_policy(part_id, warehouse_id, safety_stock, reorder_point):
-        """更新零件在特定倉庫的庫存策略 (安全庫存和補貨點)。"""
+    def update_inventory_policy(part_id, warehouse_id, safety_stock, reorder_point, warehouse_location_id=None):
+        """更新零件在特定倉庫或儲位的庫存策略 (安全庫存和補貨點)。"""
         if not all([warehouse_id, safety_stock is not None, reorder_point is not None]):
             return {'success': False, 'error': 'Missing warehouse_id, safety_stock or reorder_point'}
 
-        current_inventory = CurrentInventory.query.filter_by(part_id=part_id, warehouse_id=warehouse_id).first()
-
-        if not current_inventory:
-            # If no existing inventory record, create one with default quantities
-            current_inventory = CurrentInventory(
+        from models.part import WarehouseLocation
+        
+        # 如果指定了具體儲位，只更新該儲位
+        if warehouse_location_id:
+            current_inventory = CurrentInventory.query.filter_by(
                 part_id=part_id,
-                warehouse_id=warehouse_id,
-                quantity_on_hand=0,
-                reserved_quantity=0,
-                available_quantity=0,
-                safety_stock=safety_stock,
-                reorder_point=reorder_point
-            )
-            db.session.add(current_inventory)
+                warehouse_location_id=warehouse_location_id
+            ).first()
+            
+            if not current_inventory:
+                # 驗證儲位是否存在且屬於指定倉庫
+                location = WarehouseLocation.query.filter_by(
+                    id=warehouse_location_id,
+                    warehouse_id=warehouse_id
+                ).first()
+                
+                if not location:
+                    return {'success': False, 'error': '指定的儲位不存在或不屬於選定的倉庫'}
+                
+                # 創建新的庫存記錄
+                current_inventory = CurrentInventory(
+                    part_id=part_id,
+                    warehouse_id=warehouse_id,
+                    warehouse_location_id=warehouse_location_id,
+                    quantity_on_hand=0,
+                    reserved_quantity=0,
+                    available_quantity=0,
+                    safety_stock=safety_stock,
+                    reorder_point=reorder_point
+                )
+                db.session.add(current_inventory)
+            else:
+                # 更新現有記錄
+                current_inventory.safety_stock = safety_stock
+                current_inventory.reorder_point = reorder_point
         else:
-            current_inventory.safety_stock = safety_stock
-            current_inventory.reorder_point = reorder_point
+            # 如果沒有指定儲位，更新該零件在指定倉庫的所有儲位記錄
+            current_inventories = db.session.query(CurrentInventory).join(
+                WarehouseLocation, CurrentInventory.warehouse_location_id == WarehouseLocation.id
+            ).filter(
+                CurrentInventory.part_id == part_id,
+                WarehouseLocation.warehouse_id == warehouse_id
+            ).all()
+
+            if not current_inventories:
+                # 如果沒有任何庫存記錄，查找該零件在此倉庫的所有關聯儲位
+                from models.part import Part, PartWarehouseLocation
+                part = Part.query.get(part_id)
+                if not part:
+                    return {'success': False, 'error': 'Part not found'}
+                
+                warehouse_locations = db.session.query(WarehouseLocation).join(
+                    PartWarehouseLocation, WarehouseLocation.id == PartWarehouseLocation.warehouse_location_id
+                ).filter(
+                    PartWarehouseLocation.part_id == part_id,
+                    WarehouseLocation.warehouse_id == warehouse_id
+                ).all()
+                
+                if not warehouse_locations:
+                    return {'success': False, 'error': f'零件在所選倉庫中沒有指定的儲位'}
+                
+                # 為每個儲位創建庫存記錄
+                for location in warehouse_locations:
+                    new_inventory = CurrentInventory(
+                        part_id=part_id,
+                        warehouse_id=warehouse_id,
+                        warehouse_location_id=location.id,
+                        quantity_on_hand=0,
+                        reserved_quantity=0,
+                        available_quantity=0,
+                        safety_stock=safety_stock,
+                        reorder_point=reorder_point
+                    )
+                    db.session.add(new_inventory)
+            else:
+                # 更新現有的所有儲位記錄
+                for inventory in current_inventories:
+                    inventory.safety_stock = safety_stock
+                    inventory.reorder_point = reorder_point
         
         try:
             db.session.commit()

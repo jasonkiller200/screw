@@ -256,35 +256,90 @@ function updateTopItems(topItems) {
 function updateStockAlerts(stockAlerts) {
     console.log("正在更新庫存預警...");
     const stockAlertsList = document.getElementById('stock-alerts-list');
+    const toggleBtn = document.getElementById('toggle-alerts-btn');
+    const collapseInfo = document.getElementById('alerts-collapse-info');
+    
     stockAlertsList.innerHTML = ''; // 清空現有內容
+    
+    // 重置狀態
+    toggleBtn.style.display = 'none';
+    collapseInfo.style.display = 'none';
 
     if (stockAlerts && stockAlerts.length > 0) {
-        stockAlerts.forEach(alert => {
-            const listItem = document.createElement('li');
-            listItem.classList.add('list-group-item');
-            
-            const statusBadgeClass = alert.status === '缺貨' ? 'bg-danger' : 'bg-warning';
-            const statusTextColorClass = alert.status === '缺貨' ? 'text-danger' : 'text-warning';
-            const progressWidth = (alert.available_quantity / alert.reorder_point) * 100;
-            const progressBarClass = alert.status === '缺貨' ? 'bg-danger' : 'bg-warning';
+        const showLimit = 5; // 預設顯示前5個項目
+        let isCollapsed = stockAlerts.length > showLimit;
+        let currentAlerts = stockAlerts;
 
-            listItem.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <span class="badge ${statusBadgeClass} me-2">${alert.status}</span>
-                        <strong>${alert.part_number}</strong> - ${alert.part_name} (${alert.location_code})
-                    </div>
-                    <div class="text-end">
-                        <small class="${statusTextColorClass}">${alert.available_quantity} / ${alert.reorder_point}</small>
-                        <div class="progress" style="width: 100px; height: 8px;">
-                            <div class="progress-bar ${progressBarClass}" role="progressbar" style="width: ${progressWidth}%;" 
-                                aria-valuenow="${progressWidth}" aria-valuemin="0" aria-valuemax="100"></div>
+        function renderAlerts(alerts) {
+            stockAlertsList.innerHTML = '';
+            alerts.forEach((alert, index) => {
+                const listItem = document.createElement('li');
+                listItem.classList.add('list-group-item', 'alert-item');
+                if (index >= showLimit && isCollapsed) {
+                    listItem.classList.add('d-none');
+                }
+                
+                const statusBadgeClass = alert.status === '缺貨' ? 'bg-danger' : 'bg-warning';
+                const statusTextColorClass = alert.status === '缺貨' ? 'text-danger' : 'text-warning';
+                const progressWidth = alert.reorder_point > 0 ? (alert.available_quantity / alert.reorder_point) * 100 : 0;
+                const progressBarClass = alert.status === '缺貨' ? 'bg-danger' : 'bg-warning';
+
+                listItem.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge ${statusBadgeClass} me-2">${alert.status}</span>
+                            <strong>${alert.part_number}</strong> - ${alert.part_name}
+                            <br><small class="text-muted"><i class="fas fa-map-marker-alt me-1"></i>${alert.location_display || alert.location_code}</small>
+                        </div>
+                        <div class="text-end">
+                            <small class="${statusTextColorClass}">${alert.available_quantity} / ${alert.reorder_point || 0}</small>
+                            ${alert.reorder_point > 0 ? `
+                            <div class="progress" style="width: 100px; height: 8px;">
+                                <div class="progress-bar ${progressBarClass}" role="progressbar" style="width: ${Math.max(0, Math.min(100, progressWidth))}%;" 
+                                    aria-valuenow="${progressWidth}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            ` : '<div class="text-muted small">未設定再訂購點</div>'}
                         </div>
                     </div>
-                </div>
-            `;
-            stockAlertsList.appendChild(listItem);
-        });
+                `;
+                stockAlertsList.appendChild(listItem);
+            });
+        }
+
+        renderAlerts(stockAlerts);
+
+        // 如果項目超過限制，顯示展開/收折按鈕
+        if (stockAlerts.length > showLimit) {
+            toggleBtn.style.display = 'block';
+            collapseInfo.style.display = 'block';
+            
+            toggleBtn.onclick = function() {
+                isCollapsed = !isCollapsed;
+                const hiddenItems = stockAlertsList.querySelectorAll('.alert-item.d-none');
+                const visibleItems = stockAlertsList.querySelectorAll('.alert-item:not(.d-none)');
+                
+                if (isCollapsed) {
+                    // 收折：隱藏超過限制的項目
+                    visibleItems.forEach((item, index) => {
+                        if (index >= showLimit) {
+                            item.classList.add('d-none');
+                        }
+                    });
+                    toggleBtn.innerHTML = '<i class="fas fa-eye"></i> 展開全部';
+                    collapseInfo.style.display = 'block';
+                } else {
+                    // 展開：顯示所有項目
+                    hiddenItems.forEach(item => {
+                        item.classList.remove('d-none');
+                    });
+                    toggleBtn.innerHTML = '<i class="fas fa-eye-slash"></i> 收折';
+                    collapseInfo.style.display = 'none';
+                }
+            };
+            
+            // 初始狀態：收折
+            toggleBtn.innerHTML = '<i class="fas fa-eye"></i> 展開全部';
+        }
     } else {
         stockAlertsList.innerHTML = '<li class="list-group-item text-muted">暫無庫存預警項目</li>';
     }

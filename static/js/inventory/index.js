@@ -265,7 +265,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    warehouse_id: row.dataset.warehouseId, // Add warehouse_id
+                    warehouse_id: row.dataset.warehouseId,
+                    warehouse_location_id: row.dataset.locationId, // 添加儲位ID
                     safety_stock: safetyStock,
                     reorder_point: reorderPoint,
                 }),

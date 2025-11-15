@@ -1,7 +1,7 @@
 # services/dashboard_service.py
 
 from models.inventory import CurrentInventory, InventoryTransaction
-from models.part import Part, PartWarehouseLocation, WarehouseLocation
+from models.part import Part, PartWarehouseLocation, WarehouseLocation, Warehouse
 from models.weekly_order import WeeklyOrderCycle, OrderRegistration
 from extensions import db
 from sqlalchemy import func, case, extract
@@ -240,12 +240,20 @@ class DashboardService:
             Part.name,
             CurrentInventory.available_quantity,
             CurrentInventory.reorder_point,
-            WarehouseLocation.location_code
+            WarehouseLocation.location_code,
+            Warehouse.name.label('warehouse_name')
         ).join(Part, CurrentInventory.part_id == Part.id)\
         .join(WarehouseLocation, CurrentInventory.warehouse_location_id == WarehouseLocation.id)\
+        .join(Warehouse, WarehouseLocation.warehouse_id == Warehouse.id)\
         .filter(
-            CurrentInventory.reorder_point > 0,
-            CurrentInventory.available_quantity <= CurrentInventory.reorder_point
+            # 缺貨 (available_quantity <= 0) 或者 低庫存 (有設定再訂購點且低於再訂購點)
+            db.or_(
+                CurrentInventory.available_quantity <= 0,  # 缺貨項目，不論是否有設定再訂購點
+                db.and_(
+                    CurrentInventory.reorder_point > 0,
+                    CurrentInventory.available_quantity <= CurrentInventory.reorder_point
+                )  # 有設定再訂購點且低於再訂購點的低庫存項目
+            )
         )
 
         severity_order = case(
@@ -260,6 +268,8 @@ class DashboardService:
                 'part_number': alert.part_number,
                 'part_name': alert.name,
                 'location_code': alert.location_code,
+                'warehouse_name': alert.warehouse_name,
+                'location_display': f"{alert.warehouse_name} - {alert.location_code}",
                 'available_quantity': alert.available_quantity,
                 'reorder_point': alert.reorder_point,
                 'status': '缺貨' if alert.available_quantity <= 0 else '低庫存'
