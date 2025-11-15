@@ -153,13 +153,19 @@
         </div>
 
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="fas fa-bell me-2"></i>庫存預警清單 (缺貨 & 低庫存)</h5>
+                <button id="toggle-alerts-btn" class="btn btn-sm btn-outline-secondary" style="display: none;">
+                    <i class="fas fa-eye-slash"></i> 收折
+                </button>
             </div>
             <div class="card-body">
                 <ul id="stock-alerts-list" class="list-group list-group-flush">
                     <!-- 動態生成 -->
                 </ul>
+                <div id="alerts-collapse-info" class="text-muted text-center mt-3" style="display: none;">
+                    <small>已收折部分項目，點擊「展開全部」查看更多</small>
+                </div>
             </div>
         </div>
     </div>
