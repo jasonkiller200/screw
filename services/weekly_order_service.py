@@ -526,6 +526,12 @@ class WeeklyOrderService:
             if not current_cycle.is_active:
                 return {'success': False, 'message': '申請週期已截止，無法新增登記'}
 
+            part_number = form_data.get('part_number', '').strip()
+            part = Part.query.filter_by(part_number=part_number).first()
+            if part and not part.location_associations:
+                if not form_data.get('purpose_notes', '').strip():
+                    return {'success': False, 'message': '此零件無指定儲位，請務必填寫「台份用/備註」'}
+
             max_sequence = db.session.query(db.func.max(OrderRegistration.item_sequence)).filter_by(cycle_id=current_cycle.id).scalar()
             next_sequence = (max_sequence or 0) + 1
             

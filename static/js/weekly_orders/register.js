@@ -14,6 +14,8 @@ function autoFillPartDetails(partNumber) {
                         .then(locationData => {
                             const locationSelect = document.getElementById('warehouse_location_id');
                             const locationStar = document.getElementById('location-required-star');
+                            const purposeNotesInput = document.getElementById('purpose_notes');
+                            const purposeNotesRequiredStar = document.getElementById('purpose-notes-required-star');
                             
                             locationSelect.innerHTML = ''; // Clear existing options
                             
@@ -22,6 +24,8 @@ function autoFillPartDetails(partNumber) {
                                 locationSelect.disabled = false;
                                 locationSelect.required = true;
                                 locationStar.style.display = 'inline';
+                                purposeNotesInput.required = false;
+                                purposeNotesRequiredStar.style.display = 'none'; // Hide asterisk
                                 
                                 locationSelect.add(new Option('請選擇儲位', ''));
                                 locationData.locations.forEach(loc => {
@@ -44,6 +48,8 @@ function autoFillPartDetails(partNumber) {
                                 locationSelect.disabled = true;
                                 locationSelect.required = false;
                                 locationStar.style.display = 'none';
+                                purposeNotesInput.required = true;
+                                purposeNotesRequiredStar.style.display = 'inline'; // Show asterisk
                                 
                                 const option = new Option('無指定儲位', '');
                                 locationSelect.add(option);
@@ -53,8 +59,12 @@ function autoFillPartDetails(partNumber) {
                         .catch(error => {
                             console.error('Error fetching part locations:', error);
                             const locationSelect = document.getElementById('warehouse_location_id');
+                            const purposeNotesInput = document.getElementById('purpose_notes');
+                            const purposeNotesRequiredStar = document.getElementById('purpose-notes-required-star');
                             locationSelect.innerHTML = '<option value="">無法載入儲位</option>';
                             locationSelect.disabled = true;
+                            purposeNotesInput.required = false; // Reset if error
+                            purposeNotesRequiredStar.style.display = 'none'; // Hide asterisk on error
                         });
                 } else {
                     // Clear fields if part not found
@@ -62,7 +72,11 @@ function autoFillPartDetails(partNumber) {
                     document.getElementById('part_type').value = '';
                     document.getElementById('unit').value = '';
                     const locationSelect = document.getElementById('warehouse_location_id');
+                    const purposeNotesInput = document.getElementById('purpose_notes');
+                    const purposeNotesRequiredStar = document.getElementById('purpose-notes-required-star');
                     locationSelect.innerHTML = '<option value="">請選擇儲位</option>';
+                    purposeNotesInput.required = false; // Reset if part not found
+                    purposeNotesRequiredStar.style.display = 'none'; // Hide asterisk
                 }
             })
             .catch(error => {
@@ -72,7 +86,11 @@ function autoFillPartDetails(partNumber) {
                 document.getElementById('part_type').value = '';
                 document.getElementById('unit').value = '';
                 const locationSelect = document.getElementById('warehouse_location_id');
+                const purposeNotesInput = document.getElementById('purpose_notes');
+                const purposeNotesRequiredStar = document.getElementById('purpose-notes-required-star');
                 locationSelect.innerHTML = '<option value="">請選擇儲位</option>';
+                purposeNotesInput.required = false; // Reset if error
+                purposeNotesRequiredStar.style.display = 'none'; // Hide asterisk on error
             });
     } else {
         // Clear fields if part number is empty
@@ -80,8 +98,42 @@ function autoFillPartDetails(partNumber) {
         document.getElementById('part_type').value = '';
         document.getElementById('unit').value = '';
         const locationSelect = document.getElementById('warehouse_location_id');
+        const purposeNotesInput = document.getElementById('purpose_notes');
+        const purposeNotesRequiredStar = document.getElementById('purpose-notes-required-star');
         locationSelect.innerHTML = '<option value="">請選擇儲位</option>';
+        purposeNotesInput.required = false; // Reset if part number is empty
+        purposeNotesRequiredStar.style.display = 'none'; // Hide asterisk
     }
+}
+
+function searchParts(query) {
+    if (query.length < 1) {
+        document.getElementById('part-suggestions').innerHTML = '';
+        return;
+    }
+    fetch(`/api/parts/autocomplete?q=${query}`)
+        .then(response => response.json())
+        .then(data => {
+            const suggestions = document.getElementById('part-suggestions');
+            suggestions.innerHTML = '';
+            if (data.length > 0) {
+                const list = document.createElement('ul');
+                list.className = 'list-group';
+                data.forEach(part => {
+                    const item = document.createElement('li');
+                    item.className = 'list-group-item list-group-item-action';
+                    item.textContent = `${part.part_number} - ${part.name}`;
+                    item.addEventListener('click', () => {
+                        document.getElementById('part_number').value = part.part_number;
+                        document.getElementById('part_name').value = part.name;
+                        suggestions.innerHTML = '';
+                        autoFillPartDetails(part.part_number);
+                    });
+                    list.appendChild(item);
+                });
+                suggestions.appendChild(list);
+            }
+        });
 }
 
 // 頁面載入時更新時間，並每分鐘更新一次
@@ -96,15 +148,8 @@ document.addEventListener('DOMContentLoaded', function() {
     requiredDateInput.value = nextWeek.toISOString().split('T')[0];
 
     const partNumberInput = document.getElementById('part_number');
-    partNumberInput.addEventListener('keydown', function(event) {
-        if (event.key === 'Enter') {
-            event.preventDefault(); // Prevent form submission
-            autoFillPartDetails(this.value.trim());
-        }
-    });
-    // Also trigger on blur for mouse users or tab navigation
-    partNumberInput.addEventListener('blur', function() {
-        autoFillPartDetails(this.value.trim());
+    partNumberInput.addEventListener('keyup', function(event) {
+        searchParts(this.value.trim());
     });
 
     // If prefill_data exists and has a part_number, trigger auto-fill on load
