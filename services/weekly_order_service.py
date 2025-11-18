@@ -46,6 +46,17 @@ class WeeklyOrderService:
                     reviewers.add(log.reviewer_name)
             reviewers_str = '、'.join(sorted(reviewers)) if reviewers else '系統'
             
+            # 獲取申請單位（從登記項目中取得）
+            departments = set()
+            for reg in registrations:
+                if reg.department and reg.department != '未設定':
+                    departments.add(reg.department)
+            application_unit = '、'.join(sorted(departments)) if departments else '生產部'
+            
+            # 調試日誌
+            print(f"🔍 Debug: 審查人員 = '{reviewers_str}'")
+            print(f"🔍 Debug: 審查記錄數 = {len(review_logs)}")
+            
             # Helper function to get current time in UTC+8
             def get_taipei_time():
                 from datetime import timezone, timedelta
@@ -74,55 +85,58 @@ class WeeklyOrderService:
                 bottom=Side(style='thin', color='000000')
             )
             
-            # 標題區（第1-3行）
+            # Row 1: 標題
             ws.merge_cells('A1:L1')
-            ws['A1'] = '週期訂單採購申請單'
+            ws['A1'] = 'Hartford螺絲/接頭/五金/耗材用品申請'
             ws['A1'].font = title_font
             ws['A1'].alignment = center_alignment
             ws.row_dimensions[1].height = 30
             
-            # 週期資訊（第2行）
-            ws.merge_cells('A2:F2')
-            ws['A2'] = f'週期名稱：{cycle.cycle_name}'
-            ws['A2'].font = Font(name='微軟正黑體', size=11)
-            ws['A2'].alignment = left_alignment
+            # Row 2: 自我管理提醒
+            ws.merge_cells('A2:L2')
+            ws['A2'] = '*自我管理:請購之前先檢討是否真有必要?如非買不可.在予申請'
+            ws['A2'].font = Font(name='微軟正黑體', size=11, bold=True, color='FF0000')  # 紅色字體
+            ws['A2'].alignment = center_alignment
+            ws.row_dimensions[2].height = 25
             
-            ws.merge_cells('G2:L2')
-            ws['G2'] = f'申請日期：{get_taipei_time().strftime("%Y-%m-%d")}'
-            ws['G2'].font = Font(name='微軟正黑體', size=11)
-            ws['G2'].alignment = left_alignment
-            
-            # 審查資訊（第3行）
+            # Row 3: 申請日期與申請單位
             ws.merge_cells('A3:F3')
-            ws['A3'] = f'審查人員：{reviewers_str}'
+            ws['A3'] = f'申請單位：{application_unit}' 
             ws['A3'].font = Font(name='微軟正黑體', size=11)
             ws['A3'].alignment = left_alignment
             
             ws.merge_cells('G3:L3')
-            ws['G3'] = f'核准項目數：{len(registrations)} 項'
+            ws['G3'] = f'申請日期：{get_taipei_time().strftime("%Y-%m-%d")}'
             ws['G3'].font = Font(name='微軟正黑體', size=11)
             ws['G3'].alignment = left_alignment
             
-            # 空白行
-            ws.row_dimensions[4].height = 5
+            # Row 4: 請購類型
+            ws.merge_cells('A4:L4')
+            ws['A4'] = '□一般存貨請購(非使用於工單)■事務性請購(使用於工單)'
+            ws['A4'].font = Font(name='微軟正黑體', size=11, bold=True)
+            ws['A4'].alignment = left_alignment
+            ws.row_dimensions[4].height = 25
             
-            # 表頭（第5行）
+            # 空白行
+            ws.row_dimensions[5].height = 5
+            
+            # 表頭（第6行）
             headers = ['項次', '品號', '品名', '儲位', '種類', '數量', '單位', 
                       '申請人', '申請單位', '緊急程度', '需用日期', '台份用/備註']
             
             for col_idx, header in enumerate(headers, start=1):
-                cell = ws.cell(row=5, column=col_idx)
+                cell = ws.cell(row=6, column=col_idx)
                 cell.value = header
                 cell.font = header_font
                 cell.fill = header_fill
                 cell.alignment = center_alignment
                 cell.border = thin_border
             
-            ws.row_dimensions[5].height = 25
+            ws.row_dimensions[6].height = 25
             
-            # 資料列（從第6行開始）
+            # 資料列（從第7行開始）
             for idx, reg in enumerate(registrations, start=1):
-                row_num = 5 + idx
+                row_num = 6 + idx
                 
                 location_str = ''
                 if reg.warehouse_location and reg.warehouse_location.warehouse:
@@ -161,6 +175,148 @@ class WeeklyOrderService:
                 
                 ws.row_dimensions[row_num].height = 20
             
+            # 添加注意事項（在所有資料列之後）
+            last_data_row = 6 + len(registrations)
+            
+            # 空白行
+            ws.row_dimensions[last_data_row + 1].height = 15
+            
+            # 注意事項標題
+            notes_start_row = last_data_row + 2
+            ws.merge_cells(f'A{notes_start_row}:L{notes_start_row}')
+            ws[f'A{notes_start_row}'] = '注意事項：'
+            ws[f'A{notes_start_row}'].font = Font(name='微軟正黑體', size=11, bold=True)
+            ws[f'A{notes_start_row}'].alignment = left_alignment
+            ws.row_dimensions[notes_start_row].height = 20
+            
+            # 注意事項內容
+            note1_row = notes_start_row + 1
+            ws.merge_cells(f'A{note1_row}:L{note1_row}')
+            ws[f'A{note1_row}'] = '1.請每週提出請購。'
+            ws[f'A{note1_row}'].font = normal_font
+            ws[f'A{note1_row}'].alignment = left_alignment
+            ws.row_dimensions[note1_row].height = 20
+            
+            note2_row = notes_start_row + 2
+            ws.merge_cells(f'A{note2_row}:L{note2_row}')
+            ws[f'A{note2_row}'] = '2.一次性,費用較高者,請供應商先提供估價單。'
+            ws[f'A{note2_row}'].font = normal_font
+            ws[f'A{note2_row}'].alignment = left_alignment
+            ws.row_dimensions[note2_row].height = 20
+            
+            note3_row = notes_start_row + 3
+            ws.merge_cells(f'A{note3_row}:L{note3_row}')
+            ws[f'A{note3_row}'] = '3.申請經核准始可購買,不得先行購買。'
+            ws[f'A{note3_row}'].font = normal_font
+            ws[f'A{note3_row}'].alignment = left_alignment
+            ws.row_dimensions[note3_row].height = 20
+            
+            # 單位主管印章區域（在注意事項之後）
+            reviewer_row = note3_row + 2
+            
+            # 左側：單位主管標籤和審查人員姓名
+            ws.merge_cells(f'A{reviewer_row}:D{reviewer_row}')
+            ws[f'A{reviewer_row}'] = f'單位主管：{reviewers_str}'
+            ws[f'A{reviewer_row}'].font = Font(name='微軟正黑體', size=12, bold=True)
+            ws[f'A{reviewer_row}'].alignment = left_alignment
+            
+            # 嘗試插入印章圖片
+            try:
+                from openpyxl.drawing.image import Image as XLImage
+                import os
+                
+                # 查找印章圖片檔案（支援多種格式和路徑）
+                stamp_paths = [
+                    f'static/stamps/{reviewers_str}_stamp.png',
+                    f'static/stamps/default_stamp.png',
+                    f'stamps/{reviewers_str}_stamp.png', 
+                    f'stamps/default_stamp.png',
+                    'static/images/default_stamp.png',
+                    'static/assets/stamp.png'
+                ]
+                
+                stamp_image_path = None
+                for path in stamp_paths:
+                    print(f"🔍 Debug: 檢查印章路徑 = {path}")
+                    if os.path.exists(path):
+                        stamp_image_path = path
+                        print(f"✅ Debug: 找到印章 = {path}")
+                        break
+                    else:
+                        print(f"❌ Debug: 印章不存在 = {path}")
+                
+                if stamp_image_path:
+                    print(f"🖼️ Debug: 使用印章圖片 = {stamp_image_path}")
+                    try:
+                        # 載入印章圖片
+                        stamp_img = XLImage(stamp_image_path)
+                        
+                        # 調整印章大小（長方形 100x60像素）
+                        stamp_img.width = 100
+                        stamp_img.height = 60
+                        
+                        # 定位印章到 E 欄位
+                        stamp_img.anchor = f'E{reviewer_row}'
+                        
+                        # 插入圖片到工作表
+                        ws.add_image(stamp_img)
+                        print(f"✅ Debug: 靜態印章已插入到 Excel，位置 = E{reviewer_row}")
+                        
+                        # 設定印章區域高度以容納圖片
+                        ws.row_dimensions[reviewer_row].height = 50
+                        ws.row_dimensions[reviewer_row + 1].height = 20
+                        print(f"📐 Debug: 設定列高 = {reviewer_row}行50像素")
+                        
+                        # 在印章旁邊顯示日期
+                        ws.merge_cells(f'G{reviewer_row}:H{reviewer_row}')
+                        ws[f'G{reviewer_row}'] = f'日期：{get_taipei_time().strftime("%Y/%m/%d")}'
+                        ws[f'G{reviewer_row}'].font = Font(name='微軟正黑體', size=10, bold=True)
+                        ws[f'G{reviewer_row}'].alignment = center_alignment
+                        
+                    except Exception as static_img_error:
+                        print(f"❌ Debug: 靜態印章插入失敗 = {static_img_error}")
+                        # 如果靜態印章插入失敗，嘗試生成動態印章
+                        stamp_image_path = None  # 重設以觸發動態印章生成
+                
+                # 如果靜態印章不存在或插入失敗，嘗試動態印章
+                if not stamp_image_path:
+                    print("❌ Debug: 沒有找到靜態印章圖片，嘗試生成動態印章")
+                    # 如果沒有印章圖片，生成動態印章圖片
+                    stamp_image_path = WeeklyOrderService._generate_stamp_image(reviewers_str)
+                    if stamp_image_path:
+                        print(f"✅ Debug: 動態印章生成成功 = {stamp_image_path}")
+                        try:
+                            stamp_img = XLImage(stamp_image_path)
+                            stamp_img.width = 100
+                            stamp_img.height = 60
+                            stamp_img.anchor = f'E{reviewer_row}'
+                            ws.add_image(stamp_img)
+                            ws.row_dimensions[reviewer_row].height = 50
+                            print(f"✅ Debug: 動態印章已插入到 Excel，位置 = E{reviewer_row}")
+                            
+                            # 在印章旁邊顯示日期
+                            ws.merge_cells(f'G{reviewer_row}:H{reviewer_row}')
+                            ws[f'G{reviewer_row}'] = f'日期：{get_taipei_time().strftime("%Y/%m/%d")}'
+                            ws[f'G{reviewer_row}'].font = Font(name='微軟正黑體', size=10, bold=True)
+                            ws[f'G{reviewer_row}'].alignment = center_alignment
+                        except Exception as img_error:
+                            print(f"❌ Debug: 動態印章插入失敗 = {img_error}")
+                        finally:
+                            # 清理臨時檔案
+                            try:
+                                os.remove(stamp_image_path)
+                            except:
+                                pass
+                    else:
+                        print("❌ Debug: 動態印章生成失敗，跳過印章區域")
+                        # 不顯示文字版本，保持空白
+                        ws.row_dimensions[reviewer_row].height = 25
+                        
+            except ImportError:
+                # 如果無法匯入圖片模組，跳過印章區域
+                print("❌ Debug: 無法匯入圖片模組，跳過印章區域")
+                ws.row_dimensions[reviewer_row].height = 25
+            
             # 設定欄寬
             column_widths = {
                 'A': 8,   # 項次
@@ -185,7 +341,7 @@ class WeeklyOrderService:
             wb.save(output)
             output.seek(0)
 
-            filename = f"採購申請單_{cycle.cycle_name}_{get_taipei_time().strftime('%Y%m%d')}.xlsx"
+            filename = f"Hartford螺絲五金耗材用品申請_{get_taipei_time().strftime('%Y%m%d')}.xlsx"
             
             review_log = OrderReviewLog(
                 cycle_id=cycle.id,
@@ -201,6 +357,85 @@ class WeeklyOrderService:
         except Exception as e:
             db.session.rollback()
             return {'success': False, 'message': f"匯出失敗: {str(e)}"}
+
+    @staticmethod
+    def _generate_stamp_image(reviewer_name):
+        """動態生成印章圖片"""
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+            import os
+            import tempfile
+            
+            # 創建長方形印章 (100x60 像素)
+            size = (100, 60)
+            
+            # 創建透明背景的圖片
+            img = Image.new('RGBA', size, (255, 255, 255, 0))
+            draw = ImageDraw.Draw(img)
+            
+            # 印章顏色（紅色）
+            stamp_color = (220, 0, 0, 255)  # 紅色
+            
+            # 畫外框邊框（長方形）
+            draw.rectangle([2, 2, 98, 58], outline=stamp_color, width=3)
+            
+            # 畫內框邊框（長方形）
+            draw.rectangle([6, 6, 94, 54], outline=stamp_color, width=2)
+            
+            # 嘗試載入字體
+            try:
+                # Windows 系統字體路徑
+                font_paths = [
+                    'C:/Windows/Fonts/kaiu.ttf',  # 標楷體
+                    'C:/Windows/Fonts/simhei.ttf',  # 黑體
+                    'C:/Windows/Fonts/msyh.ttc',   # 微軟雅黑
+                    '/System/Library/Fonts/STKaiti.ttc',  # Mac 標楷體
+                    '/usr/share/fonts/truetype/arphic/ukai.ttc'  # Linux
+                ]
+                
+                font = None
+                for font_path in font_paths:
+                    if os.path.exists(font_path):
+                        font = ImageFont.truetype(font_path, 16)
+                        break
+                
+                if not font:
+                    font = ImageFont.load_default()
+                    
+            except Exception:
+                font = ImageFont.load_default()
+            
+            # 計算文字位置（居中）
+            text = reviewer_name
+            if len(text) > 6:
+                text = text[:6]  # 長方形印章可容納更多字元
+            
+            # 取得文字邊界
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            
+            # 計算居中位置
+            x = (size[0] - text_width) // 2
+            y = (size[1] - text_height) // 2
+            
+            # 畫文字
+            draw.text((x, y), text, fill=stamp_color, font=font)
+            
+            # 儲存到臨時檔案
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
+            img.save(temp_file.name, 'PNG')
+            temp_file.close()
+            
+            return temp_file.name
+            
+        except ImportError:
+            # PIL 未安裝
+            return None
+        except Exception as e:
+            # 其他錯誤
+            print(f"生成印章圖片失敗: {e}")
+            return None
 
     @staticmethod
     def review_order_registration(registration_id, action, notes, reviewer_id, reviewer_name):
