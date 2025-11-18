@@ -324,7 +324,7 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="weeklyOrderQuantity" class="form-label">申請數量 <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" id="weeklyOrderQuantity" value="1" min="1" required>
+                            <input type="number" class="form-control" id="weeklyOrderQuantity" min="1" required>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="weeklyOrderLocation" class="form-label">目標儲位 <span id="modal-location-required-star" class="text-danger" style="display: none;">*</span></label>
@@ -338,7 +338,10 @@
                             <label for="weeklyOrderApplicant" class="form-label">申請人 <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="weeklyOrderApplicant" value="{{ current_user.full_name }}" required readonly>
                         </div>
-
+                        <div class="col-md-6 mb-3">
+                            <label for="weeklyOrderDepartment" class="form-label">申請人單位</label>
+                            <input type="text" class="form-control" id="weeklyOrderDepartment" value="{{ current_user.department or '未設定' }}" readonly>
+                        </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
@@ -354,7 +357,7 @@
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label for="weeklyOrderNotes" class="form-label">用途/備註</label>
+                        <label for="weeklyOrderNotes" class="form-label">用途/備註 <span id="notes-required-star" class="text-danger" style="display: none;">*</span></label>
                         <textarea class="form-control" id="weeklyOrderNotes" rows="2"></textarea>
                     </div>
                     <div id="weeklyOrderError" class="alert alert-danger" style="display: none;"></div>

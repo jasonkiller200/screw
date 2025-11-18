@@ -567,11 +567,34 @@ document.addEventListener('DOMContentLoaded', function () {
         // 清除舊的錯誤訊息並重設表單
         document.getElementById('weeklyOrderError').style.display = 'none';
         document.getElementById('weeklyOrderForm').reset();
+        
+        // 重新設定預設值（因為 reset() 會清除所有值）
+        document.getElementById('weeklyOrderPartNumber').value = partNumber;
+        document.getElementById('weeklyOrderPartName').value = partName;
+        document.getElementById('weeklyOrderUnit').value = unit;
+        document.getElementById('weeklyOrderPartType').value = partType;
+        document.getElementById('weeklyOrderPartDisplay').textContent = `${partNumber} (${partName})`;
 
         // 動態填充並處理儲位下拉選單
         const locationDropdown = document.getElementById('weeklyOrderLocation');
         const locationStar = document.getElementById('modal-location-required-star');
+        const notesField = document.getElementById('weeklyOrderNotes');
+        const notesStar = document.getElementById('notes-required-star');
         locationDropdown.innerHTML = ''; // 清空現有選項
+
+        // 儲位變更事件處理器
+        function handleLocationChange() {
+            const selectedValue = locationDropdown.value;
+            if (selectedValue === '' && locationDropdown.disabled) {
+                // 無指定儲位 - 備註變為必填
+                notesField.required = true;
+                notesStar.style.display = 'inline';
+            } else {
+                // 有指定儲位 - 備註非必填
+                notesField.required = false;
+                notesStar.style.display = 'none';
+            }
+        }
 
         try {
             const locations = JSON.parse(locationsString);
@@ -592,6 +615,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (locations.length === 1) {
                     locationDropdown.value = locations[0].id;
                 }
+                
+                // 備註非必填
+                notesField.required = false;
+                notesStar.style.display = 'none';
             } else {
                 // Part has no locations
                 locationDropdown.disabled = true;
@@ -601,7 +628,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 const option = new Option('無指定儲位', '');
                 locationDropdown.add(option);
                 locationDropdown.value = '';
+                
+                // 備註變為必填
+                notesField.required = true;
+                notesStar.style.display = 'inline';
             }
+            
+            // 綁定儲位變更事件
+            locationDropdown.addEventListener('change', handleLocationChange);
 
         } catch (e) {
             console.error("解析儲位資料失敗:", e);
@@ -629,6 +663,7 @@ document.addEventListener('DOMContentLoaded', function () {
             quantity: document.getElementById('weeklyOrderQuantity').value,
             warehouse_location_id: document.getElementById('weeklyOrderLocation').value,
             applicant_name: document.getElementById('weeklyOrderApplicant').value,
+            department: document.getElementById('weeklyOrderDepartment').value,
             priority: document.getElementById('weeklyOrderPriority').value,
             required_date: document.getElementById('weeklyOrderRequiredDate').value,
             purpose_notes: document.getElementById('weeklyOrderNotes').value
@@ -636,8 +671,25 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // 前端驗證
         const locationDropdown = document.getElementById('weeklyOrderLocation');
-        if (!data.quantity || !data.applicant_name || !data.required_date || (locationDropdown.required && !data.warehouse_location_id)) {
+        const notesField = document.getElementById('weeklyOrderNotes');
+        
+        // 基本必填欄位驗證
+        if (!data.quantity || !data.applicant_name || !data.required_date) {
             errorDiv.textContent = '標有 * 的欄位為必填項目。';
+            errorDiv.style.display = 'block';
+            return;
+        }
+        
+        // 儲位必填驗證
+        if (locationDropdown.required && !data.warehouse_location_id) {
+            errorDiv.textContent = '請選擇目標儲位。';
+            errorDiv.style.display = 'block';
+            return;
+        }
+        
+        // 備註必填驗證（當無指定儲位時）
+        if (notesField.required && !data.purpose_notes.trim()) {
+            errorDiv.textContent = '無指定儲位時，用途/備註為必填項目。';
             errorDiv.style.display = 'block';
             return;
         }

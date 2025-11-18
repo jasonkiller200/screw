@@ -37,7 +37,7 @@ function viewDetails(registrationId) {
                         <table class="table table-sm">
                             <tr><td><strong>品號：</strong></td><td>${data.part_number}</td></tr>
                             <tr><td><strong>品名：</strong></td><td>${data.part_name}</td></tr>
-                            <tr><td><strong>儲位：</strong></td><td>${data.location_code || '-'}</td></tr>
+                            <tr><td><strong>儲位：</strong></td><td>${data.location_display || '無指定儲位'}</td></tr>
                             <tr><td><strong>種類：</strong></td><td>${data.category || '-'}</td></tr>
                         </table>
                     </div>
