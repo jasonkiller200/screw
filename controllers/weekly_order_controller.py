@@ -287,6 +287,9 @@ def manage_cycle(cycle_id):
     cycle = WeeklyOrderCycle.query.get_or_404(cycle_id)
     
     if request.method == 'DELETE':
+        if not current_user.is_admin:
+            flash('您沒有權限執行此操作', 'danger')
+            return redirect(url_for('weekly_order.weekly_orders'))
         try:
             db.session.delete(cycle)
             db.session.commit()
@@ -295,7 +298,7 @@ def manage_cycle(cycle_id):
             db.session.rollback()
             return jsonify({'success': False, 'error': str(e)})
     
-    # GET request
+    # GET request (accessible to all logged-in users)
     registrations = OrderRegistration.query.options(
         joinedload(OrderRegistration.warehouse_location).joinedload(WarehouseLocation.warehouse)
     ).filter_by(cycle_id=cycle_id).order_by(OrderRegistration.item_sequence).all()
@@ -310,6 +313,9 @@ def manage_cycle(cycle_id):
 @login_required
 def review_cycle(cycle_id):
     """主管審查頁面"""
+    if not current_user.is_admin:
+        flash('您沒有權限執行此操作', 'danger')
+        return redirect(url_for('weekly_order.weekly_orders'))
     cycle = WeeklyOrderCycle.query.get_or_404(cycle_id)
     
     # 檢查是否有審查權限（暫時開放給所有人，之後會加入權限控制）
@@ -326,6 +332,8 @@ def review_cycle(cycle_id):
 @login_required
 def review_registration(registration_id):
     """審查單個登記項目"""
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': '您沒有權限執行此操作'}), 403
     data = request.get_json()
     action = data.get('action')  # approved, rejected
     notes = data.get('notes', '')
@@ -347,6 +355,8 @@ def review_registration(registration_id):
 @login_required
 def batch_review():
     """批量審查登記項目"""
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': '您沒有權限執行此操作'}), 403
     data = request.get_json()
     registration_ids = data.get('registration_ids', [])
     action = data.get('action', 'approved')

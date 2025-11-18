@@ -130,15 +130,17 @@
                                            class="btn btn-sm btn-outline-primary">
                                             <i class="fas fa-eye"></i> 查看
                                         </a>
-                                        {% if cycle.status in ['active', 'reviewing'] %}
-                                        <a href="{{ url_for('weekly_order.review_cycle', cycle_id=cycle.id) }}" 
-                                           class="btn btn-sm btn-outline-success">
-                                            <i class="fas fa-check"></i> 審查
-                                        </a>
+                                        {% if current_user.is_admin %}
+                                            {% if cycle.status in ['active', 'reviewing'] %}
+                                            <a href="{{ url_for('weekly_order.review_cycle', cycle_id=cycle.id) }}" 
+                                               class="btn btn-sm btn-outline-success">
+                                                <i class="fas fa-check"></i> 審查
+                                            </a>
+                                            {% endif %}
+                                            <button class="btn btn-sm btn-outline-danger" onclick="deleteCycle({{ cycle.id }})">
+                                                <i class="fas fa-trash"></i> 刪除
+                                            </button>
                                         {% endif %}
-                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteCycle({{ cycle.id }})">
-                                            <i class="fas fa-trash"></i> 刪除
-                                        </button>
                                     </td>
                                 </tr>
                                 {% endfor %}
