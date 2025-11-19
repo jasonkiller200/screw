@@ -440,6 +440,7 @@ class WeeklyOrderService:
     @staticmethod
     def review_order_registration(registration_id, action, notes, reviewer_id, reviewer_name):
         from models.weekly_order import OrderRegistration, OrderReviewLog
+        from services.notification_service import NotificationService
         try:
             registration = OrderRegistration.query.get(registration_id)
             if not registration:
@@ -468,6 +469,24 @@ class WeeklyOrderService:
             )
             db.session.add(review_log)
             
+            # 如果是拒絕操作，且申請者有效，創建通知
+            if action == 'rejected' and registration.applicant_id:
+                title = f"週期訂單申請被拒絕"
+                content = f"您的申請項目「{registration.part_name}」（品號：{registration.part_number}）已被拒絕。"
+                if notes:
+                    content += f"\n\n拒絕原因：{notes}"
+                
+                notification_success, notification_result = NotificationService.create_notification(
+                    user_id=registration.applicant_id,
+                    notification_type='order_rejected',
+                    title=title,
+                    content=content,
+                    order_registration_id=registration.id
+                )
+                
+                if not notification_success:
+                    print(f"警告：創建拒絕通知失敗 - {notification_result}")
+            
             db.session.commit()
             
             return {
@@ -483,8 +502,11 @@ class WeeklyOrderService:
     @staticmethod
     def batch_review_registrations(registration_ids, action, reviewer_id, reviewer_name):
         from models.weekly_order import OrderRegistration, OrderReviewLog
+        from services.notification_service import NotificationService
         try:
             updated_count = 0
+            notification_count = 0
+            
             for reg_id in registration_ids:
                 registration = OrderRegistration.query.get(reg_id)
                 if registration and registration.status == 'registered':
@@ -504,11 +526,33 @@ class WeeklyOrderService:
                     db.session.add(review_log)
                     updated_count += 1
 
+                    # 如果是拒絕操作，且申請者有效，創建通知
+                    if action == 'rejected' and registration.applicant_id:
+                        title = f"週期訂單申請被拒絕"
+                        content = f"您的申請項目「{registration.part_name}」（品號：{registration.part_number}）在批量審查中被拒絕。"
+                        
+                        notification_success, notification_result = NotificationService.create_notification(
+                            user_id=registration.applicant_id,
+                            notification_type='order_rejected',
+                            title=title,
+                            content=content,
+                            order_registration_id=registration.id
+                        )
+                        
+                        if notification_success:
+                            notification_count += 1
+                        else:
+                            print(f"警告：創建拒絕通知失敗 - {notification_result}")
+
             db.session.commit()
+
+            message = f'已批量處理 {updated_count} 個項目'
+            if action == 'rejected' and notification_count > 0:
+                message += f'，已發送 {notification_count} 個拒絕通知'
 
             return {
                 'success': True,
-                'message': f'已批量處理 {updated_count} 個項目'
+                'message': message
             }
 
         except Exception as e:

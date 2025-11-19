@@ -85,6 +85,9 @@ def create_app():
     app.register_blueprint(weekly_order_bp)     # 週期訂單路由 (/weekly-orders/...)
     app.register_blueprint(ai_bp)               # AI 相關路由 (/ai/...)
     
+    from controllers.notification_controller import notification_bp
+    app.register_blueprint(notification_bp)     # 通知路由 (/notifications/...)
+    
     return app
 
 app = create_app()

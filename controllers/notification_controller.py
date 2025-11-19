@@ -3,6 +3,7 @@
 """
 from flask import Blueprint, request, jsonify, render_template, flash, redirect, url_for
 from flask_login import login_required, current_user
+from extensions import db
 from services.notification_service import NotificationService, AnnouncementService
 from controllers.user_controller import admin_required
 from datetime import datetime
@@ -125,6 +126,24 @@ def create_announcement():
             flash(f'公告創建失敗：{message}', 'error')
     
     return render_template('notifications/create_announcement.html')
+
+
+@notification_bp.route('/api/announcements/<int:announcement_id>/toggle', methods=['POST'])
+@admin_required
+def toggle_announcement(announcement_id):
+    """停用/啟用公告"""
+    from models.notification import Announcement
+    
+    announcement = Announcement.query.get_or_404(announcement_id)
+    announcement.is_active = not announcement.is_active
+    
+    try:
+        db.session.commit()
+        action = '啟用' if announcement.is_active else '停用'
+        return jsonify({'success': True, 'message': f'公告已{action}'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @notification_bp.route('/api/announcements/active')

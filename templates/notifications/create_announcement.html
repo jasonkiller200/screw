@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}創建系統公告{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-bullhorn me-2"></i>創建系統公告
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('notification.create_announcement') }}">
+                        <!-- 標題 -->
+                        <div class="mb-3">
+                            <label for="title" class="form-label">
+                                公告標題 <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="title" name="title" 
+                                   placeholder="請輸入公告標題" required maxlength="200">
+                        </div>
+
+                        <!-- 內容 -->
+                        <div class="mb-3">
+                            <label for="content" class="form-label">
+                                公告內容 <span class="text-danger">*</span>
+                            </label>
+                            <textarea class="form-control" id="content" name="content" 
+                                      rows="6" placeholder="請輸入公告內容" required></textarea>
+                            <div class="form-text">支援換行，將自動通知所有活躍用戶</div>
+                        </div>
+
+                        <!-- 優先級 -->
+                        <div class="mb-3">
+                            <label for="priority" class="form-label">優先級</label>
+                            <select class="form-select" id="priority" name="priority">
+                                <option value="normal" selected>普通</option>
+                                <option value="high">高</option>
+                                <option value="low">低</option>
+                            </select>
+                            <div class="form-text">
+                                <span class="badge bg-danger me-1">高</span> 重要系統通知
+                                <span class="badge bg-primary mx-1">普通</span> 一般消息
+                                <span class="badge bg-secondary ms-1">低</span> 參考資訊
+                            </div>
+                        </div>
+
+                        <!-- 過期時間 -->
+                        <div class="mb-3">
+                            <label for="expires_at" class="form-label">
+                                過期時間 <small class="text-muted">(選填)</small>
+                            </label>
+                            <input type="datetime-local" class="form-control" id="expires_at" name="expires_at">
+                            <div class="form-text">留空則永久有效</div>
+                        </div>
+
+                        <!-- 預覽區 -->
+                        <div class="mb-3">
+                            <label class="form-label">預覽</label>
+                            <div class="border rounded p-3 bg-light" id="previewArea">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="badge bg-primary me-2" id="previewPriority">普通</span>
+                                    <strong id="previewTitle" class="text-muted">公告標題</strong>
+                                </div>
+                                <div id="previewContent" class="text-muted" style="white-space: pre-wrap;">公告內容</div>
+                                <div class="text-muted small mt-2" id="previewExpiry"></div>
+                            </div>
+                        </div>
+
+                        <!-- 按鈕 -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('notification.announcements') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-1"></i>返回
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-paper-plane me-1"></i>發布公告
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 提示訊息 -->
+            <div class="alert alert-info mt-3">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>提示：</strong>公告發布後將自動推送給所有活躍用戶（除您之外），用戶將在首頁收到通知。
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 即時預覽功能
+document.addEventListener('DOMContentLoaded', function() {
+    const titleInput = document.getElementById('title');
+    const contentInput = document.getElementById('content');
+    const prioritySelect = document.getElementById('priority');
+    const expiresInput = document.getElementById('expires_at');
+    
+    const previewTitle = document.getElementById('previewTitle');
+    const previewContent = document.getElementById('previewContent');
+    const previewPriority = document.getElementById('previewPriority');
+    const previewExpiry = document.getElementById('previewExpiry');
+
+    const priorityMap = {
+        'high': { text: '高', class: 'bg-danger' },
+        'normal': { text: '普通', class: 'bg-primary' },
+        'low': { text: '低', class: 'bg-secondary' }
+    };
+
+    function updatePreview() {
+        // 更新標題
+        previewTitle.textContent = titleInput.value || '公告標題';
+        
+        // 更新內容
+        previewContent.textContent = contentInput.value || '公告內容';
+        
+        // 更新優先級
+        const priority = prioritySelect.value;
+        const priorityInfo = priorityMap[priority];
+        previewPriority.textContent = priorityInfo.text;
+        previewPriority.className = `badge ${priorityInfo.class} me-2`;
+        
+        // 更新過期時間
+        if (expiresInput.value) {
+            const expiryDate = new Date(expiresInput.value);
+            previewExpiry.textContent = `過期時間：${expiryDate.toLocaleString('zh-TW')}`;
+        } else {
+            previewExpiry.textContent = '永久有效';
+        }
+    }
+
+    // 綁定事件
+    titleInput.addEventListener('input', updatePreview);
+    contentInput.addEventListener('input', updatePreview);
+    prioritySelect.addEventListener('change', updatePreview);
+    expiresInput.addEventListener('change', updatePreview);
+
+    // 設定過期時間預設值為一周後
+    const oneWeekLater = new Date();
+    oneWeekLater.setDate(oneWeekLater.getDate() + 7);
+    const dateString = oneWeekLater.toISOString().slice(0, 16);
+    expiresInput.setAttribute('min', new Date().toISOString().slice(0, 16));
+});
+</script>
+{% endblock %}

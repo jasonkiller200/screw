@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}公告管理{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-bullhorn"></i> 系統公告管理</h2>
+                {% if current_user.is_admin %}
+                <a href="{{ url_for('notification.create_announcement') }}" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i>創建公告
+                </a>
+                {% endif %}
+            </div>
+
+            {% if announcements %}
+            <div class="row">
+                {% for announcement in announcements %}
+                <div class="col-md-12 mb-3">
+                    <div class="card {% if not announcement.is_active %}bg-light{% endif %}">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex align-items-center mb-2">
+                                        {% if announcement.priority == 'high' %}
+                                        <span class="badge bg-danger me-2">高優先級</span>
+                                        {% elif announcement.priority == 'low' %}
+                                        <span class="badge bg-secondary me-2">低優先級</span>
+                                        {% else %}
+                                        <span class="badge bg-primary me-2">普通</span>
+                                        {% endif %}
+                                        
+                                        {% if not announcement.is_active %}
+                                        <span class="badge bg-secondary me-2">已停用</span>
+                                        {% endif %}
+                                        
+                                        {% if announcement.is_expired %}
+                                        <span class="badge bg-warning me-2">已過期</span>
+                                        {% endif %}
+                                        
+                                        <h5 class="mb-0">{{ announcement.title }}</h5>
+                                    </div>
+                                    
+                                    <p class="mb-2" style="white-space: pre-wrap;">{{ announcement.content }}</p>
+                                    
+                                    <small class="text-muted">
+                                        <i class="fas fa-user me-1"></i>發布者：{{ announcement.creator_name }}
+                                        <i class="fas fa-clock ms-3 me-1"></i>發布時間：{{ announcement.created_at }}
+                                        {% if announcement.expires_at %}
+                                        <i class="fas fa-calendar-times ms-3 me-1"></i>過期時間：{{ announcement.expires_at }}
+                                        {% else %}
+                                        <i class="fas fa-infinity ms-3 me-1"></i>永久有效
+                                        {% endif %}
+                                    </small>
+                                </div>
+                                
+                                {% if current_user.is_admin %}
+                                <div class="ms-3">
+                                    <button class="btn btn-sm btn-outline-danger" 
+                                            onclick="toggleAnnouncement({{ announcement.id }}, {{ announcement.is_active|lower }})">
+                                        {% if announcement.is_active %}
+                                        <i class="fas fa-eye-slash"></i> 停用
+                                        {% else %}
+                                        <i class="fas fa-eye"></i> 啟用
+                                        {% endif %}
+                                    </button>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>目前沒有任何公告
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleAnnouncement(id, isActive) {
+    if (!confirm(isActive ? '確定要停用此公告嗎？' : '確定要啟用此公告嗎？')) {
+        return;
+    }
+    
+    fetch(`/notifications/api/announcements/${id}/toggle`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('操作失敗：' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('操作失敗：' + error.message);
+    });
+}
+</script>
+{% endblock %}
