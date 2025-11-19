@@ -30,12 +30,26 @@ def weekly_orders():
         current_cycle = WeeklyOrderCycle.create_weekly_cycle()
         flash('已自動創建新的週期申請', 'info')
     
-    # 獲取歷史週期（最近10個）
-    historical_cycles = WeeklyOrderCycle.query.order_by(WeeklyOrderCycle.created_at.desc()).limit(10).all()
+    # 獲取分頁參數
+    per_page = request.args.get('per_page', 10, type=int)
+    status_filter = request.args.get('status', '')
+    
+    # 構建查詢
+    query = WeeklyOrderCycle.query
+    if status_filter:
+        query = query.filter_by(status=status_filter)
+    
+    # 獲取歷史週期（支援分頁）
+    historical_cycles = query.order_by(WeeklyOrderCycle.created_at.desc()).limit(per_page).all()
+    
+    # 傳遞當前台灣時間給模板（移除時區資訊以避免比較問題）
+    now = get_taipei_time().replace(tzinfo=None)
     
     return render_template('weekly_orders/index.html', 
                          current_cycle=current_cycle,
-                         historical_cycles=historical_cycles)
+                         historical_cycles=historical_cycles,
+                         now=now,
+                         per_page=per_page)
 
 @weekly_order_bp.route('/weekly-orders/pending-inbound')
 @login_required
@@ -302,12 +316,40 @@ def manage_cycle(cycle_id):
     registrations = OrderRegistration.query.options(
         joinedload(OrderRegistration.warehouse_location).joinedload(WarehouseLocation.warehouse)
     ).filter_by(cycle_id=cycle_id).order_by(OrderRegistration.item_sequence).all()
-    review_logs = OrderReviewLog.query.filter_by(cycle_id=cycle_id).order_by(OrderReviewLog.created_at.desc()).all()
+    
+    # 獲取分頁參數
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    
+    # 審查記錄分頁查詢
+    review_logs_pagination = OrderReviewLog.query.filter_by(
+        cycle_id=cycle_id
+    ).order_by(OrderReviewLog.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    
+    # 狀態中英文對應
+    status_map = {
+        'registered': '已登記',
+        'approved': '已核准',
+        'rejected': '已拒絕',
+        'completed': '已完成',
+        'partially_received': '部分入庫'
+    }
+    
+    action_map = {
+        'approved': '核准',
+        'rejected': '拒絕',
+        'modified': '修改',
+        'export_excel': '匯出Excel'
+    }
     
     return render_template('weekly_orders/cycle_detail.html', 
                          cycle=cycle, 
                          registrations=registrations,
-                         review_logs=review_logs)
+                         review_logs_pagination=review_logs_pagination,
+                         status_map=status_map,
+                         action_map=action_map)
 
 @weekly_order_bp.route('/weekly-orders/review/<int:cycle_id>')
 @login_required

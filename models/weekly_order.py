@@ -69,6 +69,12 @@ class WeeklyOrderCycle(db.Model):
         """已核准的登記數量"""
         return len([r for r in self.registrations if r.status == 'approved'])
     
+    @property
+    def reviewed_registrations(self):
+        """已審查的登記數量（包含核准、拒絕、已完成）"""
+        reviewed_statuses = ['approved', 'rejected', 'completed', 'partially_received']
+        return len([r for r in self.registrations if r.status in reviewed_statuses])
+    
     def to_dict(self):
         return {
             'id': self.id,

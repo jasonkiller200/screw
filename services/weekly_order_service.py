@@ -343,11 +343,16 @@ class WeeklyOrderService:
 
             filename = f"Hartford螺絲五金耗材用品申請_{get_taipei_time().strftime('%Y%m%d')}.xlsx"
             
+            # 更新週期狀態為已完成並標記 Excel 已生成
+            cycle.status = 'completed'
+            cycle.excel_generated = True
+            cycle.reviewed_at = get_taipei_time()
+            
             review_log = OrderReviewLog(
                 cycle_id=cycle.id,
                 reviewer_name='系統',
                 action='export_excel',
-                notes=f'匯出Excel申請單，包含{len(registrations)}個項目'
+                notes=f'匯出Excel申請單，包含{len(registrations)}個項目，週期標記為已完成'
             )
             db.session.add(review_log)
             db.session.commit()
