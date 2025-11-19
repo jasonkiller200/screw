@@ -307,3 +307,166 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 });
+
+// 顯示零件詳情
+function showPartDetails(partNumber) {
+    if (!partNumber) {
+        return;
+    }
+    
+    const modalLabel = document.getElementById('partDetailModalLabel');
+    const detailContent = document.getElementById('partDetailContent');
+    const modalElement = document.getElementById('partDetailModal');
+    
+    if (!modalLabel || !detailContent || !modalElement) {
+        alert('模態視窗元素未找到，請確認頁面載入完整');
+        return;
+    }
+    
+    modalLabel.textContent = `零件詳情: ${partNumber}`;
+    detailContent.innerHTML = `
+        <div class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">載入中...</span>
+            </div>
+            <p class="mt-2">正在載入零件資訊...</p>
+        </div>
+    `;
+    
+    const modal = new bootstrap.Modal(modalElement);
+    modal.show();
+
+    fetch(`/api/part/${encodeURIComponent(partNumber)}?include_locations=true`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                detailContent.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                return;
+            }
+
+            const part = data.part_info;
+            const history = data.order_history || [];
+            const inventories = data.inventories || [];
+
+            let historyHtml = '';
+            if (history.length > 0) {
+                const statusMap = {
+                    'registered': { text: '已登記', class: 'secondary' },
+                    'approved': { text: '已核准', class: 'primary' },
+                    'partially_received': { text: '部分到貨', class: 'info' },
+                    'completed': { text: '已完成', class: 'success' },
+                    'rejected': { text: '已拒絕', class: 'danger' }
+                };
+
+                historyHtml = history.map(reg => {
+                    const date = new Date(reg.created_at);
+                    const formattedDate = date.getFullYear() + '-' +
+                                          String(date.getMonth() + 1).padStart(2, '0') + '-' +
+                                          String(date.getDate()).padStart(2, '0');
+                    
+                    const statusInfo = statusMap[reg.status] || { text: reg.status, class: 'light' };
+
+                    return `
+                        <tr>
+                            <td>${formattedDate}</td>
+                            <td>${reg.applicant_name || 'N/A'}</td>
+                            <td>${reg.location_display || '無指定'}</td>
+                            <td>${reg.quantity}</td>
+                            <td>
+                                <span class="badge bg-${statusInfo.class}">
+                                    ${statusInfo.text}
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                historyHtml = '<tr><td colspan="5" class="text-center text-muted">暫無申請記錄</td></tr>';
+            }
+
+            let inventoryHtml = '';
+            const all_locations = part?.locations || [];
+
+            if (all_locations.length > 0) {
+                inventoryHtml = all_locations.map(loc => {
+                    const inv = inventories.find(i => i.warehouse_id === loc.warehouse_id);
+
+                    const quantity_on_hand = inv ? inv.quantity_on_hand : 0;
+                    const reserved_quantity = inv ? inv.reserved_quantity : 0;
+                    const available_quantity = inv ? inv.available_quantity : 0;
+
+                    return `
+                        <tr>
+                            <td>${loc.warehouse_name} (${loc.warehouse_code})</td>
+                            <td>${loc.location_code}</td>
+                            <td>${quantity_on_hand}</td>
+                            <td>${reserved_quantity}</td>
+                            <td><strong>${available_quantity}</strong></td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                inventoryHtml = '<tr><td colspan="5" class="text-center text-muted">此零件未設定儲位</td></tr>';
+            }
+
+            detailContent.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>基本資訊</h6>
+                        <table class="table table-sm">
+                            <tr><td><strong>零件編號：</strong></td><td>${part?.part_number || 'N/A'}</td></tr>
+                            <tr><td><strong>名稱：</strong></td><td>${part?.name || 'N/A'}</td></tr>
+                            <tr><td><strong>描述：</strong></td><td>${part?.description || '無'}</td></tr>
+                            <tr><td><strong>單位：</strong></td><td>${part?.unit || 'N/A'}</td></tr>
+                            <tr><td><strong>每盒數量：</strong></td><td>${part?.quantity_per_box || 'N/A'}</td></tr>
+                            <tr><td><strong>採購前置期：</strong></td><td>${part?.lead_time || 'N/A'} 天</td></tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>各倉庫庫存</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>倉庫</th>
+                                        <th>倉位</th>
+                                        <th>在庫數量</th>
+                                        <th>預留數量</th>
+                                        <th>可用數量</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${inventoryHtml}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <h6>訂購歷史</h6>
+                        <div class="order-history" style="max-height: 200px; overflow-y: auto;">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>申請日期</th>
+                                        <th>申請人</th>
+                                        <th>儲位</th>
+                                        <th>數量</th>
+                                        <th>狀態</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${historyHtml}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        })
+        .catch(error => {
+            console.error('Error fetching part details:', error);
+            detailContent.innerHTML = `<div class="alert alert-danger">載入零件詳情失敗：${error.message}</div>`;
+        });
+}
