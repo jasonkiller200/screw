@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}訊息中心{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-bell"></i> 訊息中心</h2>
+                <div>
+                    <button id="markAllReadBtn" class="btn btn-outline-primary">
+                        <i class="fas fa-check"></i> 全部標記為已讀
+                    </button>
+                    <div class="btn-group ms-2">
+                        <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                            篩選
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" onclick="loadNotifications(false)">全部訊息</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="loadNotifications(true)">僅未讀</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 訊息列表 -->
+            <div id="notificationsList">
+                <div class="text-center py-4">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">載入中...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 刪除確認模態框 -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">確認刪除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                確定要刪除這個通知嗎？
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">確認刪除</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
+{% endblock %}

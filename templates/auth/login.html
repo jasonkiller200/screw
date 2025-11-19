@@ -24,7 +24,7 @@
                         {% endif %}
                     {% endwith %}
                     
-                    <form method="POST" action="{{ url_for('auth.login') }}">
+                    <form method="POST" action="{{ url_for('auth.login') }}" id="loginForm">
                         <div class="mb-3">
                             <label for="username" class="form-label">使用者名稱</label>
                             <div class="input-group">
@@ -74,4 +74,13 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('loginForm').addEventListener('submit', function() {
+    // 設置登入標記，用於顯示歡迎通知
+    sessionStorage.setItem('justLoggedIn', 'true');
+});
+</script>
 {% endblock %}
