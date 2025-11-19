@@ -592,6 +592,34 @@ class StockCount(db.Model):
             return False
 
     @classmethod
+    def batch_update_count_details(cls, updates):
+        """批量更新盤點明細"""
+        try:
+            updated_items = []
+            
+            for update in updates:
+                detail_id = update['detail_id']
+                counted_quantity = update['counted_quantity']
+                
+                detail = StockCountDetail.query.get(detail_id)
+                if not detail:
+                    return False, f"找不到盤點明細 ID: {detail_id}", []
+                
+                # 更新盤點數量和差異
+                detail.counted_quantity = counted_quantity
+                detail.variance_quantity = counted_quantity - detail.system_quantity
+                detail.counted_at = get_taipei_time()
+                
+                updated_items.append(detail.to_dict())
+            
+            db.session.commit()
+            return True, f"成功更新 {len(updated_items)} 筆盤點記錄", updated_items
+            
+        except Exception as e:
+            db.session.rollback()
+            return False, f"批量更新失敗: {str(e)}", []
+
+    @classmethod
     def import_count_data(cls, count_id, count_data):
         from .part import WarehouseLocation
         success_count = 0
