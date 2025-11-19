@@ -231,7 +231,13 @@
                                            data-part-id="{{ inventory.part_id }}"
                                            data-location-id="{{ inventory.location_id }}">
                                 </td>
-                                <td><strong>{{ inventory.part_number }}</strong></td>
+                                <td>
+                                    <strong style="cursor: pointer; color: #0d6efd; text-decoration: underline;" 
+                                            onclick="showPartDetails('{{ inventory.part_number }}')" 
+                                            title="點擊查看零件詳情">
+                                        {{ inventory.part_number }}
+                                    </strong>
+                                </td>
                                 <td>{{ inventory.part_name }}</td>
                                 <td>
                                     {{ inventory.warehouse_name }} - {{ inventory.location_code }}
@@ -349,6 +355,24 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
                 <button type="button" class="btn btn-primary" id="submitQuickAction">確認</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 零件詳情模態框 -->
+<div class="modal fade" id="partDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="partDetailModalLabel">零件詳情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="partDetailContent">
+                <!-- 動態載入內容 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
             </div>
         </div>
     </div>

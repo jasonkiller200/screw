@@ -198,10 +198,17 @@ def edit_part(part_id):
             # and to preserve user input.
             submitted_data = result.get('data', {})
             part_for_template = {}
-            if hasattr(submitted_data, 'to_dict'):
-                 part_for_template = submitted_data.to_dict(flat=False) # Use flat=False for lists
-            else:
-                 part_for_template = dict(submitted_data)
+            
+            # Handle ImmutableMultiDict - convert lists to single values where appropriate
+            for key, value in submitted_data.items():
+                if isinstance(value, list) and len(value) == 1:
+                    # Single-value lists should be converted to strings (except for location arrays)
+                    if not key.endswith('[]'):
+                        part_for_template[key] = value[0]
+                    else:
+                        part_for_template[key] = value
+                else:
+                    part_for_template[key] = value
 
             # 1. Ensure 'id' is present for url_for
             part_for_template['id'] = part_id
@@ -252,6 +259,11 @@ def edit_part(part_id):
 @login_required
 def delete_part(part_id):
     """Delete part."""
+    # 檢查是否為管理員
+    if current_user.role != 'admin':
+        flash('您沒有權限執行此操作', 'error')
+        return redirect(url_for('web.parts'))
+    
     result = Part.delete(part_id)
     
     if result['success']:

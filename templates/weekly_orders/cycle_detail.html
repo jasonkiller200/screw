@@ -161,35 +161,137 @@
     </div>
 
     <!-- 審查記錄 -->
-    {% if review_logs %}
+    {% if review_logs_pagination.items %}
     <div class="row mt-4">
         <div class="col-12">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">審查記錄</h5>
-                </div>
-                <div class="card-body">
-                    <div class="timeline">
-                        {% for log in review_logs %}
-                        <div class="timeline-item mb-3">
-                            <div class="d-flex">
-                                <div class="flex-shrink-0">
-                                    <div class="timeline-icon bg-{{ 'success' if log.action == 'approved' else 'danger' if log.action == 'rejected' else 'info' }}">
-                                        <i class="fas fa-{{ 'check' if log.action == 'approved' else 'times' if log.action == 'rejected' else 'edit' }}"></i>
-                                    </div>
-                                </div>
-                                <div class="flex-grow-1 ms-3">
-                                    <h6 class="mb-1">{{ log.reviewer_name }} - {{ log.action }}</h6>
-                                    <p class="text-muted mb-1">{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
-                                    {% if log.notes %}
-                                    <p class="mb-0">{{ log.notes }}</p>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>審查記錄</h5>
+                    <div class="d-flex gap-2 align-items-center">
+                        <span class="badge bg-secondary">共 {{ review_logs_pagination.total }} 筆</span>
+                        <select class="form-select form-select-sm" onchange="changeReviewPerPage(this.value)" style="width: 120px;">
+                            <option value="20" {{ 'selected' if request.args.get('per_page', '20') == '20' else '' }}>20 筆/頁</option>
+                            <option value="50" {{ 'selected' if request.args.get('per_page', '20') == '50' else '' }}>50 筆/頁</option>
+                            <option value="100" {{ 'selected' if request.args.get('per_page', '20') == '100' else '' }}>100 筆/頁</option>
+                        </select>
                     </div>
                 </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th width="8%" class="text-center">#</th>
+                                    <th width="15%">審查人員</th>
+                                    <th width="10%" class="text-center">操作</th>
+                                    <th width="12%" class="text-center">狀態變更</th>
+                                    <th width="18%">時間</th>
+                                    <th width="37%">備註</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in review_logs_pagination.items %}
+                                <tr>
+                                    <td class="text-center">
+                                        <span class="badge bg-light text-dark">{{ (review_logs_pagination.page - 1) * review_logs_pagination.per_page + loop.index }}</span>
+                                    </td>
+                                    <td>
+                                        <i class="fas fa-user-circle me-1 text-muted"></i>
+                                        <strong>{{ log.reviewer_name }}</strong>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if log.action == 'approved' or log.action == '核准' %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check me-1"></i>{{ action_map.get(log.action, log.action) }}
+                                        </span>
+                                        {% elif log.action == 'rejected' or log.action == '拒絕' %}
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-times me-1"></i>{{ action_map.get(log.action, log.action) }}
+                                        </span>
+                                        {% elif log.action == 'export_excel' %}
+                                        <span class="badge bg-primary">
+                                            <i class="fas fa-file-excel me-1"></i>{{ action_map.get(log.action, log.action) }}
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-info">
+                                            <i class="fas fa-edit me-1"></i>{{ action_map.get(log.action, log.action) }}
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if log.old_status and log.new_status %}
+                                        <small>
+                                            <span class="badge bg-secondary">{{ status_map.get(log.old_status, log.old_status) }}</span>
+                                            <i class="fas fa-arrow-right mx-1 text-muted"></i>
+                                            <span class="badge bg-primary">{{ status_map.get(log.new_status, log.new_status) }}</span>
+                                        </small>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <i class="far fa-clock me-1 text-muted"></i>
+                                        <small>{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</small>
+                                    </td>
+                                    <td>
+                                        {% if log.notes %}
+                                        <small>{{ log.notes }}</small>
+                                        {% else %}
+                                        <small class="text-muted fst-italic">無備註</small>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- 分頁控制 -->
+                {% if review_logs_pagination.pages > 1 %}
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-muted">
+                            {% set end_record = review_logs_pagination.page * review_logs_pagination.per_page %}
+                            {% if end_record > review_logs_pagination.total %}
+                                {% set end_record = review_logs_pagination.total %}
+                            {% endif %}
+                            顯示第 {{ (review_logs_pagination.page - 1) * review_logs_pagination.per_page + 1 }}-{{ end_record }} 筆，
+                            共 {{ review_logs_pagination.total }} 筆
+                        </div>
+                        <nav aria-label="審查記錄分頁">
+                            <ul class="pagination pagination-sm mb-0">
+                                <!-- 上一頁 -->
+                                <li class="page-item {{ 'disabled' if not review_logs_pagination.has_prev else '' }}">
+                                    <a class="page-link" href="?page={{ review_logs_pagination.prev_num }}&per_page={{ review_logs_pagination.per_page }}" {{ 'tabindex="-1"' if not review_logs_pagination.has_prev else '' }}>
+                                        <i class="fas fa-chevron-left"></i>
+                                    </a>
+                                </li>
+                                
+                                <!-- 頁碼 -->
+                                {% for page_num in review_logs_pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                                    {% if page_num %}
+                                        <li class="page-item {{ 'active' if page_num == review_logs_pagination.page else '' }}">
+                                            <a class="page-link" href="?page={{ page_num }}&per_page={{ review_logs_pagination.per_page }}">{{ page_num }}</a>
+                                        </li>
+                                    {% else %}
+                                        <li class="page-item disabled">
+                                            <span class="page-link">...</span>
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+                                
+                                <!-- 下一頁 -->
+                                <li class="page-item {{ 'disabled' if not review_logs_pagination.has_next else '' }}">
+                                    <a class="page-link" href="?page={{ review_logs_pagination.next_num }}&per_page={{ review_logs_pagination.per_page }}">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -211,14 +313,21 @@
 </div>
 
 <style>
-.timeline-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
+.table-hover tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.badge {
+    font-weight: 500;
 }
 </style>
+
+<script>
+function changeReviewPerPage(perPage) {
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.set('per_page', perPage);
+    urlParams.set('page', '1'); // 重置到第一頁
+    window.location.search = urlParams.toString();
+}
+</script>
 {% endblock %}

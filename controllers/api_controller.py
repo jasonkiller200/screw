@@ -226,8 +226,13 @@ def update_part(part_id):
         return jsonify({'error': 'Part not found'}), 404
 
 @api_bp.route('/parts/<int:part_id>', methods=['DELETE'])
+@login_required
 def delete_part(part_id):
     """Delete a part."""
+    # 檢查是否為管理員
+    if current_user.role != 'admin':
+        return jsonify({'error': '您沒有權限執行此操作'}), 403
+    
     success = Part.delete(part_id)
     
     if success:

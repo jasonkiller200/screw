@@ -85,23 +85,32 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        // 先獲取庫存資訊
         fetch(`/api/part/${part.part_number}`)
             .then(response => response.json())
             .then(data => {
                 partLocationsData = data.inventories || [];
-                locationSelect.innerHTML = '<option value="">-- 請選擇儲位 --</option>';
-
+                
+                // 如果有庫存記錄，使用庫存資訊
                 if (partLocationsData.length > 0) {
+                    locationSelect.innerHTML = '<option value="">-- 請選擇儲位 --</option>';
                     partLocationsData.forEach(inv => {
                         const option = document.createElement('option');
                         option.value = inv.warehouse_location_id;
                         option.textContent = `${inv.warehouse_name} - ${inv.location_code}`;
                         locationSelect.appendChild(option);
                     });
+                    
+                    // 如果只有一個儲位，自動選擇並觸發變更事件
+                    if (partLocationsData.length === 1) {
+                        locationSelect.value = partLocationsData[0].warehouse_location_id;
+                        locationSelect.dispatchEvent(new Event('change'));
+                    }
+                    
                     adjustmentForm.style.display = 'block';
                 } else {
-                    alert('此零件沒有庫存紀錄，無法調整。');
-                    adjustmentForm.style.display = 'none';
+                    // 如果沒有庫存記錄，獲取零件的所有儲位
+                    fetchPartLocations(part.part_number);
                 }
                 // Reset quantities
                 currentQuantityInput.value = '';
@@ -109,8 +118,62 @@ document.addEventListener('DOMContentLoaded', function() {
                 quantityDiffInput.value = '';
             })
             .catch(error => {
-                console.error('Error fetching locations:', error);
+                console.error('Error fetching stock:', error);
+                // 如果獲取庫存失敗，嘗試獲取儲位
+                fetchPartLocations(part.part_number);
+            });
+    }
+
+    function fetchPartLocations(partNumber) {
+        // 獲取零件的所有儲位（用於沒有庫存記錄的情況）
+        fetch(`/api/part/${partNumber}/locations`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.locations && data.locations.length > 0) {
+                    locationSelect.innerHTML = '<option value="">-- 請選擇儲位 --</option>';
+                    // 將儲位資訊轉換為與庫存資料相同的格式
+                    partLocationsData = data.locations.map(loc => ({
+                        warehouse_location_id: loc.id,
+                        warehouse_name: loc.warehouse_name,
+                        location_code: loc.location_code,
+                        quantity_on_hand: 0
+                    }));
+                    
+                    partLocationsData.forEach(loc => {
+                        const option = document.createElement('option');
+                        option.value = loc.warehouse_location_id;
+                        option.textContent = `${loc.warehouse_name} - ${loc.location_code}`;
+                        locationSelect.appendChild(option);
+                    });
+                    
+                    // 如果只有一個儲位，自動選擇並觸發變更事件
+                    if (partLocationsData.length === 1) {
+                        locationSelect.value = partLocationsData[0].warehouse_location_id;
+                        locationSelect.dispatchEvent(new Event('change'));
+                    }
+                    
+                    // 顯示提示訊息
+                    adjustmentForm.style.display = 'block';
+                    const existingAlert = adjustmentForm.querySelector('.alert-info');
+                    if (!existingAlert) {
+                        const alertDiv = document.createElement('div');
+                        alertDiv.className = 'alert alert-info alert-dismissible fade show mt-3';
+                        alertDiv.innerHTML = `
+                            <i class="fas fa-info-circle me-2"></i>
+                            此零件目前無庫存記錄，您可以輸入盤點後的實際數量來建立初始庫存。
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        `;
+                        adjustmentForm.insertBefore(alertDiv, adjustmentForm.firstChild);
+                    }
+                } else {
+                    alert('此零件尚未指定儲位，請先在零件管理中設定儲位。');
+                    adjustmentForm.style.display = 'none';
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching part locations:', error);
                 alert('獲取儲位資訊失敗。');
+                adjustmentForm.style.display = 'none';
             });
     }
     
