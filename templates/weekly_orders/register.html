@@ -3,31 +3,30 @@
 {% block title %}申請登記 - 週期訂單管理{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
+<div class="row">
     <!-- 頁面標題 -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ url_for('web.index') }}">首頁</a></li>
-                    <li class="breadcrumb-item"><a href="{{ url_for('weekly_order.weekly_orders') }}">訂單管理</a></li>
-                    <li class="breadcrumb-item active">申請登記</li>
-                </ol>
-            </nav>
-            <h2><i class="fas fa-plus-circle text-success"></i> 申請登記</h2>
-            <p class="text-muted">在 {{ current_cycle.cycle_name }} 中新增申請項目</p>
-        </div>
+    <div class="col-12 mb-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('web.index') }}">首頁</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('weekly_order.weekly_orders') }}">訂單管理</a></li>
+                <li class="breadcrumb-item active">申請登記</li>
+            </ol>
+        </nav>
+        <h2><i class="fas fa-plus-circle text-success"></i> 申請登記</h2>
+        <p class="text-muted">在 {{ current_cycle.cycle_name }} 中新增申請項目</p>
     </div>
+</div>
 
-    <!-- 週期資訊 -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="alert alert-info">
-                <div class="row align-items-center">
-                    <div class="col-md-8">
-                        <h6 class="alert-heading mb-2">
-                            <i class="fas fa-info-circle me-2"></i>當前申請週期
-                        </h6>
+<!-- 週期資訊 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h6 class="alert-heading mb-2">
+                        <i class="fas fa-info-circle me-2"></i>當前申請週期
+                    </h6>
                         <p class="mb-0">
                             <strong>{{ current_cycle.cycle_name }}</strong><br>
                             截止時間：{{ current_cycle.deadline.strftime('%Y年%m月%d日 %H:%M') }}
@@ -245,7 +244,6 @@
             </div>
         </div>
     </div>
-</div>
 
 {% endblock %}
 

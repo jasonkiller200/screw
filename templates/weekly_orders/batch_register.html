@@ -3,31 +3,30 @@
 {% block title %}批量週期訂單申請{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
+<div class="row">
     <!-- 頁面標題 -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ url_for('web.index') }}">首頁</a></li>
-                    <li class="breadcrumb-item"><a href="{{ url_for('weekly_order.weekly_orders') }}">訂單管理</a></li>
-                    <li class="breadcrumb-item active">批量申請</li>
-                </ol>
-            </nav>
-            <h2><i class="fas fa-list-plus text-success"></i> 批量週期訂單申請</h2>
-            <p class="text-muted">在 {{ current_cycle.cycle_name }} 中批量新增申請項目</p>
-        </div>
+    <div class="col-12 mb-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('web.index') }}">首頁</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('weekly_order.weekly_orders') }}">訂單管理</a></li>
+                <li class="breadcrumb-item active">批量申請</li>
+            </ol>
+        </nav>
+        <h2><i class="fas fa-list-plus text-success"></i> 批量週期訂單申請</h2>
+        <p class="text-muted">在 {{ current_cycle.cycle_name }} 中批量新增申請項目</p>
     </div>
+</div>
 
-    <!-- 週期資訊 -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="alert alert-info">
-                <div class="row align-items-center">
-                    <div class="col-md-8">
-                        <h6 class="alert-heading mb-2">
-                            <i class="fas fa-info-circle me-2"></i>當前申請週期
-                        </h6>
+<!-- 週期資訊 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h6 class="alert-heading mb-2">
+                        <i class="fas fa-info-circle me-2"></i>當前申請週期
+                    </h6>
                         <p class="mb-0">
                             <strong>{{ current_cycle.cycle_name }}</strong><br>
                             截止時間：{{ current_cycle.deadline.strftime('%Y年%m月%d日 %H:%M') }}
@@ -102,20 +101,20 @@
 
                         <!-- 申請項目表格 -->
                         <div class="table-responsive">
-                            <table class="table table-bordered" id="batchItemsTable">
+                            <table class="table table-bordered table-hover" id="batchItemsTable">
                                 <thead class="table-light">
                                     <tr>
-                                        <th width="5%">#</th>
-                                        <th width="12%">品號 <span class="text-danger">*</span></th>
-                                        <th width="15%">品名 <span class="text-danger">*</span></th>
-                                        <th width="10%">儲位 <span class="text-danger">*</span></th>
-                                        <th width="8%">數量 <span class="text-danger">*</span></th>
-                                        <th width="8%">單位</th>
-                                        <th width="10%">類型</th>
+                                        <th width="3%" class="text-center">#</th>
+                                        <th width="10%">品號 <span class="text-danger">*</span></th>
+                                        <th width="12%">品名 <span class="text-danger">*</span></th>
+                                        <th width="12%">儲位 <span class="text-danger">*</span></th>
+                                        <th width="6%">數量 <span class="text-danger">*</span></th>
+                                        <th width="6%">單位</th>
+                                        <th width="8%">類型</th>
                                         <th width="10%">需用日期</th>
-                                        <th width="10%">緊急程度</th>
-                                        <th width="12%">台份用/備註</th>
-                                        <th width="5%">操作</th>
+                                        <th width="8%">緊急程度</th>
+                                        <th width="15%">台份用/備註</th>
+                                        <th width="5%" class="text-center">操作</th>
                                     </tr>
                                 </thead>
                                 <tbody id="batchItemsBody">
@@ -140,32 +139,41 @@
             </div>
         </div>
     </div>
-</div>
 
 <!-- 項目模板（隱藏） -->
 <template id="itemRowTemplate">
     <tr>
-        <td class="text-center item-sequence">1</td>
+        <td class="text-center item-sequence align-middle">1</td>
         <td>
-            <div class="input-group input-group-sm">
-                <input type="text" class="form-control form-control-sm" name="items[0][part_number]" required>
-                <button class="btn btn-outline-secondary" type="button" onclick="showPartDetails(this.closest('tr').querySelector('input[name*=&quot;[part_number]&quot;]').value)">
-                    <i class="fas fa-info-circle"></i>
-                </button>
-            </div>
+            <input type="text" class="form-control form-control-sm part-number-input" 
+                   name="items[0][part_number]" 
+                   placeholder="請輸入品號" 
+                   style="min-width: 120px; cursor: pointer; color: #0d6efd; text-decoration: underline;" 
+                   onclick="if(this.value) showPartDetails(this.value)"
+                   title="點擊查看零件詳情"
+                   required>
         </td>
         <td>
-            <input type="text" class="form-control form-control-sm" name="items[0][part_name]" required>
+            <input type="text" class="form-control form-control-sm part-name-input" 
+                   name="items[0][part_name]" 
+                   placeholder="請輸入品名"
+                   style="min-width: 150px;"
+                   required>
         </td>
         <td>
-            <label class="visually-hidden">儲位</label>
-            <select class="form-select form-select-sm" name="items[0][warehouse_location_id]">
+            <select class="form-select form-select-sm location-select" 
+                    name="items[0][warehouse_location_id]"
+                    style="min-width: 150px;">
                 <option value="">請先輸入有效的品號</option>
             </select>
             <span class="text-danger item-location-required-star" style="display: none;">*</span>
         </td>
         <td>
-            <input type="number" class="form-control form-control-sm" name="items[0][quantity]" min="1" required>
+            <input type="number" class="form-control form-control-sm" 
+                   name="items[0][quantity]" 
+                   min="1" 
+                   placeholder="數量"
+                   required>
         </td>
         <td>
             <select class="form-select form-select-sm" name="items[0][unit]">
@@ -180,10 +188,14 @@
             </select>
         </td>
         <td>
-            <input type="text" class="form-control form-control-sm" name="items[0][part_type]" placeholder="自動帶入零件類型">
+            <input type="text" class="form-control form-control-sm" 
+                   name="items[0][part_type]" 
+                   placeholder="自動帶入"
+                   readonly>
         </td>
         <td>
-            <input type="date" class="form-control form-control-sm" name="items[0][required_date]">
+            <input type="date" class="form-control form-control-sm" 
+                   name="items[0][required_date]">
         </td>
         <td>
             <select class="form-select form-select-sm" name="items[0][priority]">
@@ -192,10 +204,15 @@
             </select>
         </td>
         <td>
-            <input type="text" class="form-control form-control-sm" name="items[0][purpose_notes]" placeholder="用途說明">
+            <input type="text" class="form-control form-control-sm" 
+                   name="items[0][purpose_notes]" 
+                   placeholder="用途說明"
+                   style="min-width: 180px;">
         </td>
-        <td class="text-center">
-            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeItem(this)">
+        <td class="text-center align-middle">
+            <button type="button" class="btn btn-outline-danger btn-sm" 
+                    onclick="removeItem(this)"
+                    title="刪除此項目">
                 <i class="fas fa-trash"></i>
             </button>
         </td>
@@ -220,6 +237,92 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* 表格優化 */
+#batchItemsTable {
+    min-width: 1400px; /* 確保表格有足夠寬度 */
+}
+
+#batchItemsTable th {
+    white-space: nowrap;
+    vertical-align: middle;
+    font-size: 0.9rem;
+}
+
+#batchItemsTable td {
+    vertical-align: middle;
+}
+
+/* 輸入框和選擇框優化 */
+#batchItemsTable input[type="text"],
+#batchItemsTable input[type="number"],
+#batchItemsTable input[type="date"],
+#batchItemsTable select {
+    font-size: 0.875rem;
+}
+
+/* 品號輸入框 */
+.part-number-input {
+    min-width: 120px !important;
+}
+
+/* 品號輸入框 - 有值時的樣式 */
+.part-number-input:not(:placeholder-shown) {
+    cursor: pointer !important;
+    color: #0d6efd !important;
+    font-weight: 500;
+}
+
+.part-number-input:not(:placeholder-shown):hover {
+    background-color: #f8f9fa;
+    text-decoration: underline;
+}
+
+/* 品名輸入框 */
+.part-name-input {
+    min-width: 150px !important;
+}
+
+/* 儲位選擇框 - 特別處理長文字 */
+.location-select {
+    min-width: 150px !important;
+    max-width: 200px;
+    white-space: normal !important;
+    height: auto !important;
+    padding: 0.25rem 2rem 0.25rem 0.5rem !important;
+}
+
+.location-select option {
+    white-space: normal;
+    word-wrap: break-word;
+    padding: 0.5rem;
+}
+
+/* 表格響應式容器 */
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* 確保按鈕不會太小 */
+#batchItemsTable .btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* 輸入組按鈕 */
+#batchItemsTable .input-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+}
+
+/* Tooltip 支援 */
+[title] {
+    cursor: help;
+}
+</style>
 {% endblock %}
 
 {% block extra_js %}
