@@ -24,7 +24,7 @@
 <body {% block body_attributes %}{% endblock %}>
     <!-- 導航列 -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container-fluid px-4">
+        <div class="container-fluid px-6">
             <a class="navbar-brand" href="{{ url_for('web.index') }}">
                 <i class="fas fa-tools me-2"></i>五金零件管理系統
             </a>
@@ -221,7 +221,7 @@
     {% endif %}
 
     <!-- 主要內容 -->
-    <main class="container-fluid px-4 my-4">
+    <main class="container-fluid px-6 my-4">
         <!-- Flash 訊息 -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -239,7 +239,7 @@
 
     <!-- 頁尾 -->
     <footer class="bg-light py-3 mt-5">
-        <div class="container-fluid px-4 text-center">
+        <div class="container-fluid px-6 text-center">
             <small class="text-muted">五金零件庫存管理系統 © 2025 design by Ralf</small>
         </div>
     </footer>
