@@ -482,6 +482,23 @@ def export_excel(cycle_id):
         flash(result['message'], 'danger')
         return redirect(url_for('weekly_order.review_cycle', cycle_id=cycle_id))
 
+@weekly_order_bp.route('/weekly_orders/export_pdf/<int:cycle_id>')
+@login_required
+def export_pdf(cycle_id):
+    """生成PDF申請單"""
+    result = WeeklyOrderService.export_weekly_order_pdf(cycle_id)
+
+    if result['success']:
+        return send_file(
+            BytesIO(result['file_content']),
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=result['filename']
+        )
+    else:
+        flash(result['message'], 'danger')
+        return redirect(url_for('weekly_order.review_cycle', cycle_id=cycle_id))
+
 @weekly_order_bp.route('/weekly-orders/api/cycle-summary')
 @login_required
 def cycle_summary():
