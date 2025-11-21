@@ -105,6 +105,12 @@
                         <i class="fas fa-file-excel me-1"></i>匯出 Excel 
                         {% if approved_count > 0 %}({{ approved_count }}項){% else %}(無核准項目){% endif %}
                     </a>
+                    <a href="{{ url_for('weekly_order.export_pdf', cycle_id=cycle.id) }}" 
+                       class="btn btn-danger {{ 'disabled' if approved_count == 0 else '' }}"
+                       {{ 'aria-disabled="true"' if approved_count == 0 else '' }}>
+                        <i class="fas fa-file-pdf me-1"></i>匯出 PDF 
+                        {% if approved_count > 0 %}({{ approved_count }}項){% else %}(無核准項目){% endif %}
+                    </a>
                     <button class="btn btn-primary" onclick="batchApprove()">
                         <i class="fas fa-check-double me-1"></i>批量通過
                     </button>
