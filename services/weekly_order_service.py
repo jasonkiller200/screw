@@ -1,5 +1,5 @@
 from extensions import db
-from models.weekly_order import OrderRegistration
+from models.weekly_order import OrderRegistration, WeeklyOrderCycle, OrderReviewLog
 from models.part import Part
 import pandas as pd
 from io import BytesIO
@@ -52,10 +52,6 @@ class WeeklyOrderService:
                 if reg.department and reg.department != '未設定':
                     departments.add(reg.department)
             application_unit = '、'.join(sorted(departments)) if departments else '生產部'
-            
-            # 調試日誌
-            print(f"🔍 Debug: 審查人員 = '{reviewers_str}'")
-            print(f"🔍 Debug: 審查記錄數 = {len(review_logs)}")
             
             # Helper function to get current time in UTC+8
             def get_taipei_time():
@@ -214,107 +210,52 @@ class WeeklyOrderService:
             # 單位主管印章區域（在注意事項之後）
             reviewer_row = note3_row + 2
             
-            # 左側：單位主管標籤和審查人員姓名
-            ws.merge_cells(f'A{reviewer_row}:D{reviewer_row}')
-            ws[f'A{reviewer_row}'] = f'單位主管：{reviewers_str}'
+            # 用於追蹤需要清理的臨時文件
+            temp_files_to_clean = []
+            
+            # 左側：單位主管標籤（不顯示審查者姓名）
+            ws.merge_cells(f'A{reviewer_row}:B{reviewer_row}')
+            ws[f'A{reviewer_row}'] = '單位主管'
             ws[f'A{reviewer_row}'].font = Font(name='微軟正黑體', size=12, bold=True)
-            ws[f'A{reviewer_row}'].alignment = left_alignment
+            ws[f'A{reviewer_row}'].alignment = center_alignment
             
             # 嘗試插入印章圖片
             try:
                 from openpyxl.drawing.image import Image as XLImage
                 import os
                 
-                # 查找印章圖片檔案（支援多種格式和路徑）
-                stamp_paths = [
-                    f'static/stamps/{reviewers_str}_stamp.png',
-                    f'static/stamps/default_stamp.png',
-                    f'stamps/{reviewers_str}_stamp.png', 
-                    f'stamps/default_stamp.png',
-                    'static/images/default_stamp.png',
-                    'static/assets/stamp.png'
-                ]
-                
-                stamp_image_path = None
-                for path in stamp_paths:
-                    print(f"🔍 Debug: 檢查印章路徑 = {path}")
-                    if os.path.exists(path):
-                        stamp_image_path = path
-                        print(f"✅ Debug: 找到印章 = {path}")
-                        break
-                    else:
-                        print(f"❌ Debug: 印章不存在 = {path}")
-                
+                # 直接生成動態印章（使用審查者姓名）
+                stamp_image_path = WeeklyOrderService._generate_stamp_image(reviewers_str)
                 if stamp_image_path:
-                    print(f"🖼️ Debug: 使用印章圖片 = {stamp_image_path}")
+                    temp_files_to_clean.append(stamp_image_path)  # 記錄臨時文件
                     try:
-                        # 載入印章圖片
                         stamp_img = XLImage(stamp_image_path)
-                        
-                        # 調整印章大小（長方形 100x60像素）
                         stamp_img.width = 100
                         stamp_img.height = 60
-                        
-                        # 定位印章到 E 欄位
-                        stamp_img.anchor = f'E{reviewer_row}'
-                        
-                        # 插入圖片到工作表
+                        # 將印章放在 C 欄位（單位主管標籤旁邊）
+                        stamp_img.anchor = f'C{reviewer_row}'
                         ws.add_image(stamp_img)
-                        print(f"✅ Debug: 靜態印章已插入到 Excel，位置 = E{reviewer_row}")
-                        
-                        # 設定印章區域高度以容納圖片
                         ws.row_dimensions[reviewer_row].height = 50
-                        ws.row_dimensions[reviewer_row + 1].height = 20
-                        print(f"📐 Debug: 設定列高 = {reviewer_row}行50像素")
                         
-                        # 在印章旁邊顯示日期
+                        # 在印章旁邊顯示日期標籤和日期
+                        ws.merge_cells(f'E{reviewer_row}:F{reviewer_row}')
+                        ws[f'E{reviewer_row}'] = '核准日期'
+                        ws[f'E{reviewer_row}'].font = Font(name='微軟正黑體', size=12, bold=True)
+                        ws[f'E{reviewer_row}'].alignment = center_alignment
+                        
                         ws.merge_cells(f'G{reviewer_row}:H{reviewer_row}')
-                        ws[f'G{reviewer_row}'] = f'日期：{get_taipei_time().strftime("%Y/%m/%d")}'
+                        ws[f'G{reviewer_row}'] = get_taipei_time().strftime("%Y/%m/%d")
                         ws[f'G{reviewer_row}'].font = Font(name='微軟正黑體', size=10, bold=True)
                         ws[f'G{reviewer_row}'].alignment = center_alignment
-                        
-                    except Exception as static_img_error:
-                        print(f"❌ Debug: 靜態印章插入失敗 = {static_img_error}")
-                        # 如果靜態印章插入失敗，嘗試生成動態印章
-                        stamp_image_path = None  # 重設以觸發動態印章生成
-                
-                # 如果靜態印章不存在或插入失敗，嘗試動態印章
-                if not stamp_image_path:
-                    print("❌ Debug: 沒有找到靜態印章圖片，嘗試生成動態印章")
-                    # 如果沒有印章圖片，生成動態印章圖片
-                    stamp_image_path = WeeklyOrderService._generate_stamp_image(reviewers_str)
-                    if stamp_image_path:
-                        print(f"✅ Debug: 動態印章生成成功 = {stamp_image_path}")
-                        try:
-                            stamp_img = XLImage(stamp_image_path)
-                            stamp_img.width = 100
-                            stamp_img.height = 60
-                            stamp_img.anchor = f'E{reviewer_row}'
-                            ws.add_image(stamp_img)
-                            ws.row_dimensions[reviewer_row].height = 50
-                            print(f"✅ Debug: 動態印章已插入到 Excel，位置 = E{reviewer_row}")
-                            
-                            # 在印章旁邊顯示日期
-                            ws.merge_cells(f'G{reviewer_row}:H{reviewer_row}')
-                            ws[f'G{reviewer_row}'] = f'日期：{get_taipei_time().strftime("%Y/%m/%d")}'
-                            ws[f'G{reviewer_row}'].font = Font(name='微軟正黑體', size=10, bold=True)
-                            ws[f'G{reviewer_row}'].alignment = center_alignment
-                        except Exception as img_error:
-                            print(f"❌ Debug: 動態印章插入失敗 = {img_error}")
-                        finally:
-                            # 清理臨時檔案
-                            try:
-                                os.remove(stamp_image_path)
-                            except:
-                                pass
-                    else:
-                        print("❌ Debug: 動態印章生成失敗，跳過印章區域")
-                        # 不顯示文字版本，保持空白
+                    except Exception as img_error:
+                        print(f"❌ Debug: 印章插入失敗 = {img_error}")
                         ws.row_dimensions[reviewer_row].height = 25
+                else:
+                    # 如果印章生成失敗，保持空白
+                    ws.row_dimensions[reviewer_row].height = 25
                         
             except ImportError:
                 # 如果無法匯入圖片模組，跳過印章區域
-                print("❌ Debug: 無法匯入圖片模組，跳過印章區域")
                 ws.row_dimensions[reviewer_row].height = 25
             
             # 設定欄寬
@@ -340,11 +281,17 @@ class WeeklyOrderService:
             output = BytesIO()
             wb.save(output)
             output.seek(0)
+            
+            # 清理臨時文件（在工作簿保存之後）
+            for temp_file in temp_files_to_clean:
+                try:
+                    os.remove(temp_file)
+                except:
+                    pass
 
             filename = f"Hartford螺絲五金耗材用品申請_{get_taipei_time().strftime('%Y%m%d')}.xlsx"
             
-            # 更新週期狀態為已完成並標記 Excel 已生成
-            cycle.status = 'completed'
+            # 標記 Excel 已生成（不修改週期狀態，保持 reviewing）
             cycle.excel_generated = True
             cycle.reviewed_at = get_taipei_time()
             
@@ -352,7 +299,7 @@ class WeeklyOrderService:
                 cycle_id=cycle.id,
                 reviewer_name='系統',
                 action='export_excel',
-                notes=f'匯出Excel申請單，包含{len(registrations)}個項目，週期標記為已完成'
+                notes=f'匯出Excel申請單，包含{len(registrations)}個項目'
             )
             db.session.add(review_log)
             db.session.commit()
@@ -365,7 +312,7 @@ class WeeklyOrderService:
 
     @staticmethod
     def _generate_stamp_image(reviewer_name):
-        """動態生成印章圖片"""
+        """動態生成印章圖片，返回臨時檔案路徑"""
         try:
             from PIL import Image, ImageDraw, ImageFont
             import os
@@ -401,7 +348,7 @@ class WeeklyOrderService:
                 font = None
                 for font_path in font_paths:
                     if os.path.exists(font_path):
-                        font = ImageFont.truetype(font_path, 16)
+                        font = ImageFont.truetype(font_path, 24)  # 使用 24pt 字體
                         break
                 
                 if not font:
@@ -415,7 +362,7 @@ class WeeklyOrderService:
             if len(text) > 6:
                 text = text[:6]  # 長方形印章可容納更多字元
             
-            # 取得文字邊界
+            # 取得文字邊界 (使用 textbbox 替代已棄用的 textsize)
             bbox = draw.textbbox((0, 0), text, font=font)
             text_width = bbox[2] - bbox[0]
             text_height = bbox[3] - bbox[1]
@@ -443,8 +390,300 @@ class WeeklyOrderService:
             return None
 
     @staticmethod
+    def export_weekly_order_pdf(cycle_id):
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.pdfgen import canvas
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.lib import colors
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as ReportLabImage
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import mm
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT
+        import io
+        import os
+        import tempfile
+        from models.weekly_order import WeeklyOrderCycle, OrderRegistration, OrderReviewLog
+        from models.part import WarehouseLocation
+        from sqlalchemy.orm import joinedload
+
+        try:
+            cycle = WeeklyOrderCycle.query.get(cycle_id)
+            if not cycle:
+                return {'success': False, 'message': '找不到指定的週期'}
+
+            registrations = OrderRegistration.query.options(
+                joinedload(OrderRegistration.warehouse_location).joinedload(WarehouseLocation.warehouse)
+            ).filter(
+                OrderRegistration.cycle_id == cycle_id,
+                OrderRegistration.status == 'approved'
+            ).order_by(OrderRegistration.item_sequence).all()
+
+            if not registrations:
+                return {'success': False, 'message': '沒有已核准的項目可生成 PDF'}
+
+            # 獲取審查記錄
+            review_logs = OrderReviewLog.query.filter_by(
+                cycle_id=cycle_id,
+                action='approved'
+            ).order_by(OrderReviewLog.created_at.desc()).all()
+            
+            reviewers = set()
+            for log in review_logs:
+                if log.reviewer_name and log.reviewer_name not in ['主管', '系統']:
+                    reviewers.add(log.reviewer_name)
+            reviewers_str = '、'.join(sorted(reviewers)) if reviewers else '系統'
+            
+            # 獲取申請單位
+            departments = set()
+            for reg in registrations:
+                if reg.department and reg.department != '未設定':
+                    departments.add(reg.department)
+            application_unit = '、'.join(sorted(departments)) if departments else '生產部'
+
+            # Helper function to get current time in UTC+8
+            def get_taipei_time():
+                from datetime import timezone, timedelta
+                tz_taipei = timezone(timedelta(hours=8))
+                return datetime.now(tz_taipei)
+
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(
+                buffer, 
+                pagesize=landscape(A4), 
+                rightMargin=15*mm, 
+                leftMargin=15*mm, 
+                topMargin=15*mm, 
+                bottomMargin=15*mm
+            )
+            
+            # 註冊中文字體
+            font_path = "C:/Windows/Fonts/kaiu.ttf"
+            if not os.path.exists(font_path):
+                font_path = "C:/Windows/Fonts/simhei.ttf"
+            
+            if os.path.exists(font_path):
+                pdfmetrics.registerFont(TTFont('ChineseFont', font_path))
+                font_name = 'ChineseFont'
+            else:
+                font_name = 'Helvetica'
+
+            elements = []
+            
+            # 定義樣式
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                fontName=font_name,
+                fontSize=16,
+                alignment=TA_CENTER,
+                spaceAfter=6,
+                leading=20
+            )
+            
+            warning_style = ParagraphStyle(
+                'Warning',
+                fontName=font_name,
+                fontSize=11,
+                alignment=TA_CENTER,
+                textColor=colors.red,
+                spaceAfter=6,
+                leading=14
+            )
+            
+            info_style = ParagraphStyle(
+                'Info',
+                fontName=font_name,
+                fontSize=10,
+                alignment=TA_LEFT,
+                spaceAfter=3,
+                leading=12
+            )
+            
+            note_style = ParagraphStyle(
+                'Note',
+                fontName=font_name,
+                fontSize=9,
+                alignment=TA_LEFT,
+                spaceAfter=3,
+                leading=11
+            )
+            
+            # 標題
+            elements.append(Paragraph('Hartford螺絲/接頭/五金/耗材用品申請', title_style))
+            
+            # 自我管理提醒
+            elements.append(Paragraph('*自我管理:請購之前先檢討是否真有必要?如非買不可.在予申請', warning_style))
+            
+            # 申請單位和日期
+            info_table_data = [
+                [Paragraph(f'申請單位：{application_unit}', info_style), 
+                 Paragraph(f'申請日期：{get_taipei_time().strftime("%Y-%m-%d")}', info_style)]
+            ]
+            info_table = Table(info_table_data, colWidths=[140*mm, 100*mm])
+            info_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), font_name),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+                ('ALIGN', (1, 0), (1, 0), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
+            elements.append(info_table)
+            
+            # 請購類型
+            elements.append(Paragraph('□一般存貨請購(非使用於工單)■事務性請購(使用於工單)', info_style))
+            elements.append(Spacer(1, 3*mm))
+            
+            # 主表格資料
+            headers = ['項次', '品號', '品名', '儲位', '種類', '數量', '單位', 
+                      '申請人', '申請單位', '緊急程度', '需用日期', '台份用/備註']
+            data = [headers]
+            
+            for idx, reg in enumerate(registrations, start=1):
+                location_str = ''
+                if reg.warehouse_location and reg.warehouse_location.warehouse:
+                    location_str = f"{reg.warehouse_location.warehouse.name}-{reg.warehouse_location.location_code}"
+                elif reg.warehouse_location:
+                    location_str = reg.warehouse_location.location_code
+                
+                priority_str = '緊急' if reg.priority == 'urgent' else '一般'
+                
+                row = [
+                    str(idx),
+                    reg.part_number or '',
+                    Paragraph(reg.part_name or '', note_style),
+                    location_str,
+                    reg.category or '',
+                    str(reg.quantity),
+                    reg.unit or '',
+                    reg.applicant_name or '',
+                    reg.department or '',
+                    priority_str,
+                    reg.required_date.strftime('%Y-%m-%d') if reg.required_date else '',
+                    Paragraph(reg.purpose_notes or '', note_style)
+                ]
+                data.append(row)
+            
+            # 主表格
+            main_table = Table(data, colWidths=[
+                10*mm,  # 項次
+                20*mm,  # 品號
+                35*mm,  # 品名
+                25*mm,  # 儲位
+                15*mm,  # 種類
+                12*mm,  # 數量
+                10*mm,  # 單位
+                15*mm,  # 申請人
+                18*mm,  # 申請單位
+                15*mm,  # 緊急程度
+                18*mm,  # 需用日期
+                40*mm   # 台份用/備註
+            ])
+            
+            main_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), font_name),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F0F0F0')]),
+            ]))
+            
+            elements.append(main_table)
+            elements.append(Spacer(1, 5*mm))
+            
+            # 注意事項
+            elements.append(Paragraph('<b>注意事項：</b>', info_style))
+            elements.append(Paragraph('1.請每週提出請購。', note_style))
+            elements.append(Paragraph('2.一次性,費用較高者,請供應商先提供估價單。', note_style))
+            elements.append(Paragraph('3.申請經核准始可購買,不得先行購買。', note_style))
+            elements.append(Spacer(1, 5*mm))
+            
+            # 單位主管印章區域
+            stamp_data = []
+            temp_files = []
+            
+            # 為印章區域標題創建置中樣式
+            stamp_header_style = ParagraphStyle(
+                'StampHeader',
+                fontName=font_name,
+                fontSize=10,
+                alignment=TA_CENTER,
+                spaceAfter=3,
+                leading=12
+            )
+            
+            # 嘗試生成印章
+            stamp_image = None
+            stamp_path = WeeklyOrderService._generate_stamp_image(reviewers_str)
+            if stamp_path:
+                temp_files.append(stamp_path)
+                stamp_image = ReportLabImage(stamp_path, width=25*mm, height=15*mm)
+            
+            # 第一行：標題框
+            header_row = [
+                Paragraph('<b>單位主管</b>', stamp_header_style),
+                Paragraph('<b>核准日期</b>', stamp_header_style)
+            ]
+            stamp_data.append(header_row)
+            
+            # 第二行：印章和日期
+            if stamp_image:
+                content_row = [
+                    stamp_image,
+                    Paragraph(f'{get_taipei_time().strftime("%Y/%m/%d")}', stamp_header_style)
+                ]
+            else:
+                content_row = [
+                    '',
+                    Paragraph(f'{get_taipei_time().strftime("%Y/%m/%d")}', stamp_header_style)
+                ]
+            stamp_data.append(content_row)
+            
+            stamp_table = Table(stamp_data, colWidths=[40*mm, 40*mm])
+            stamp_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), font_name),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                # 標題行樣式 - 白色背景，黑色文字
+                ('BACKGROUND', (0, 0), (-1, 0), colors.white),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
+                # 內容行樣式
+                ('ALIGN', (0, 1), (-1, 1), 'CENTER'),
+                ('VALIGN', (0, 1), (-1, 1), 'MIDDLE'),
+                # 邊框
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ]))
+            
+            elements.append(stamp_table)
+            
+            # 建立 PDF
+            doc.build(elements)
+            
+            # 清理暫存檔
+            for f in temp_files:
+                try:
+                    os.remove(f)
+                except:
+                    pass
+
+            filename = f"Hartford螺絲五金耗材用品申請_{get_taipei_time().strftime('%Y%m%d')}.pdf"
+            
+            return {
+                'success': True,
+                'file_content': buffer.getvalue(),
+                'filename': filename
+            }
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {'success': False, 'message': str(e)}
+
+    @staticmethod
     def review_order_registration(registration_id, action, notes, reviewer_id, reviewer_name):
-        from models.weekly_order import OrderRegistration, OrderReviewLog
+        from models.weekly_order import OrderReviewLog
         from services.notification_service import NotificationService
         try:
             registration = OrderRegistration.query.get(registration_id)
