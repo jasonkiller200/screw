@@ -54,12 +54,12 @@ def weekly_orders():
 @weekly_order_bp.route('/weekly-orders/pending-inbound')
 @login_required
 def pending_inbound_orders():
-    """顯示所有已核准待入庫的訂單項目"""
+    """顯示所有已核准待入庫的訂單項目（包含部分入庫的項目）"""
     pending_items = OrderRegistration.query.options(
         joinedload(OrderRegistration.warehouse_location).joinedload(WarehouseLocation.warehouse),
         joinedload(OrderRegistration.cycle)
     ).filter(
-        OrderRegistration.status == 'approved',
+        OrderRegistration.status.in_(['approved', 'partially_received']),  # 包含部分入庫的項目
         OrderRegistration.warehouse_location_id.isnot(None) # Exclude items without a specified location
     ).order_by(
         OrderRegistration.required_date.asc(),

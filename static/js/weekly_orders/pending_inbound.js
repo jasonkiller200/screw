@@ -97,15 +97,15 @@ function openBatchInboundModal(selectedRows) {
         const itemId = row.dataset.itemId;
         const partNumber = row.cells[2].textContent.trim();
         const partName = row.cells[3].textContent.trim();
-        const requestedQuantity = parseInt(row.cells[4].textContent.trim());
+        const remainingQuantity = parseInt(row.cells[6].textContent.trim()); // 剩餘數量在第6欄（索引6）
 
         const newRow = `
             <tr data-item-id="${itemId}">
                 <td>${partNumber}</td>
                 <td>${partName}</td>
-                <td class="text-end">${requestedQuantity}</td>
+                <td class="text-end">${remainingQuantity}</td>
                 <td>
-                    <input type="number" class="form-control form-control-sm batch-inbound-qty" value="${requestedQuantity}" min="0" max="${requestedQuantity}">
+                    <input type="number" class="form-control form-control-sm batch-inbound-qty" value="${remainingQuantity}" min="0" max="${remainingQuantity}">
                 </td>
             </tr>
         `;

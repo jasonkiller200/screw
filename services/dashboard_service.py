@@ -78,9 +78,9 @@ class DashboardService:
             OrderRegistration.status == 'registered'
         ).scalar() or 0
 
-        # 2. 待入庫品項總量 (狀態為 approved 但未完全入庫且有指定儲位的項目筆數)
+        # 2. 待入庫品項總量 (狀態為 approved 或 partially_received 但未完全入庫且有指定儲位的項目筆數)
         pending_inbound_items = db.session.query(func.count(OrderRegistration.id)).filter(
-            OrderRegistration.status == 'approved',
+            OrderRegistration.status.in_(['approved', 'partially_received']),  # 包含部分入庫的項目
             OrderRegistration.quantity > OrderRegistration.quantity_received,
             OrderRegistration.warehouse_location_id.isnot(None)  # 排除未指定儲位的項目
         ).scalar() or 0
