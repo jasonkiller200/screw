@@ -140,6 +140,42 @@
 .model-selector {
     margin-bottom: 15px;
 }
+
+.mode-toggle {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.mode-btn {
+    flex: 1;
+    padding: 12px;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    font-weight: 500;
+}
+
+.mode-btn:hover {
+    border-color: #007bff;
+    background: #f8f9fa;
+}
+
+.mode-btn.active {
+    border-color: #007bff;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+.mode-btn i {
+    font-size: 1.5em;
+    display: block;
+    margin-bottom: 5px;
+}
 </style>
 {% endblock %}
 
@@ -148,10 +184,24 @@
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2><i class="fas fa-robot"></i> AI 資料庫查詢助手</h2>
+                <h2><i class="fas fa-robot"></i> AI 助手</h2>
                 <button id="refreshStatusBtn" class="btn btn-outline-primary">
                     <i class="fas fa-sync-alt"></i> 檢查連接狀態
                 </button>
+            </div>
+
+            <!-- 模式切換 -->
+            <div class="mode-toggle">
+                <div class="mode-btn active" id="chatModeBtn" onclick="switchMode('chat')">
+                    <i class="fas fa-comments"></i>
+                    <div>一般聊天</div>
+                    <small>與 AI 自由對話</small>
+                </div>
+                <div class="mode-btn" id="queryModeBtn" onclick="switchMode('query')">
+                    <i class="fas fa-database"></i>
+                    <div>資料庫查詢</div>
+                    <small>查詢庫存、零件、工單等資料</small>
+                </div>
             </div>
 
             <!-- 連接狀態 -->
@@ -198,12 +248,13 @@
 
             <!-- 聊天歷史 -->
             <div id="chatHistory" class="chat-history">
-                <div class="text-center text-muted">
+                <div class="text-center text-muted" id="welcomeMessage">
                     <i class="fas fa-comments fa-2x mb-3"></i>
-                    <p>歡迎使用AI資料庫查詢助手！<br>您可以用自然語言查詢庫存、零件、工單等資料。</p>
+                    <p id="welcomeTitle">歡迎使用 AI 助手！</p>
+                    <p id="welcomeDesc">您可以與 AI 自由對話，詢問任何問題。</p>
                     <p class="small">
-                        <i class="fas fa-brain"></i> <strong>新功能：對話記憶</strong><br>
-                        AI現在可以記住之前的對話，支援延續性問題！
+                        <i class="fas fa-brain"></i> <strong>對話記憶</strong><br>
+                        AI 可以記住之前的對話內容！
                     </p>
                 </div>
             </div>
@@ -213,23 +264,23 @@
                 <div class="row">
                     <div class="col-md-10">
                         <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-question-circle"></i></span>
+                            <span class="input-group-text"><i class="fas fa-question-circle" id="inputIcon"></i></span>
                             <input type="text" id="questionInput" class="form-control" 
-                                   placeholder="輸入您的問題，例如：有哪些零件庫存不足？" 
+                                   placeholder="輸入您的訊息..." 
                                    onkeypress="handleEnterKey(event)">
                         </div>
                     </div>
                     <div class="col-md-2">
                         <button id="queryBtn" class="btn btn-primary w-100" onclick="submitQuery()">
-                            <i class="fas fa-paper-plane"></i> 查詢
+                            <i class="fas fa-paper-plane"></i> <span id="btnText">發送</span>
                         </button>
                     </div>
                 </div>
                 <div class="row mt-2">
                     <div class="col-md-6">
-                        <small class="text-muted">
+                        <small class="text-muted" id="inputHint">
                             <i class="fas fa-info-circle"></i> 
-                            提示：您可以查詢零件庫存、工單需求、採購訂單、庫存異動等資訊
+                            提示：您可以詢問任何問題，AI 會盡力回答
                         </small>
                     </div>
                     <div class="col-md-6 text-end">
@@ -262,11 +313,48 @@
 <script>
 let chatHistory = [];
 let currentSessionId = null;
+let currentMode = 'chat'; // 'chat' 或 'query'
 
 // 生成新的會話ID
 function generateSessionId() {
     const timestamp = new Date().toISOString().replace(/[-:T]/g, '').split('.')[0];
     return `session_${timestamp}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// 切換模式
+function switchMode(mode) {
+    currentMode = mode;
+    
+    // 更新按鈕狀態
+    document.getElementById('chatModeBtn').classList.toggle('active', mode === 'chat');
+    document.getElementById('queryModeBtn').classList.toggle('active', mode === 'query');
+    
+    // 更新 UI 文字
+    const inputIcon = document.getElementById('inputIcon');
+    const questionInput = document.getElementById('questionInput');
+    const btnText = document.getElementById('btnText');
+    const inputHint = document.getElementById('inputHint');
+    const welcomeTitle = document.getElementById('welcomeTitle');
+    const welcomeDesc = document.getElementById('welcomeDesc');
+    
+    if (mode === 'chat') {
+        inputIcon.className = 'fas fa-comment';
+        questionInput.placeholder = '輸入您的訊息...';
+        btnText.textContent = '發送';
+        inputHint.innerHTML = '<i class="fas fa-info-circle"></i> 提示：您可以詢問任何問題，AI 會盡力回答';
+        welcomeTitle.textContent = '歡迎使用 AI 助手！';
+        welcomeDesc.textContent = '您可以與 AI 自由對話，詢問任何問題。';
+    } else {
+        inputIcon.className = 'fas fa-database';
+        questionInput.placeholder = '輸入您的問題，例如：有哪些零件庫存不足？';
+        btnText.textContent = '查詢';
+        inputHint.innerHTML = '<i class="fas fa-info-circle"></i> 提示：查詢零件庫存、工單需求、採購訂單、庫存異動等資訊';
+        welcomeTitle.textContent = '歡迎使用 AI 資料庫查詢助手！';
+        welcomeDesc.textContent = '您可以用自然語言查詢庫存、零件、工單等資料。';
+    }
+    
+    // 重新載入建議問題
+    loadSuggestedQuestions();
 }
 
 // 頁面載入時檢查狀態
@@ -276,6 +364,7 @@ document.addEventListener('DOMContentLoaded', function() {
     checkAIStatus();
     loadSuggestedQuestions();
     loadAvailableModels();
+    switchMode('chat'); // 預設為聊天模式
 });
 
 // 更新會話顯示
@@ -401,7 +490,7 @@ function updateStatusIndicator(status) {
 
 // 載入建議問題
 function loadSuggestedQuestions() {
-    fetch('/ai/suggestions')
+    fetch(`/ai/suggestions?mode=${currentMode}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -441,7 +530,7 @@ function submitQuery() {
     const question = questionInput.value.trim();
     
     if (!question) {
-        alert('請輸入查詢問題');
+        alert(currentMode === 'chat' ? '請輸入訊息' : '請輸入查詢問題');
         return;
     }
     
@@ -457,14 +546,18 @@ function submitQuery() {
     queryBtn.disabled = true;
     queryBtn.innerHTML = '<span class="loading-spinner"></span> 處理中...';
     
-    // 發送查詢請求
-    fetch('/ai/query', {
+    // 根據模式選擇不同的端點
+    const endpoint = currentMode === 'chat' ? '/ai/chat' : '/ai/query';
+    const bodyKey = currentMode === 'chat' ? 'message' : 'question';
+    
+    // 發送請求
+    fetch(endpoint, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-            question: question,
+            [bodyKey]: question,
             session_id: currentSessionId 
         })
     })
@@ -474,7 +567,13 @@ function submitQuery() {
         
         if (data.success) {
             // 添加AI回應到聊天歷史
-            addMessageToHistory('ai', data.answer, data.sql_query, data.result_count);
+            // 對於資料庫查詢模式，顯示 SQL 和結果數量
+            if (currentMode === 'query' && data.sql_query) {
+                addMessageToHistory('ai', data.answer, data.sql_query, data.result_count);
+            } else {
+                // 對於一般聊天模式，只顯示回答
+                addMessageToHistory('ai', data.answer || data.response);
+            }
         } else {
             // 添加錯誤消息
             addMessageToHistory('error', data.error);
@@ -482,12 +581,13 @@ function submitQuery() {
     })
     .catch(error => {
         loadingModal.hide();
-        addMessageToHistory('error', '查詢請求失敗: ' + error.message);
+        addMessageToHistory('error', '請求失敗: ' + error.message);
     })
     .finally(() => {
         // 重置查詢按鈕
         queryBtn.disabled = false;
-        queryBtn.innerHTML = '<i class="fas fa-paper-plane"></i> 查詢';
+        const btnText = document.getElementById('btnText');
+        queryBtn.innerHTML = `<i class="fas fa-paper-plane"></i> <span id="btnText">${currentMode === 'chat' ? '發送' : '查詢'}</span>`;
         
         // 清空輸入框
         questionInput.value = '';
@@ -608,7 +708,10 @@ document.getElementById('clearHistoryBtn').onclick = function() {
     this.disabled = true;
     this.innerHTML = '<span class="loading-spinner"></span> 清除中...';
     
-    fetch('/ai/conversation/clear', {
+    // 根據當前模式選擇不同的清除端點
+    const clearEndpoint = currentMode === 'chat' ? '/ai/chat/clear' : '/ai/conversation/clear';
+    
+    fetch(clearEndpoint, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -621,9 +724,14 @@ document.getElementById('clearHistoryBtn').onclick = function() {
             // 清除聊天歷史顯示
             const chatHistory = document.getElementById('chatHistory');
             chatHistory.innerHTML = `
-                <div class="text-center text-muted">
+                <div class="text-center text-muted" id="welcomeMessage">
                     <i class="fas fa-comments fa-2x mb-3"></i>
-                    <p>對話歷史已清除！<br>您可以開始新的對話。</p>
+                    <p id="welcomeTitle">${currentMode === 'chat' ? '歡迎使用 AI 助手！' : '歡迎使用 AI 資料庫查詢助手！'}</p>
+                    <p id="welcomeDesc">${currentMode === 'chat' ? '您可以與 AI 自由對話，詢問任何問題。' : '您可以用自然語言查詢庫存、零件、工單等資料。'}</p>
+                    <p class="small">
+                        <i class="fas fa-brain"></i> <strong>對話記憶</strong><br>
+                        AI 可以記住之前的對話內容！
+                    </p>
                 </div>
             `;
             

@@ -4,7 +4,6 @@ AI查詢控制器
 """
 
 from flask import Blueprint, request, jsonify, render_template
-from flask_login import login_required
 from services.ai_service import AIService
 from datetime import datetime
 import logging
@@ -15,8 +14,12 @@ ai_bp = Blueprint('ai', __name__, url_prefix='/ai')
 # 初始化AI服務
 ai_service = AIService()
 
+@ai_bp.route('/')
+def ai_chat_page():
+    """AI聊天頁面"""
+    return render_template('ai_chat.html')
+
 @ai_bp.route('/query', methods=['POST'])
-@login_required
 def ai_query():
     """處理AI查詢請求"""
     try:
@@ -50,7 +53,6 @@ def ai_query():
         }), 500
 
 @ai_bp.route('/status', methods=['GET'])
-@login_required
 def ai_status():
     """檢查AI服務狀態"""
     try:
@@ -64,11 +66,11 @@ def ai_status():
         }), 500
 
 @ai_bp.route('/suggestions', methods=['GET'])
-@login_required
 def ai_suggestions():
     """獲取建議的查詢問題"""
     try:
-        suggestions = ai_service.get_suggested_questions()
+        mode = request.args.get('mode', 'query')  # 預設為查詢模式
+        suggestions = ai_service.get_suggested_questions(mode)
         return jsonify({
             'success': True,
             'suggestions': suggestions
@@ -81,7 +83,6 @@ def ai_suggestions():
         }), 500
 
 @ai_bp.route('/models', methods=['GET'])
-@login_required
 def get_available_models():
     """獲取可用的AI模型列表"""
     try:
@@ -107,7 +108,6 @@ def get_available_models():
         }), 500
 
 @ai_bp.route('/set-model', methods=['POST'])
-@login_required
 def set_model():
     """設定使用的AI模型"""
     try:
@@ -144,7 +144,6 @@ def set_model():
         }), 500
 
 @ai_bp.route('/conversation/clear', methods=['POST'])
-@login_required
 def clear_conversation():
     """清除對話歷史"""
     try:
@@ -165,7 +164,6 @@ def clear_conversation():
         }), 500
 
 @ai_bp.route('/conversation/summary/<session_id>', methods=['GET'])
-@login_required
 def get_conversation_summary(session_id):
     """獲取對話摘要"""
     try:
@@ -182,7 +180,6 @@ def get_conversation_summary(session_id):
         }), 500
 
 @ai_bp.route('/conversation/history/<session_id>', methods=['GET'])
-@login_required
 def get_conversation_history(session_id):
     """獲取完整對話歷史"""
     try:
@@ -192,6 +189,70 @@ def get_conversation_history(session_id):
             'session_id': session_id,
             'history': history
         })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@ai_bp.route('/chat', methods=['POST'])
+def ai_chat():
+    """處理一般AI聊天請求"""
+    try:
+        data = request.get_json()
+        if not data or 'message' not in data:
+            return jsonify({
+                'success': False,
+                'error': '請提供訊息內容'
+            }), 400
+        
+        user_message = data['message'].strip()
+        if not user_message:
+            return jsonify({
+                'success': False,
+                'error': '訊息內容不能為空'
+            }), 400
+        
+        # 獲取會話ID和系統上下文
+        session_id = data.get('session_id', f'chat_{datetime.now().strftime("%Y%m%d_%H%M%S")}')
+        system_context = data.get('system_context')
+        
+        # 執行AI聊天
+        result = ai_service.chat(user_message, session_id, system_context)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logging.error(f"AI聊天錯誤: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'聊天處理失敗: {str(e)}'
+        }), 500
+
+@ai_bp.route('/chat/history/<session_id>', methods=['GET'])
+def get_chat_history(session_id):
+    """獲取聊天歷史記錄"""
+    try:
+        limit = request.args.get('limit', default=20, type=int)
+        result = ai_service.get_chat_history(session_id, limit)
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@ai_bp.route('/chat/clear', methods=['POST'])
+def clear_chat_history():
+    """清除聊天歷史記錄"""
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id') if data else None
+        
+        result = ai_service.clear_chat_history(session_id)
+        return jsonify(result)
         
     except Exception as e:
         return jsonify({

@@ -9,6 +9,7 @@ import sqlite3
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import os
+from ollama import Message
 from models.part import Part, Warehouse, WarehouseLocation, PartWarehouseLocation
 from models.inventory import CurrentInventory, InventoryTransaction
 from models.work_order import WorkOrderDemand
@@ -20,6 +21,9 @@ class AIService:
         self.model_name = "llama3.1:8b"  # 預設模型，可以配置
         self.db_path = "instance/hardware.db"  # 正確的資料庫路徑
         self.conversation_history = {}  # 存儲對話歷史，按會話ID分組
+
+        # 配置 Ollama服務的遠端地址
+        os.environ['OLLAMA_HOST'] = 'http://192.168.24.57:11434'
         
     def _get_schema_info(self) -> str:
         """獲取資料庫結構資訊"""
@@ -30,12 +34,14 @@ class AIService:
            - id: 零件ID
            - part_number: 零件編號 
            - name: 零件名稱
+           - type: 類型
            - description: 描述
            - unit: 單位
            - quantity_per_box: 每盒數量
            - lead_time: 採購前置期
            - standard_cost: 標準成本
            - is_active: 是否啟用
+           - created_at: 建立時間
            
         2. warehouses (倉庫表)
            - id: 倉庫ID
@@ -43,6 +49,7 @@ class AIService:
            - name: 倉庫名稱
            - description: 描述
            - is_active: 是否啟用
+           - created_at: 建立時間
            
         3. warehouse_locations (倉位表)
            - id: 倉位ID
@@ -75,6 +82,7 @@ class AIService:
            - reference_id: 參考ID
            - notes: 備註
            - created_by: 建立者
+           - user_id: 操作人員ID
            - created_at: 建立時間
            
         6. work_order_demand (工單需求表)
@@ -87,6 +95,7 @@ class AIService:
            - parent_material_description: 上層物料說明
            - required_date: 需求日期
            - bulk_material: 散裝物料
+           - created_at: 建立時間
            
         7. order_history (訂單表)
            - id: 訂單ID
@@ -97,9 +106,12 @@ class AIService:
            - unit_cost: 單位成本
            - status: 狀態 (pending, confirmed等)
            - supplier: 供應商
+           - warehouse_location_id: 倉位ID
            - expected_date: 預期到貨日期
+           - received_date: 收貨日期
            - order_date: 訂單日期
            - notes: 備註
+           - created_at: 建立時間
         """
         return schema_info
         
@@ -143,15 +155,15 @@ class AIService:
         """
         
         # 構建包含歷史的對話訊息
-        messages = [{'role': 'system', 'content': system_prompt}]
+        messages: List[Message] = [Message(role='system', content=system_prompt)]
         
         # 添加最近的對話歷史（最多5輪）
         for item in conversation_history[-5:]:
-            messages.append({'role': 'user', 'content': item['question']})
-            messages.append({'role': 'assistant', 'content': f"SQL: {item['sql_query']}"})
+            messages.append(Message(role='user', content=item['question']))
+            messages.append(Message(role='assistant', content=f"SQL: {item['sql_query']}"))
         
         # 添加當前問題
-        messages.append({'role': 'user', 'content': user_question})
+        messages.append(Message(role='user', content=user_question))
         
         try:
             response = ollama.chat(
@@ -159,7 +171,7 @@ class AIService:
                 messages=messages
             )
             
-            sql_query = response['message']['content'].strip()
+            sql_query = (response['message']['content'] or '').strip()
             
             # 清理SQL查詢，移除可能的格式化字符
             if sql_query.startswith('```sql'):
@@ -233,19 +245,21 @@ class AIService:
         system_prompt = """
         你是一個專業的資料分析助手。根據用戶的問題和查詢結果，提供清晰、有用的回答。
         
-        請用繁體中文回答，格式要清晰易讀。如果數據很多，請總結重點。
-        可以包含具體的數字和重要信息。
-        
-        如果用戶的問題是延續之前的對話，請考慮上下文來提供更相關的回答。
+        重要規則：
+        1. 所有回答都必須完全使用繁體中文，包括欄位名稱和標籤。
+        2. 例如，將 'Part Number' 翻譯為 '零件編號'，'total inventory' 翻譯為 '總庫存'。
+        3. 回答格式要清晰易讀。如果數據很多，請總結重點。
+        4. 可以包含具體的數字和重要信息。
+        5. 如果用戶的問題是延續之前的對話，請考慮上下文來提供更相關的回答。
         """
         
         # 構建包含歷史的對話訊息
-        messages = [{'role': 'system', 'content': system_prompt}]
+        messages: List[Message] = [Message(role='system', content=system_prompt)]
         
         # 添加最近的對話歷史（最多3輪）
         for item in conversation_history[-3:]:
-            messages.append({'role': 'user', 'content': item['question']})
-            messages.append({'role': 'assistant', 'content': item['answer'][:200] + "..."})  # 截短歷史回答
+            messages.append(Message(role='user', content=item['question']))
+            messages.append(Message(role='assistant', content=item['answer'][:200] + "..."))  # 截短歷史回答
         
         # 添加當前查詢上下文
         user_prompt = f"""
@@ -258,7 +272,7 @@ class AIService:
         請根據以上信息提供清晰的回答。
         """
         
-        messages.append({'role': 'user', 'content': user_prompt})
+        messages.append(Message(role='user', content=user_prompt))
         
         try:
             response = ollama.chat(
@@ -266,7 +280,10 @@ class AIService:
                 messages=messages
             )
             
-            return response['message']['content']
+            content = response['message']['content']
+            if content is None:
+                return ''
+            return content
             
         except Exception as e:
             # 如果AI格式化失敗，返回基本的結果摘要
@@ -277,8 +294,11 @@ class AIService:
         system_prompt = """
         你是一個專業的資料分析助手。根據用戶的問題和查詢結果，提供清晰、有用的回答。
         
-        請用繁體中文回答，格式要清晰易讀。如果數據很多，請總結重點。
-        可以包含具體的數字和重要信息。
+        重要規則：
+        1. 所有回答都必須完全使用繁體中文，包括欄位名稱和標籤。
+        2. 例如，將 'Part Number' 翻譯為 '零件編號'，'total inventory' 翻譯為 '總庫存'。
+        3. 回答格式要清晰易讀。如果數據很多，請總結重點。
+        4. 可以包含具體的數字和重要信息。
         """
         
         user_prompt = f"""
@@ -295,12 +315,15 @@ class AIService:
             response = ollama.chat(
                 model=self.model_name,
                 messages=[
-                    {'role': 'system', 'content': system_prompt},
-                    {'role': 'user', 'content': user_prompt}
+                    Message(role='system', content=system_prompt),
+                    Message(role='user', content=user_prompt)
                 ]
             )
             
-            return response['message']['content']
+            content = response['message']['content']
+            if content is None:
+                return ''
+            return content
             
         except Exception as e:
             # 如果AI格式化失敗，返回基本的結果摘要
@@ -440,19 +463,195 @@ class AIService:
                 'session_id': session_id
             }
     
-    def get_suggested_questions(self) -> List[str]:
-        """獲取建議的查詢問題"""
-        return [
-            "目前有哪些零件庫存不足？",
-            "最近一週有哪些入庫記錄？",
-            "最近三天有哪些出庫記錄？",
-            "工單需求量最高的前10個零件是什麼？",
-            "哪些零件還沒有設定儲存位置？",
-            "目前有多少待處理的採購訂單？",
-            "庫存價值最高的前10個零件是什麼？",
-            "最近的庫存異動記錄有哪些？",
-            "哪些倉庫的零件種類最多？",
-            "即將到期的採購訂單有哪些？",
-            "工單需求但零件庫沒有的零件有哪些？",
-            "今天有哪些庫存交易？"
-        ]
+    def get_suggested_questions(self, mode: str = "query") -> List[str]:
+        """
+        獲取建議的查詢問題
+        
+        Args:
+            mode: 模式，'query' 為資料庫查詢，'chat' 為一般聊天
+        """
+        if mode == "chat":
+            return [
+                "你好，請介紹一下你自己",
+                "你能幫我做什麼？",
+                "請解釋什麼是庫存管理系統",
+                "如何有效管理零件庫存？",
+                "什麼是安全庫存？",
+                "ERP 系統的主要功能有哪些？",
+                "庫存盤點的最佳實踐是什麼？",
+                "如何降低庫存成本？"
+            ]
+        else:  # query mode
+            return [
+                "顯示所有零件的庫存數量",
+                "哪些零件的可用數量小於10？",
+                "查詢最近7天的入庫記錄",
+                "顯示所有倉庫的名稱和代碼",
+                "零件編號包含'SCR'的有哪些？",
+                "查詢所有工單需求資料",
+                "哪些零件有設定安全庫存？",
+                "顯示今天的所有庫存交易",
+                "查詢採購入庫的交易記錄",
+                "列出所有倉位的位置代碼",
+                "哪些零件的名稱包含'螺絲'？",
+                "顯示庫存數量前10的零件"
+            ]
+    
+    def chat(self, user_message: str, session_id: str = "default", system_context: Optional[str] = None) -> Dict[str, Any]:
+        """
+        一般AI聊天功能
+        
+        Args:
+            user_message: 用戶的訊息
+            session_id: 會話ID，用於維持對話上下文
+            system_context: 可選的系統上下文，用於設定AI的角色和行為
+        
+        Returns:
+            包含AI回應的字典
+        """
+        try:
+            # 檢查Ollama連接
+            connection_status = self.check_ollama_connection()
+            if not connection_status['success']:
+                return {
+                    'success': False,
+                    'error': connection_status['message'],
+                    'details': connection_status
+                }
+            
+            if not connection_status['model_available']:
+                return {
+                    'success': False,
+                    'error': f'模型 {self.model_name} 不可用',
+                    'details': f'可用模型: {", ".join(connection_status["available_models"])}'
+                }
+            
+            # 設定系統提示
+            if system_context is None:
+                system_context = """
+                你是一個專業且友善的AI助手，專門協助硬體零件庫存管理系統的用戶。
+                
+                你的特點：
+                1. 使用繁體中文回答
+                2. 回答要清晰、準確、有幫助
+                3. 對於專業問題，可以提供詳細的解釋
+                4. 保持友善和專業的態度
+                5. 如果不確定答案，會誠實告知
+                
+                你可以協助用戶：
+                - 解答有關庫存管理的問題
+                - 提供系統使用建議
+                - 解釋庫存管理的概念和最佳實踐
+                - 進行一般的對話和交流
+                """
+            
+            # 構建對話訊息
+            messages: List[Message] = [Message(role='system', content=system_context)]
+            
+            # 添加對話歷史（最多10輪）
+            chat_history_key = f"chat_{session_id}"
+            if chat_history_key not in self.conversation_history:
+                self.conversation_history[chat_history_key] = []
+            
+            for item in self.conversation_history[chat_history_key][-10:]:
+                messages.append(Message(role='user', content=item['user_message']))
+                messages.append(Message(role='assistant', content=item['ai_response']))
+            
+            # 添加當前用戶訊息
+            messages.append(Message(role='user', content=user_message))
+            
+            # 調用Ollama生成回應
+            response = ollama.chat(
+                model=self.model_name,
+                messages=messages
+            )
+            
+            ai_response = response['message']['content']
+            if ai_response is None:
+                ai_response = ''
+            
+            # 更新對話歷史
+            self.conversation_history[chat_history_key].append({
+                'timestamp': datetime.now().isoformat(),
+                'user_message': user_message,
+                'ai_response': ai_response
+            })
+            
+            # 保持歷史記錄不超過20輪對話
+            if len(self.conversation_history[chat_history_key]) > 20:
+                self.conversation_history[chat_history_key] = self.conversation_history[chat_history_key][-20:]
+            
+            return {
+                'success': True,
+                'response': ai_response,
+                'session_id': session_id,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'聊天功能發生錯誤: {str(e)}',
+                'user_message': user_message,
+                'session_id': session_id
+            }
+    
+    def get_chat_history(self, session_id: str = "default", limit: int = 20) -> Dict[str, Any]:
+        """
+        獲取聊天歷史記錄
+        
+        Args:
+            session_id: 會話ID
+            limit: 返回的最大記錄數
+        
+        Returns:
+            包含聊天歷史的字典
+        """
+        chat_history_key = f"chat_{session_id}"
+        history = self.conversation_history.get(chat_history_key, [])
+        
+        return {
+            'success': True,
+            'session_id': session_id,
+            'total_messages': len(history),
+            'history': history[-limit:] if limit else history
+        }
+    
+    def clear_chat_history(self, session_id: str = "default") -> Dict[str, Any]:
+        """
+        清除聊天歷史記錄
+        
+        Args:
+            session_id: 會話ID，如果為None則清除所有聊天歷史
+        
+        Returns:
+            操作結果
+        """
+        try:
+            if session_id:
+                chat_history_key = f"chat_{session_id}"
+                if chat_history_key in self.conversation_history:
+                    del self.conversation_history[chat_history_key]
+                    return {
+                        'success': True,
+                        'message': f'已清除會話 {session_id} 的聊天歷史'
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'message': f'會話 {session_id} 不存在'
+                    }
+            else:
+                # 清除所有聊天歷史
+                chat_keys = [k for k in self.conversation_history.keys() if k.startswith('chat_')]
+                for key in chat_keys:
+                    del self.conversation_history[key]
+                return {
+                    'success': True,
+                    'message': f'已清除所有聊天歷史（共 {len(chat_keys)} 個會話）'
+                }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'清除聊天歷史失敗: {str(e)}'
+            }
