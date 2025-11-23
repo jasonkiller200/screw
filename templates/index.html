@@ -10,32 +10,67 @@
         flex-direction: column;
         justify-content: space-between;
     }
+
     .card-metric .card-body {
         flex-grow: 1;
     }
+
     .card-metric .metric-value {
         font-size: 2.5rem;
         font-weight: bold;
     }
+
     .card-metric .metric-label {
         font-size: 1rem;
         color: #6c757d;
     }
+
     .trend-up {
         color: #28a745;
     }
+
     .trend-down {
         color: #dc3545;
     }
+
     .trend-neutral {
         color: #6c757d;
     }
+
     .trend-icon {
         margin-left: 5px;
     }
+
     .btn-group .btn {
         font-size: 0.8rem;
         padding: 0.25rem 0.5rem;
+    }
+
+    /* 分類明細樣式 */
+    .breakdown-list {
+        font-size: 0.85rem;
+    }
+
+    .breakdown-item {
+        margin-bottom: 0.6rem;
+    }
+
+    .breakdown-label {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.25rem;
+    }
+
+    .breakdown-bar {
+        height: 6px;
+        background-color: #e9ecef;
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .breakdown-bar-fill {
+        height: 100%;
+        transition: width 0.3s ease;
     }
 </style>
 {% endblock %}
@@ -47,7 +82,34 @@
         <p class="text-muted">一覽系統關鍵數據與庫存狀況。</p>
     </div>
 </div>
+<!-- 全局時間範圍選擇器 -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-calendar-alt me-2 text-primary"></i>
+                        <span class="fw-bold">時間範圍：</span>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group" id="timeRangeSelector">
+                        <input type="radio" class="btn-check" name="timeRange" id="timeRangeToday" value="today">
+                        <label class="btn btn-outline-primary" for="timeRangeToday">今日</label>
 
+                        <input type="radio" class="btn-check" name="timeRange" id="timeRangeWeek" value="week" checked>
+                        <label class="btn btn-outline-primary" for="timeRangeWeek">本週</label>
+
+                        <input type="radio" class="btn-check" name="timeRange" id="timeRangeMonth" value="month">
+                        <label class="btn btn-outline-primary" for="timeRangeMonth">本月</label>
+
+                        <input type="radio" class="btn-check" name="timeRange" id="timeRangeQuarter" value="quarter">
+                        <label class="btn btn-outline-primary" for="timeRangeQuarter">本季</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- 頂部關鍵指標區 -->
 <div class="row mb-4">
     <!-- 總庫存狀況 -->
@@ -68,17 +130,19 @@
         </div>
     </div>
 
-    <!-- 本週出庫 -->
+    <!-- 本週出庫明細 -->
     <div class="col-md-6 col-lg-3 mb-3">
-        <div class="card card-metric text-center">
+        <div class="card card-metric">
             <div class="card-body">
-                <i class="fas fa-truck-loading fa-2x text-danger mb-2"></i>
-                <div id="kpi-weekly-out" class="metric-value">...</div>
-                <div class="metric-label">本週出庫數</div>
-                <div id="kpi-weekly-out-trend" class="small mt-2">
-                    <span>...</span>
-                    <i class="fas"></i>
-                    <span class="text-muted ms-1">vs 上週</span>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0"><i class="fas fa-truck-loading me-2 text-danger"></i>本週出庫</h6>
+                    <span id="kpi-weekly-out-trend" class="badge"></span>
+                </div>
+                <div id="kpi-weekly-out" class="metric-value mb-3">...</div>
+
+                <!-- 分類明細 -->
+                <div id="outbound-breakdown" class="breakdown-list">
+                    <!-- 動態生成 -->
                 </div>
             </div>
             <div class="card-footer text-muted small">
@@ -86,18 +150,19 @@
             </div>
         </div>
     </div>
-
-    <!-- 本週入庫 -->
+    <!-- 本週入庫明細 -->
     <div class="col-md-6 col-lg-3 mb-3">
-        <div class="card card-metric text-center">
+        <div class="card card-metric">
             <div class="card-body">
-                <i class="fas fa-dolly-flatbed fa-2x text-success mb-2"></i>
-                <div id="kpi-weekly-in" class="metric-value">...</div>
-                <div class="metric-label">本週入庫數</div>
-                <div id="kpi-weekly-in-trend" class="small mt-2">
-                    <span>...</span>
-                    <i class="fas"></i>
-                    <span class="text-muted ms-1">vs 上週</span>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0"><i class="fas fa-dolly-flatbed me-2 text-success"></i>本週入庫</h6>
+                    <span id="kpi-weekly-in-trend" class="badge"></span>
+                </div>
+                <div id="kpi-weekly-in" class="metric-value mb-3">...</div>
+
+                <!-- 分類明細 -->
+                <div id="inbound-breakdown" class="breakdown-list">
+                    <!-- 動態生成 -->
                 </div>
             </div>
             <div class="card-footer text-muted small">
@@ -131,12 +196,15 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 id="chart-title" class="mb-0"><i class="fas fa-chart-line me-2"></i>綜合趨勢圖</h5>
                 <div class="btn-group" role="group" aria-label="時間範圍">
-                    <button type="button" class="btn btn-outline-secondary timespan-btn active" data-timespan="daily">日</button>
-                    <button type="button" class="btn btn-outline-secondary timespan-btn" data-timespan="weekly">週</button>
-                    <button type="button" class="btn btn-outline-secondary timespan-btn" data-timespan="monthly">月</button>
+                    <button type="button" class="btn btn-outline-secondary timespan-btn active"
+                        data-timespan="daily">日</button>
+                    <button type="button" class="btn btn-outline-secondary timespan-btn"
+                        data-timespan="weekly">週</button>
+                    <button type="button" class="btn btn-outline-secondary timespan-btn"
+                        data-timespan="monthly">月</button>
                 </div>
             </div>
-            <div class="card-body">
+            <div class="card-body" style="height: 400px;">
                 <canvas id="trendChart"></canvas>
             </div>
         </div>
@@ -189,10 +257,8 @@
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                         <div>
                             庫存周轉率 (月)
-                            <i class="fas fa-info-circle text-muted ms-1" 
-                               data-bs-toggle="tooltip" 
-                               data-bs-placement="top" 
-                               title="計算公式：(本月出庫總量 ÷ 當前總庫存) × 100%"></i>
+                            <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip"
+                                data-bs-placement="top" title="計算公式：(本月出庫總量 ÷ 當前總庫存) × 100%"></i>
                         </div>
                         <span id="stat-turnover" class="badge bg-info rounded-pill">...</span>
                     </li>
@@ -207,14 +273,16 @@
             <div class="card-body">
                 <ul class="list-group list-group-flush">
                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <a href="{{ url_for('weekly_order.weekly_orders') }}" class="text-decoration-none text-dark d-flex align-items-center">
+                        <a href="{{ url_for('weekly_order.weekly_orders') }}"
+                            class="text-decoration-none text-dark d-flex align-items-center">
                             待審查週期訂單
                             <i class="fas fa-external-link-alt text-muted ms-2 small"></i>
                         </a>
                         <span id="todo-pending-reviews" class="badge bg-warning rounded-pill">...</span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <a href="{{ url_for('weekly_order.pending_inbound_orders') }}" class="text-decoration-none text-dark d-flex align-items-center">
+                        <a href="{{ url_for('weekly_order.pending_inbound_orders') }}"
+                            class="text-decoration-none text-dark d-flex align-items-center">
                             待入庫品項總量
                             <i class="fas fa-external-link-alt text-muted ms-2 small"></i>
                         </a>

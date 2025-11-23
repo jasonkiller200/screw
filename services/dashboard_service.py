@@ -4,17 +4,36 @@ from models.inventory import CurrentInventory, InventoryTransaction
 from models.part import Part, PartWarehouseLocation, WarehouseLocation, Warehouse
 from models.weekly_order import WeeklyOrderCycle, OrderRegistration
 from extensions import db
-from sqlalchemy import func, case, extract
+from sqlalchemy import func, case, extract, or_
 from datetime import datetime, timedelta, date
 from collections import defaultdict
 import pandas as pd
 
+# 交易類型配置
+TRANSACTION_TYPE_CONFIG = {
+    'inbound': {
+        'INBOUND': {'label': '週期訂單', 'color': '#007bff'},
+        'IN_TRANSFER': {'label': '調撥入庫', 'color': '#17a2b8'},
+        'IN_RETURN': {'label': '退貨入庫', 'color': '#6c757d'}
+    },
+    'outbound': {
+        'OUT_WORK_ORDER': {'label': '工單領用', 'color': '#dc3545'},
+        'OUT_TRANSFER': {'label': '調撥出庫', 'color': '#fd7e14'},
+        'OUT_AFTER_SALES': {'label': '售後服務', 'color': '#ffc107'},
+        'OUT_SCRAP': {'label': '報廢', 'color': '#6c757d'}
+    }
+}
+
 class DashboardService:
-    def get_dashboard_data(self, timespan='daily'):
+    def get_dashboard_data(self, timespan='daily', time_range='week'):
         """
-        主方法，協調所有數據的獲取與計算。
+        主方法，協調所有數據的獲取與計算
+        
+        Args:
+            timespan: 趨勢圖的時間粒度 ('daily', 'weekly', 'monthly')
+            time_range: KPI 的時間範圍 ('today', 'week', 'month', 'quarter')
         """
-        kpi_data = self._get_kpi_data()
+        kpi_data = self._get_kpi_data(time_range=time_range)
         trend_data = self._get_trend_data(timespan)
         top_items = self._get_top_checkout_items()
         stock_alerts = self._get_stock_alerts()
@@ -23,11 +42,17 @@ class DashboardService:
             "kpi": kpi_data,
             "trend_chart": trend_data,
             "top_checkout_items": top_items,
-            "stock_alerts": stock_alerts
+            "stock_alerts": stock_alerts,
+            "time_range": time_range  # 回傳當前時間範圍
         }
 
-    def _get_kpi_data(self):
-        """計算所有頂部 KPI 卡片的數據。"""
+    def _get_kpi_data(self, time_range='week'):
+        """
+        計算所有頂部 KPI 卡片的數據
+        
+        Args:
+            time_range: 時間範圍 ('today', 'week', 'month', 'quarter')
+        """
         
         stock_status_query = db.session.query(
             func.count(func.distinct(PartWarehouseLocation.part_id)).label('parts_with_location_count'),
@@ -45,12 +70,14 @@ class DashboardService:
             func.count(case(((CurrentInventory.available_quantity > 0) & (CurrentInventory.reorder_point > 0) & (CurrentInventory.available_quantity <= CurrentInventory.reorder_point), 1))).label('low_stock_count')
         ).first()
 
+        # 使用新的時間範圍計算方法
         today = date.today()
-        start_of_this_week = today - timedelta(days=today.weekday())
+        start_date, end_date = self._calculate_time_range(time_range, today)
         
-        start_of_last_week = start_of_this_week - timedelta(days=7)
-        end_of_last_week = start_of_this_week - timedelta(days=1)
+        # 計算上一個時間段（用於趨勢比較）
+        prev_start, prev_end = self._calculate_previous_period(time_range, start_date)
 
+        # 保留舊的 get_weekly_turnover 函數用於計算上一期數據
         def get_weekly_turnover(start_date, end_date):
             turnover = db.session.query(
                 func.sum(case((InventoryTransaction.transaction_type.like('IN_%'), InventoryTransaction.quantity), else_=0)).label('total_in'),
@@ -61,16 +88,25 @@ class DashboardService:
             ).first()
             return turnover.total_in or 0, turnover.total_out or 0
 
-        this_week_in, this_week_out = get_weekly_turnover(start_of_this_week, today)
-        last_week_in, last_week_out = get_weekly_turnover(start_of_last_week, end_of_last_week)
+        # 獲取上一期數據（用於趨勢計算）
+        prev_in, prev_out = get_weekly_turnover(prev_start, prev_end)
 
         def calculate_trend(current, previous):
             if previous == 0:
                 return 100 if current > 0 else 0
             return round(((current - previous) / previous) * 100, 2)
 
-        inbound_trend = calculate_trend(this_week_in, last_week_in)
-        outbound_trend = calculate_trend(this_week_out, last_week_out)
+        # 獲取當前時間範圍的入庫和出庫分類統計
+        inbound_breakdown, current_in_total = self._get_transaction_breakdown(
+            start_date, end_date, 'inbound'
+        )
+        outbound_breakdown, current_out_total = self._get_transaction_breakdown(
+            start_date, end_date, 'outbound'
+        )
+
+        # 計算趨勢（使用新的總計值與上一期比較）
+        inbound_trend = calculate_trend(current_in_total, prev_in)
+        outbound_trend = calculate_trend(current_out_total, prev_out)
 
         # 計算待辦事項統計
         # 1. 待審查週期訂單 (狀態為 registered 的申請項目)
@@ -78,9 +114,9 @@ class DashboardService:
             OrderRegistration.status == 'registered'
         ).scalar() or 0
 
-        # 2. 待入庫品項總量 (狀態為 approved 但未完全入庫且有指定儲位的項目筆數)
+        # 2. 待入庫品項總量 (狀態為 approved 或 partially_received 但未完全入庫且有指定儲位的項目筆數)
         pending_inbound_items = db.session.query(func.count(OrderRegistration.id)).filter(
-            OrderRegistration.status == 'approved',
+            OrderRegistration.status.in_(['approved', 'partially_received']),  # 包含部分入庫的項目
             OrderRegistration.quantity > OrderRegistration.quantity_received,
             OrderRegistration.warehouse_location_id.isnot(None)  # 排除未指定儲位的項目
         ).scalar() or 0
@@ -112,17 +148,148 @@ class DashboardService:
             'low_stock_count': alert_status.low_stock_count or 0,
             'out_of_stock_count': alert_status.out_of_stock_count or 0,
             'weekly_stock_in': {
-                'value': int(this_week_in),
-                'trend': inbound_trend
+                'total': current_in_total,
+                'trend': inbound_trend,
+                'breakdown': inbound_breakdown
             },
             'weekly_stock_out': {
-                'value': int(this_week_out),
-                'trend': outbound_trend
+                'total': current_out_total,
+                'trend': outbound_trend,
+                'breakdown': outbound_breakdown
             },
             'pending_reviews': pending_reviews,
             'pending_inbound_items': pending_inbound_items,
             'monthly_turnover_rate': monthly_turnover_rate
         }
+
+    def _get_transaction_breakdown(self, start_date, end_date, direction='inbound'):
+        """
+        獲取指定時間範圍內的交易分類統計
+        
+        Args:
+            start_date: 開始日期
+            end_date: 結束日期
+            direction: 'inbound' 或 'outbound'
+        
+        Returns:
+            tuple: (breakdown_list, total_quantity)
+        """
+        if direction == 'inbound':
+            # 入庫類型統計 - 包含 INBOUND 和 IN_* 類型
+            type_filter = or_(
+                InventoryTransaction.transaction_type == 'INBOUND',
+                InventoryTransaction.transaction_type.like('IN_%')
+            )
+            config = TRANSACTION_TYPE_CONFIG['inbound']
+        else:
+            # 出庫類型統計 - OUT_* 類型
+            type_filter = InventoryTransaction.transaction_type.like('OUT_%')
+            config = TRANSACTION_TYPE_CONFIG['outbound']
+        
+        # 查詢各類型數量
+        results = db.session.query(
+            InventoryTransaction.transaction_type,
+            func.sum(func.abs(InventoryTransaction.quantity)).label('quantity')
+        ).filter(
+            type_filter,
+            InventoryTransaction.transaction_date >= start_date,
+            InventoryTransaction.transaction_date < (end_date + timedelta(days=1))
+        ).group_by(InventoryTransaction.transaction_type).all()
+        
+        # 計算總量
+        total = sum(r.quantity for r in results if r.quantity)
+        
+        # 格式化結果
+        breakdown = []
+        for trans_type, quantity in results:
+            if trans_type in config and quantity:
+                percentage = round((quantity / total * 100), 1) if total > 0 else 0
+                breakdown.append({
+                    'type': trans_type,
+                    'label': config[trans_type]['label'],
+                    'quantity': int(quantity),
+                    'percentage': percentage,
+                    'color': config[trans_type]['color']
+                })
+        
+        # 按數量排序（由大到小）
+        breakdown.sort(key=lambda x: x['quantity'], reverse=True)
+        
+        return breakdown, int(total) if total else 0
+
+    def _calculate_time_range(self, time_range, reference_date):
+        """
+        計算時間範圍的開始和結束日期
+        
+        Args:
+            time_range: 'today', 'week', 'month', 'quarter'
+            reference_date: 參考日期（通常是今天）
+        
+        Returns:
+            tuple: (start_date, end_date)
+        """
+        if time_range == 'today':
+            return reference_date, reference_date
+        
+        elif time_range == 'week':
+            start_of_week = reference_date - timedelta(days=reference_date.weekday())
+            return start_of_week, reference_date
+        
+        elif time_range == 'month':
+            start_of_month = reference_date.replace(day=1)
+            return start_of_month, reference_date
+        
+        elif time_range == 'quarter':
+            quarter_month = ((reference_date.month - 1) // 3) * 3 + 1
+            start_of_quarter = reference_date.replace(month=quarter_month, day=1)
+            return start_of_quarter, reference_date
+        
+        else:
+            # 預設為本週
+            start_of_week = reference_date - timedelta(days=reference_date.weekday())
+            return start_of_week, reference_date
+
+    def _calculate_previous_period(self, time_range, current_start):
+        """
+        計算上一個時間段（用於趨勢比較）
+        
+        Args:
+            time_range: 時間範圍類型
+            current_start: 當前時間段的開始日期
+        
+        Returns:
+            tuple: (prev_start, prev_end)
+        """
+        if time_range == 'today':
+            # 上一天
+            prev_start = current_start - timedelta(days=1)
+            prev_end = prev_start
+        
+        elif time_range == 'week':
+            # 上週
+            prev_start = current_start - timedelta(days=7)
+            prev_end = current_start - timedelta(days=1)
+        
+        elif time_range == 'month':
+            # 上個月
+            if current_start.month == 1:
+                prev_start = current_start.replace(year=current_start.year - 1, month=12, day=1)
+            else:
+                prev_start = current_start.replace(month=current_start.month - 1, day=1)
+            prev_end = current_start - timedelta(days=1)
+        
+        elif time_range == 'quarter':
+            # 上一季（簡化計算：往前推 90 天）
+            prev_start = current_start - timedelta(days=90)
+            prev_end = current_start - timedelta(days=1)
+        
+        else:
+            # 預設為上週
+            prev_start = current_start - timedelta(days=7)
+            prev_end = current_start - timedelta(days=1)
+        
+        return prev_start, prev_end
+
 
     def _get_trend_data(self, timespan):
         """

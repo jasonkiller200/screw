@@ -27,10 +27,11 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="part_number" class="form-label">零件編號 <span class="text-danger">*</span></label>
+                                <label for="part_number" class="form-label">零件編號 <span
+                                        class="text-danger">*</span></label>
                                 <div class="input-group">
-                                    <input type="text" class="form-control" id="part_number" name="part_number" 
-                                           placeholder="輸入或掃描零件編號" required>
+                                    <input type="text" class="form-control" id="part_number" name="part_number"
+                                        placeholder="輸入或掃描零件編號" required>
                                     <button class="btn btn-outline-secondary" type="button" onclick="openPartSelect()">
                                         <i class="fas fa-search"></i>
                                     </button>
@@ -41,42 +42,44 @@
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="warehouse_location_id" class="form-label">目標儲位 <span class="text-danger">*</span></label>
-                                <select class="form-select" id="warehouse_location_id" name="warehouse_location_id" required>
+                                <label for="warehouse_location_id" class="form-label">目標儲位 <span
+                                        class="text-danger">*</span></label>
+                                <select class="form-select" id="warehouse_location_id" name="warehouse_location_id"
+                                    required>
                                     <option value="">選擇儲位</option>
                                 </select>
                                 <small class="form-text text-muted">格式：倉庫名稱 - 儲位代碼</small>
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="quantity" class="form-label">入庫數量 <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="quantity" name="quantity" 
-                                       min="1" placeholder="輸入數量" required>
+                                <input type="number" class="form-control" id="quantity" name="quantity" min="1"
+                                    placeholder="輸入數量" required>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="transaction_type" class="form-label">入庫類型 <span class="text-danger">*</span></label>
+                                <label for="transaction_type" class="form-label">入庫類型 <span
+                                        class="text-danger">*</span></label>
                                 <select class="form-select" id="transaction_type" name="transaction_type" required>
                                     <option value="">選擇入庫類型</option>
-                                    <option value="IN_PURCHASE">採購入庫</option>
                                     <option value="IN_TRANSFER">倉庫轉入</option>
                                     <option value="IN_RETURN">退料入庫</option>
                                 </select>
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="notes" class="form-label">備註</label>
-                        <textarea class="form-control" id="notes" name="notes" rows="3" 
-                                  placeholder="輸入入庫相關說明或備註"></textarea>
+                        <textarea class="form-control" id="notes" name="notes" rows="3"
+                            placeholder="輸入入庫相關說明或備註"></textarea>
                     </div>
-                    
+
                     <div class="d-flex justify-content-between">
                         <a href="{{ url_for('web.inventory') }}" class="btn btn-secondary">
                             <i class="fas fa-arrow-left me-1"></i>返回庫存管理
@@ -89,7 +92,7 @@
             </div>
         </div>
     </div>
-    
+
     <div class="col-lg-4">
         <div class="card">
             <div class="card-header">
@@ -98,11 +101,16 @@
             <div class="card-body">
                 <h6>入庫類型說明：</h6>
                 <ul class="list-unstyled">
-                    <li><i class="fas fa-shopping-cart text-primary me-2"></i><strong>採購入庫：</strong>從供應商採購的零件</li>
                     <li><i class="fas fa-exchange-alt text-info me-2"></i><strong>倉庫轉入：</strong>從其他倉庫調撥來的零件</li>
                     <li><i class="fas fa-undo text-warning me-2"></i><strong>退料入庫：</strong>從生產線或其他部門退回的零件</li>
                 </ul>
-                
+                <div class="alert alert-primary">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <small>
+                        <strong>採購入庫：</strong><br>
+                        請至「週期訂單」→「待入庫」頁面處理採購入庫作業。
+                    </small>
+                </div>
                 <div class="alert alert-info mt-3">
                     <i class="fas fa-lightbulb me-2"></i>
                     <small>
@@ -115,7 +123,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- 零件信息顯示卡片 -->
         <div class="card mt-3" id="partInfoCard" style="display: none;">
             <div class="card-header">
@@ -138,8 +146,8 @@
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <input type="text" class="form-control" id="partSearchInput" 
-                           placeholder="搜尋零件編號或名稱..." onkeyup="filterParts()">
+                    <input type="text" class="form-control" id="partSearchInput" placeholder="搜尋零件編號或名稱..."
+                        onkeyup="filterParts()">
                 </div>
                 <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                     <table class="table table-sm table-hover">
@@ -158,8 +166,8 @@
                                 <td>{{ part.name }}</td>
                                 <td>{{ part.unit }}</td>
                                 <td>
-                                    <button class="btn btn-sm btn-primary" 
-                                            onclick="selectPart('{{ part.part_number }}', '{{ part.name }}', '{{ part.unit }}', {{ part.locations | tojson | safe }})">
+                                    <button class="btn btn-sm btn-primary"
+                                        onclick="selectPart('{{ part.part_number }}', '{{ part.name }}', '{{ part.unit }}', {{ part.locations | tojson | safe }})">
                                         選擇
                                     </button>
                                 </td>

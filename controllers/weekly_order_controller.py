@@ -54,12 +54,12 @@ def weekly_orders():
 @weekly_order_bp.route('/weekly-orders/pending-inbound')
 @login_required
 def pending_inbound_orders():
-    """顯示所有已核准待入庫的訂單項目"""
+    """顯示所有已核准待入庫的訂單項目（包含部分入庫的項目）"""
     pending_items = OrderRegistration.query.options(
         joinedload(OrderRegistration.warehouse_location).joinedload(WarehouseLocation.warehouse),
         joinedload(OrderRegistration.cycle)
     ).filter(
-        OrderRegistration.status == 'approved',
+        OrderRegistration.status.in_(['approved', 'partially_received']),  # 包含部分入庫的項目
         OrderRegistration.warehouse_location_id.isnot(None) # Exclude items without a specified location
     ).order_by(
         OrderRegistration.required_date.asc(),
@@ -475,6 +475,23 @@ def export_excel(cycle_id):
         return send_file(
             BytesIO(result['file_content']),
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=result['filename']
+        )
+    else:
+        flash(result['message'], 'danger')
+        return redirect(url_for('weekly_order.review_cycle', cycle_id=cycle_id))
+
+@weekly_order_bp.route('/weekly_orders/export_pdf/<int:cycle_id>')
+@login_required
+def export_pdf(cycle_id):
+    """生成PDF申請單"""
+    result = WeeklyOrderService.export_weekly_order_pdf(cycle_id)
+
+    if result['success']:
+        return send_file(
+            BytesIO(result['file_content']),
+            mimetype='application/pdf',
             as_attachment=True,
             download_name=result['filename']
         )
