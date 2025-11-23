@@ -1,3 +1,5 @@
+let currentTimeRange = 'week';  // 當前選擇的時間範圍（KPI 用）
+let currentTimespan = 'daily';   // 當前選擇的時間粒度（趨勢圖用）
 let trendChartInstance = null; // 全域變數，用於儲存 Chart.js 實例
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -8,34 +10,56 @@ document.addEventListener('DOMContentLoaded', function () {
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
+    // 時間範圍選擇器事件監聽（全局 KPI 時間範圍）
+    const timeRangeInputs = document.querySelectorAll('input[name="timeRange"]');
+    timeRangeInputs.forEach(input => {
+        input.addEventListener('change', function () {
+            if (this.checked) {
+                currentTimeRange = this.value;
+                console.log(`時間範圍切換至: ${currentTimeRange}`);
 
-    // 時間範圍切換按鈕的事件監聽
+                // 更新 Dashboard
+                updateDashboard(currentTimespan, currentTimeRange);
+
+                // 儲存到 localStorage
+                localStorage.setItem('dashboardTimeRange', currentTimeRange);
+            }
+        });
+    });
+    // 時間粒度切換按鈕的事件監聽（趨勢圖用）
     const timespanButtons = document.querySelectorAll('.timespan-btn');
     timespanButtons.forEach(button => {
         button.addEventListener('click', function () {
             const timespan = this.dataset.timespan;
-
+            currentTimespan = timespan;
             // 更新按鈕的啟用狀態
             timespanButtons.forEach(btn => btn.classList.remove('active'));
             this.classList.add('active');
-
-            // 使用新的時間範圍更新儀表板
-            updateDashboard(timespan);
+            // 使用新的時間粒度更新儀表板
+            updateDashboard(timespan, currentTimeRange);
         });
     });
-
-    // 初始載入，使用預設時間範圍 'daily'
-    updateDashboard('daily');
+    // 從 localStorage 讀取用戶偏好
+    const savedTimeRange = localStorage.getItem('dashboardTimeRange');
+    if (savedTimeRange && ['today', 'week', 'month', 'quarter'].includes(savedTimeRange)) {
+        currentTimeRange = savedTimeRange;
+        const radioButton = document.getElementById(`timeRange${capitalize(savedTimeRange)}`);
+        if (radioButton) {
+            radioButton.checked = true;
+        }
+    }
+    // 初始載入，使用預設或儲存的時間範圍
+    updateDashboard(currentTimespan, currentTimeRange);
 });
 
 /**
  * 從後端獲取數據並更新整個儀表板
  * @param {string} timespan - 時間範圍 ('daily', 'weekly', 'monthly')
  */
-async function updateDashboard(timespan = 'daily') {
-    console.log(`正在獲取時間範圍為 "${timespan}" 的儀表板數據...`);
+async function updateDashboard(timespan = 'daily', timeRange = 'week') {
+    console.log(`正在獲取儀表板數據... timespan: ${timespan}, timeRange: ${timeRange}`);
     try {
-        const response = await fetch(`/api/dashboard?timespan=${timespan}`);
+        const response = await fetch(`/api/dashboard?timespan=${timespan}&time_range=${timeRange}`);
         if (!response.ok) {
             throw new Error(`HTTP 錯誤！狀態: ${response.status}`);
         }
@@ -381,4 +405,12 @@ function updateBreakdown(elementId, data) {
     });
 
     container.innerHTML = html;
+}
+/**
+ * 首字母大寫輔助函數
+ * @param {string} str - 要轉換的字串
+ * @returns {string} - 首字母大寫的字串
+ */
+function capitalize(str) {
+    return str.charAt(0).toUpperCase() + str.slice(1);
 }

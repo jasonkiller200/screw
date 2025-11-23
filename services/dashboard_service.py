@@ -148,12 +148,12 @@ class DashboardService:
             'low_stock_count': alert_status.low_stock_count or 0,
             'out_of_stock_count': alert_status.out_of_stock_count or 0,
             'weekly_stock_in': {
-                'total': this_week_in_total,
+                'total': current_in_total,
                 'trend': inbound_trend,
                 'breakdown': inbound_breakdown
             },
             'weekly_stock_out': {
-                'total': this_week_out_total,
+                'total': current_out_total,
                 'trend': outbound_trend,
                 'breakdown': outbound_breakdown
             },

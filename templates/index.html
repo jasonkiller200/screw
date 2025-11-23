@@ -82,7 +82,34 @@
         <p class="text-muted">一覽系統關鍵數據與庫存狀況。</p>
     </div>
 </div>
+<!-- 全局時間範圍選擇器 -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-calendar-alt me-2 text-primary"></i>
+                        <span class="fw-bold">時間範圍：</span>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group" id="timeRangeSelector">
+                        <input type="radio" class="btn-check" name="timeRange" id="timeRangeToday" value="today">
+                        <label class="btn btn-outline-primary" for="timeRangeToday">今日</label>
 
+                        <input type="radio" class="btn-check" name="timeRange" id="timeRangeWeek" value="week" checked>
+                        <label class="btn btn-outline-primary" for="timeRangeWeek">本週</label>
+
+                        <input type="radio" class="btn-check" name="timeRange" id="timeRangeMonth" value="month">
+                        <label class="btn btn-outline-primary" for="timeRangeMonth">本月</label>
+
+                        <input type="radio" class="btn-check" name="timeRange" id="timeRangeQuarter" value="quarter">
+                        <label class="btn btn-outline-primary" for="timeRangeQuarter">本季</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- 頂部關鍵指標區 -->
 <div class="row mb-4">
     <!-- 總庫存狀況 -->
