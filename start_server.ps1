@@ -8,11 +8,14 @@
 $venvActivateScript = ".\venv\Scripts\Activate.ps1"
 if (Test-Path $venvActivateScript) {
     Write-Host "正在啟動虛擬環境..." -ForegroundColor Green
-    . $venvActivateScript
+    & $venvActivateScript
 } else {
     Write-Host "警告: 找不到虛擬環境。請確保您已創建並安裝依賴。" -ForegroundColor Yellow
     Write-Host "您可以嘗試執行 'python -m venv venv' 然後 '.\venv\Scripts\Activate.ps1'" -ForegroundColor Yellow
     Write-Host "然後執行 'pip install -r requirements.txt'" -ForegroundColor Yellow
+    Write-Host "`n按任意鍵退出..." -ForegroundColor Yellow
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    exit 1
 }
 
 # 設定 Flask 應用程式檔案
@@ -32,8 +35,15 @@ if (-not (Test-Path $certFile) -or -not (Test-Path $keyFile)) {
 Write-Host "正在啟動 Flask 伺服器..." -ForegroundColor Green
 Write-Host "伺服器將在 http://0.0.0.0:5005 或 https://0.0.0.0:5005 上運行 (取決於 SSL 憑證是否存在)" -ForegroundColor Green
 Write-Host "您可以透過本機 IP (例如 https://192.168.6.119:5005) 從區網內的其他設備訪問。" -ForegroundColor Green
+Write-Host "按 Ctrl+C 停止伺服器`n" -ForegroundColor Cyan
 
 # 啟動 Flask 應用程式
-# 使用 start-process -NoNewWindow 讓腳本在當前 PowerShell 視窗中運行
-# 如果需要新視窗，可以移除 -NoNewWindow
-python app.py
+try {
+    python app.py
+} catch {
+    Write-Host "`n錯誤: Flask 應用程式啟動失敗" -ForegroundColor Red
+    Write-Host $_.Exception.Message -ForegroundColor Red
+    Write-Host "`n按任意鍵退出..." -ForegroundColor Yellow
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    exit 1
+}
