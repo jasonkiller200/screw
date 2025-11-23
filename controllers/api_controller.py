@@ -441,11 +441,17 @@ def batch_stock_out():
 @api_bp.route('/dashboard', methods=['GET'])
 def get_dashboard_data():
     """
-    提供儀表板所需的所有數據。
-    可接受 timespan 查詢參數 ('daily', 'weekly', 'monthly')。
+    提供儀表板所需的所有數據
+    
+    Query Parameters:
+        timespan: 趨勢圖時間粒度 ('daily', 'weekly', 'monthly')
+        time_range: KPI 時間範圍 ('today', 'week', 'month', 'quarter')
     """
     timespan = request.args.get('timespan', 'daily', type=str)
+    time_range = request.args.get('time_range', 'week', type=str)
+    
     service = DashboardService()
-    data = service.get_dashboard_data(timespan=timespan)
+    data = service.get_dashboard_data(timespan=timespan, time_range=time_range)
     return jsonify(data)
+
 
