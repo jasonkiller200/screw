@@ -4,10 +4,25 @@ from models.inventory import CurrentInventory, InventoryTransaction
 from models.part import Part, PartWarehouseLocation, WarehouseLocation, Warehouse
 from models.weekly_order import WeeklyOrderCycle, OrderRegistration
 from extensions import db
-from sqlalchemy import func, case, extract
+from sqlalchemy import func, case, extract, or_
 from datetime import datetime, timedelta, date
 from collections import defaultdict
 import pandas as pd
+
+# 交易類型配置
+TRANSACTION_TYPE_CONFIG = {
+    'inbound': {
+        'INBOUND': {'label': '週期訂單', 'color': '#007bff'},
+        'IN_TRANSFER': {'label': '調撥入庫', 'color': '#17a2b8'},
+        'IN_RETURN': {'label': '退貨入庫', 'color': '#6c757d'}
+    },
+    'outbound': {
+        'OUT_WORK_ORDER': {'label': '工單領用', 'color': '#dc3545'},
+        'OUT_TRANSFER': {'label': '調撥出庫', 'color': '#fd7e14'},
+        'OUT_AFTER_SALES': {'label': '售後服務', 'color': '#ffc107'},
+        'OUT_SCRAP': {'label': '報廢', 'color': '#6c757d'}
+    }
+}
 
 class DashboardService:
     def get_dashboard_data(self, timespan='daily'):
@@ -69,8 +84,17 @@ class DashboardService:
                 return 100 if current > 0 else 0
             return round(((current - previous) / previous) * 100, 2)
 
-        inbound_trend = calculate_trend(this_week_in, last_week_in)
-        outbound_trend = calculate_trend(this_week_out, last_week_out)
+        # 獲取入庫和出庫的分類統計
+        inbound_breakdown, this_week_in_total = self._get_transaction_breakdown(
+            start_of_this_week, today, 'inbound'
+        )
+        outbound_breakdown, this_week_out_total = self._get_transaction_breakdown(
+            start_of_this_week, today, 'outbound'
+        )
+
+        # 計算趨勢（使用新的總計值）
+        inbound_trend = calculate_trend(this_week_in_total, last_week_in)
+        outbound_trend = calculate_trend(this_week_out_total, last_week_out)
 
         # 計算待辦事項統計
         # 1. 待審查週期訂單 (狀態為 registered 的申請項目)
@@ -112,17 +136,75 @@ class DashboardService:
             'low_stock_count': alert_status.low_stock_count or 0,
             'out_of_stock_count': alert_status.out_of_stock_count or 0,
             'weekly_stock_in': {
-                'value': int(this_week_in),
-                'trend': inbound_trend
+                'total': this_week_in_total,
+                'trend': inbound_trend,
+                'breakdown': inbound_breakdown
             },
             'weekly_stock_out': {
-                'value': int(this_week_out),
-                'trend': outbound_trend
+                'total': this_week_out_total,
+                'trend': outbound_trend,
+                'breakdown': outbound_breakdown
             },
             'pending_reviews': pending_reviews,
             'pending_inbound_items': pending_inbound_items,
             'monthly_turnover_rate': monthly_turnover_rate
         }
+
+    def _get_transaction_breakdown(self, start_date, end_date, direction='inbound'):
+        """
+        獲取指定時間範圍內的交易分類統計
+        
+        Args:
+            start_date: 開始日期
+            end_date: 結束日期
+            direction: 'inbound' 或 'outbound'
+        
+        Returns:
+            tuple: (breakdown_list, total_quantity)
+        """
+        if direction == 'inbound':
+            # 入庫類型統計 - 包含 INBOUND 和 IN_* 類型
+            type_filter = or_(
+                InventoryTransaction.transaction_type == 'INBOUND',
+                InventoryTransaction.transaction_type.like('IN_%')
+            )
+            config = TRANSACTION_TYPE_CONFIG['inbound']
+        else:
+            # 出庫類型統計 - OUT_* 類型
+            type_filter = InventoryTransaction.transaction_type.like('OUT_%')
+            config = TRANSACTION_TYPE_CONFIG['outbound']
+        
+        # 查詢各類型數量
+        results = db.session.query(
+            InventoryTransaction.transaction_type,
+            func.sum(func.abs(InventoryTransaction.quantity)).label('quantity')
+        ).filter(
+            type_filter,
+            InventoryTransaction.transaction_date >= start_date,
+            InventoryTransaction.transaction_date < (end_date + timedelta(days=1))
+        ).group_by(InventoryTransaction.transaction_type).all()
+        
+        # 計算總量
+        total = sum(r.quantity for r in results if r.quantity)
+        
+        # 格式化結果
+        breakdown = []
+        for trans_type, quantity in results:
+            if trans_type in config and quantity:
+                percentage = round((quantity / total * 100), 1) if total > 0 else 0
+                breakdown.append({
+                    'type': trans_type,
+                    'label': config[trans_type]['label'],
+                    'quantity': int(quantity),
+                    'percentage': percentage,
+                    'color': config[trans_type]['color']
+                })
+        
+        # 按數量排序（由大到小）
+        breakdown.sort(key=lambda x: x['quantity'], reverse=True)
+        
+        return breakdown, int(total) if total else 0
+
 
     def _get_trend_data(self, timespan):
         """

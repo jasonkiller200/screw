@@ -1,6 +1,6 @@
 let trendChartInstance = null; // 全域變數，用於儲存 Chart.js 實例
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     console.log("儀表板腳本已載入。");
 
     // 初始化 Bootstrap tooltip
@@ -12,9 +12,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // 時間範圍切換按鈕的事件監聽
     const timespanButtons = document.querySelectorAll('.timespan-btn');
     timespanButtons.forEach(button => {
-        button.addEventListener('click', function() {
+        button.addEventListener('click', function () {
             const timespan = this.dataset.timespan;
-            
+
             // 更新按鈕的啟用狀態
             timespanButtons.forEach(btn => btn.classList.remove('active'));
             this.classList.add('active');
@@ -96,26 +96,30 @@ function updateTrendDisplay(element, trendValue) {
  */
 function updateKPIs(kpiData) {
     console.log("正在更新 KPI...");
-    
+
     document.getElementById('kpi-total-locations').textContent = kpiData.total_locations_count.toLocaleString();
     document.getElementById('kpi-parts-with-location').textContent = kpiData.parts_with_location_count.toLocaleString();
     document.getElementById('kpi-total-stock').textContent = kpiData.total_stock_quantity.toLocaleString();
 
-    document.getElementById('kpi-weekly-out').textContent = kpiData.weekly_stock_out.value.toLocaleString();
+    // 更新出庫數據和分類明細
+    document.getElementById('kpi-weekly-out').textContent = kpiData.weekly_stock_out.total.toLocaleString();
     updateTrendDisplay(document.getElementById('kpi-weekly-out-trend'), kpiData.weekly_stock_out.trend);
+    updateBreakdown('outbound-breakdown', kpiData.weekly_stock_out);
 
-    document.getElementById('kpi-weekly-in').textContent = kpiData.weekly_stock_in.value.toLocaleString();
+    // 更新入庫數據和分類明細
+    document.getElementById('kpi-weekly-in').textContent = kpiData.weekly_stock_in.total.toLocaleString();
     updateTrendDisplay(document.getElementById('kpi-weekly-in-trend'), kpiData.weekly_stock_in.trend);
+    updateBreakdown('inbound-breakdown', kpiData.weekly_stock_in);
 
     document.getElementById('kpi-low-stock').textContent = kpiData.low_stock_count.toLocaleString();
     document.getElementById('kpi-out-of-stock').textContent = kpiData.out_of_stock_count.toLocaleString();
 
-    // 更新快速統計面板 (如果需要，這裡可以從 KPI 數據中提取)
-    document.getElementById('stat-weekly-in').textContent = kpiData.weekly_stock_in.value.toLocaleString();
-    document.getElementById('stat-weekly-out').textContent = kpiData.weekly_stock_out.value.toLocaleString();
+    // 更新快速統計面板
+    document.getElementById('stat-weekly-in').textContent = kpiData.weekly_stock_in.total.toLocaleString();
+    document.getElementById('stat-weekly-out').textContent = kpiData.weekly_stock_out.total.toLocaleString();
     // 更新庫存周轉率 (顯示為百分比)
     document.getElementById('stat-turnover').textContent = kpiData.monthly_turnover_rate + '%';
-    
+
     // 更新待辦事項
     document.getElementById('todo-pending-reviews').textContent = kpiData.pending_reviews.toLocaleString();
     document.getElementById('todo-pending-inbound').textContent = kpiData.pending_inbound_items.toLocaleString();
@@ -258,9 +262,9 @@ function updateStockAlerts(stockAlerts) {
     const stockAlertsList = document.getElementById('stock-alerts-list');
     const toggleBtn = document.getElementById('toggle-alerts-btn');
     const collapseInfo = document.getElementById('alerts-collapse-info');
-    
+
     stockAlertsList.innerHTML = ''; // 清空現有內容
-    
+
     // 重置狀態
     toggleBtn.style.display = 'none';
     collapseInfo.style.display = 'none';
@@ -278,7 +282,7 @@ function updateStockAlerts(stockAlerts) {
                 if (index >= showLimit && isCollapsed) {
                     listItem.classList.add('d-none');
                 }
-                
+
                 const statusBadgeClass = alert.status === '缺貨' ? 'bg-danger' : 'bg-warning';
                 const statusTextColorClass = alert.status === '缺貨' ? 'text-danger' : 'text-warning';
                 const progressWidth = alert.reorder_point > 0 ? (alert.available_quantity / alert.reorder_point) * 100 : 0;
@@ -312,12 +316,12 @@ function updateStockAlerts(stockAlerts) {
         if (stockAlerts.length > showLimit) {
             toggleBtn.style.display = 'block';
             collapseInfo.style.display = 'block';
-            
-            toggleBtn.onclick = function() {
+
+            toggleBtn.onclick = function () {
                 isCollapsed = !isCollapsed;
                 const hiddenItems = stockAlertsList.querySelectorAll('.alert-item.d-none');
                 const visibleItems = stockAlertsList.querySelectorAll('.alert-item:not(.d-none)');
-                
+
                 if (isCollapsed) {
                     // 收折：隱藏超過限制的項目
                     visibleItems.forEach((item, index) => {
@@ -336,11 +340,45 @@ function updateStockAlerts(stockAlerts) {
                     collapseInfo.style.display = 'none';
                 }
             };
-            
+
             // 初始狀態：收折
             toggleBtn.innerHTML = '<i class="fas fa-eye"></i> 展開全部';
         }
     } else {
         stockAlertsList.innerHTML = '<li class="list-group-item text-muted">暫無庫存預警項目</li>';
     }
+}
+
+/**
+ * 更新出入庫分類明細
+ * @param {string} elementId - 容器元素 ID
+ * @param {object} data - 包含 total, trend, breakdown 的數據
+ */
+function updateBreakdown(elementId, data) {
+    const container = document.getElementById(elementId);
+    if (!container || !data.breakdown || data.breakdown.length === 0) {
+        if (container) {
+            container.innerHTML = '<div class="text-muted small">暫無數據</div>';
+        }
+        return;
+    }
+
+    let html = '';
+    data.breakdown.forEach(item => {
+        html += `
+            <div class="breakdown-item">
+                <div class="breakdown-label">
+                    <span class="small">${item.label}</span>
+                    <span class="small"><strong>${item.quantity.toLocaleString()}</strong> <span class="text-muted">(${item.percentage}%)</span></span>
+                </div>
+                <div class="breakdown-bar">
+                    <div class="breakdown-bar-fill" 
+                         style="width: ${item.percentage}%; background-color: ${item.color};">
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
 }

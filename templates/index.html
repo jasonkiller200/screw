@@ -45,6 +45,33 @@
         font-size: 0.8rem;
         padding: 0.25rem 0.5rem;
     }
+
+    /* 分類明細樣式 */
+    .breakdown-list {
+        font-size: 0.85rem;
+    }
+
+    .breakdown-item {
+        margin-bottom: 0.6rem;
+    }
+
+    .breakdown-label {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.25rem;
+    }
+
+    .breakdown-bar {
+        height: 6px;
+        background-color: #e9ecef;
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .breakdown-bar-fill {
+        height: 100%;
+        transition: width 0.3s ease;
+    }
 </style>
 {% endblock %}
 
@@ -76,17 +103,19 @@
         </div>
     </div>
 
-    <!-- 本週出庫 -->
+    <!-- 本週出庫明細 -->
     <div class="col-md-6 col-lg-3 mb-3">
-        <div class="card card-metric text-center">
+        <div class="card card-metric">
             <div class="card-body">
-                <i class="fas fa-truck-loading fa-2x text-danger mb-2"></i>
-                <div id="kpi-weekly-out" class="metric-value">...</div>
-                <div class="metric-label">本週出庫數</div>
-                <div id="kpi-weekly-out-trend" class="small mt-2">
-                    <span>...</span>
-                    <i class="fas"></i>
-                    <span class="text-muted ms-1">vs 上週</span>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0"><i class="fas fa-truck-loading me-2 text-danger"></i>本週出庫</h6>
+                    <span id="kpi-weekly-out-trend" class="badge"></span>
+                </div>
+                <div id="kpi-weekly-out" class="metric-value mb-3">...</div>
+
+                <!-- 分類明細 -->
+                <div id="outbound-breakdown" class="breakdown-list">
+                    <!-- 動態生成 -->
                 </div>
             </div>
             <div class="card-footer text-muted small">
@@ -94,18 +123,19 @@
             </div>
         </div>
     </div>
-
-    <!-- 本週入庫 -->
+    <!-- 本週入庫明細 -->
     <div class="col-md-6 col-lg-3 mb-3">
-        <div class="card card-metric text-center">
+        <div class="card card-metric">
             <div class="card-body">
-                <i class="fas fa-dolly-flatbed fa-2x text-success mb-2"></i>
-                <div id="kpi-weekly-in" class="metric-value">...</div>
-                <div class="metric-label">本週入庫數</div>
-                <div id="kpi-weekly-in-trend" class="small mt-2">
-                    <span>...</span>
-                    <i class="fas"></i>
-                    <span class="text-muted ms-1">vs 上週</span>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0"><i class="fas fa-dolly-flatbed me-2 text-success"></i>本週入庫</h6>
+                    <span id="kpi-weekly-in-trend" class="badge"></span>
+                </div>
+                <div id="kpi-weekly-in" class="metric-value mb-3">...</div>
+
+                <!-- 分類明細 -->
+                <div id="inbound-breakdown" class="breakdown-list">
+                    <!-- 動態生成 -->
                 </div>
             </div>
             <div class="card-footer text-muted small">
