@@ -355,8 +355,38 @@
             }
         }
 
+        // 打字機效果函數
+        function typeWriter(element, text, speed = 30) {
+            let index = 0;
+            element.innerHTML = '';
+            
+            return new Promise((resolve) => {
+                function type() {
+                    if (index < text.length) {
+                        // 處理換行符
+                        if (text.substr(index, 4) === '<br>') {
+                            element.innerHTML += '<br>';
+                            index += 4;
+                        } else {
+                            element.innerHTML += text.charAt(index);
+                            index++;
+                        }
+                        
+                        // 滾動到底部
+                        const messagesDiv = document.getElementById('chatMessages');
+                        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                        
+                        setTimeout(type, speed);
+                    } else {
+                        resolve();
+                    }
+                }
+                type();
+            });
+        }
+
         // 添加訊息到聊天區
-        function addMessage(content, type) {
+        async function addMessage(content, type) {
             const messagesDiv = document.getElementById('chatMessages');
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${type}`;
@@ -367,17 +397,22 @@
             
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
-            contentDiv.innerHTML = content.replace(/\n/g, '<br>');
             
             if (type === 'user') {
                 messageDiv.appendChild(contentDiv);
                 messageDiv.appendChild(avatar);
+                messagesDiv.appendChild(messageDiv);
+                contentDiv.innerHTML = content.replace(/\n/g, '<br>');
             } else {
                 messageDiv.appendChild(avatar);
                 messageDiv.appendChild(contentDiv);
+                messagesDiv.appendChild(messageDiv);
+                
+                // AI 訊息使用打字機效果
+                const formattedContent = content.replace(/\n/g, '<br>');
+                await typeWriter(contentDiv, formattedContent, 20);
             }
             
-            messagesDiv.appendChild(messageDiv);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 

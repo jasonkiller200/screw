@@ -594,37 +594,97 @@ function submitQuery() {
     });
 }
 
+// 打字機效果函數
+function typeWriter(element, text, speed = 30) {
+    let index = 0;
+    element.innerHTML = '';
+    
+    return new Promise((resolve) => {
+        function type() {
+            if (index < text.length) {
+                // 處理換行符
+                if (text.substr(index, 4) === '<br>') {
+                    element.innerHTML += '<br>';
+                    index += 4;
+                } else {
+                    element.innerHTML += text.charAt(index);
+                    index++;
+                }
+                
+                // 滾動到底部
+                const chatHistory = document.getElementById('chatHistory');
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+                
+                setTimeout(type, speed);
+            } else {
+                resolve();
+            }
+        }
+        type();
+    });
+}
+
 // 添加消息到聊天歷史
-function addMessageToHistory(type, content, sqlQuery = null, resultCount = null) {
+async function addMessageToHistory(type, content, sqlQuery = null, resultCount = null) {
     const chatHistory = document.getElementById('chatHistory');
     const messageDiv = document.createElement('div');
     
     if (type === 'user') {
         messageDiv.className = 'message user-message';
         messageDiv.innerHTML = `<strong>您:</strong> ${content}`;
+        chatHistory.appendChild(messageDiv);
     } else if (type === 'ai') {
         messageDiv.className = 'message ai-message';
-        let html = '<div class="message-header"><i class="fas fa-robot"></i> AI助手:</div>';
-        html += `<div>${content.replace(/\n/g, '<br>')}</div>`;
         
+        // 創建消息頭
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'message-header';
+        headerDiv.innerHTML = '<i class="fas fa-robot"></i> AI助手:';
+        messageDiv.appendChild(headerDiv);
+        
+        // 創建內容區域
+        const contentDiv = document.createElement('div');
+        messageDiv.appendChild(contentDiv);
+        
+        // 先添加到聊天歷史
+        chatHistory.appendChild(messageDiv);
+        
+        // 使用打字機效果顯示內容
+        const formattedContent = content.replace(/\n/g, '<br>');
+        await typeWriter(contentDiv, formattedContent, 20);
+        
+        // 添加結果數量
         if (resultCount !== null) {
-            html += `<div class="results-count">查詢結果: ${resultCount} 筆記錄</div>`;
+            const countDiv = document.createElement('div');
+            countDiv.className = 'results-count';
+            countDiv.textContent = `查詢結果: ${resultCount} 筆記錄`;
+            messageDiv.appendChild(countDiv);
         }
         
+        // 添加SQL查詢按鈕
         if (sqlQuery) {
-            html += '<div class="mt-2">';
-            html += '<button class="btn btn-sm btn-outline-secondary" onclick="toggleSqlQuery(this)">顯示SQL查詢</button>';
-            html += `<div class="sql-query" style="display: none;">${sqlQuery}</div>`;
-            html += '</div>';
+            const sqlContainer = document.createElement('div');
+            sqlContainer.className = 'mt-2';
+            
+            const toggleBtn = document.createElement('button');
+            toggleBtn.className = 'btn btn-sm btn-outline-secondary';
+            toggleBtn.textContent = '顯示SQL查詢';
+            toggleBtn.onclick = function() { toggleSqlQuery(this); };
+            
+            const sqlDiv = document.createElement('div');
+            sqlDiv.className = 'sql-query';
+            sqlDiv.style.display = 'none';
+            sqlDiv.textContent = sqlQuery;
+            
+            sqlContainer.appendChild(toggleBtn);
+            sqlContainer.appendChild(sqlDiv);
+            messageDiv.appendChild(sqlContainer);
         }
-        
-        messageDiv.innerHTML = html;
     } else if (type === 'error') {
         messageDiv.className = 'message ai-message';
         messageDiv.innerHTML = `<div class="error-message"><i class="fas fa-exclamation-triangle"></i> 錯誤: ${content}</div>`;
+        chatHistory.appendChild(messageDiv);
     }
-    
-    chatHistory.appendChild(messageDiv);
     
     // 滾動到底部
     chatHistory.scrollTop = chatHistory.scrollHeight;
