@@ -68,7 +68,7 @@ function loadInventoryItems(items) {
                 const partNumberInput = row.querySelector('input[name*="[part_number]"]');
                 const partNameInput = row.querySelector('input[name*="[part_name]"]');
                 const quantityInput = row.querySelector('input[name*="[quantity]"]');
-                const unitSelect = row.querySelector('select[name*="[unit]"]');
+                const unitInput = row.querySelector('input[name*="[unit]"]');
                 const typeInput = row.querySelector('input[name*="[part_type]"]');
                 const prioritySelect = row.querySelector('select[name*="[priority]"]');
                 const notesInput = row.querySelector('input[name*="[purpose_notes]"]');
@@ -78,9 +78,9 @@ function loadInventoryItems(items) {
                 if (partNameInput) partNameInput.value = item.part_name || '';
                 // 移除數量預填，讓使用者手動輸入
                 // if (quantityInput) quantityInput.value = item.suggested_quantity || '';
-                if (unitSelect) {
-                    unitSelect.value = item.unit || '';
-                    unitSelect.readOnly = true;
+                if (unitInput) {
+                    unitInput.value = item.unit || '';
+                    unitInput.readOnly = true;
                 }
                 if (typeInput) typeInput.value = item.part_type || '';
                 
