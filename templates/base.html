@@ -321,20 +321,28 @@
                         
                         if (data.unread_count > 0) {
                             // 更新徽章
-                            badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
-                            badge.classList.remove('d-none');
+                            if (badge) {
+                                badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
+                                badge.classList.remove('d-none');
+                            }
                             
                             // 更新橫幅
-                            bannerCount.textContent = data.unread_count;
-                            if (!sessionStorage.getItem('notificationBannerDismissed')) {
-                                banner.style.display = 'block';
-                                banner.classList.add('show');
+                            if (banner && bannerCount) {
+                                bannerCount.textContent = data.unread_count;
+                                if (!sessionStorage.getItem('notificationBannerDismissed')) {
+                                    banner.style.display = 'block';
+                                    banner.classList.add('show');
+                                }
                             }
                         } else {
                             // 隱藏徽章和橫幅
-                            badge.classList.add('d-none');
-                            banner.style.display = 'none';
-                            banner.classList.remove('show');
+                            if (badge) {
+                                badge.classList.add('d-none');
+                            }
+                            if (banner) {
+                                banner.style.display = 'none';
+                                banner.classList.remove('show');
+                            }
                         }
                         
                         // 儲存通知數量供其他函數使用
