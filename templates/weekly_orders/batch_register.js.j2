@@ -87,19 +87,20 @@ function loadInventoryItems(items) {
                 }
                 if (typeInput) typeInput.value = item.part_type || '';
                 
-                // 設定優先級（低庫存項目設為緊急）
+                // 設定優先級為預設值（一般），讓用戶自行決定
                 if (prioritySelect) {
-                    const priority = (item.available_quantity <= item.reorder_point) ? 'urgent' : 'normal';
-                    prioritySelect.value = priority;
+                    prioritySelect.value = 'normal';
                 }
                 
-                // 自動填入備註
+                // 自動填入備註，顯示庫存狀況
                 if (notesInput) {
                     let notes = `從庫存頁面導入 - ${item.warehouse_name} ${item.location_code}`;
                     if (item.available_quantity <= 0) {
                         notes += ' (缺貨)';
                     } else if (item.available_quantity <= item.reorder_point) {
                         notes += ' (低庫存)';
+                    } else {
+                        notes += ' (正常)';
                     }
                     notesInput.value = notes;
                 }
