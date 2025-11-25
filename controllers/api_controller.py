@@ -299,6 +299,7 @@ def search_work_orders_by_part(part_number):
     return jsonify(result)
 
 @api_bp.route('/inventory/transactions/export', methods=['GET'])
+@login_required
 def export_inventory_transactions():
     """匯出庫存異動記錄為 Excel 檔案"""
     from models.inventory import InventoryTransaction
@@ -321,69 +322,165 @@ def export_inventory_transactions():
         date_from = thirty_days_ago.strftime('%Y-%m-%d')
         date_to = today.strftime('%Y-%m-%d')
     
-    # 建立查詢
-    transactions_query = InventoryTransaction.query.join(Part).join(Warehouse)
+    try:
+        # 建立查詢 - 只顯示有儲位的交易記錄
+        from models.part import WarehouseLocation
+        transactions_query = InventoryTransaction.query.join(Part).join(Warehouse).join(WarehouseLocation)
+        
+        # 確保只查詢有儲位的記錄
+        transactions_query = transactions_query.filter(InventoryTransaction.warehouse_location_id.isnot(None))
+        
+        # 應用篩選條件
+        if part_id:
+            transactions_query = transactions_query.filter(InventoryTransaction.part_id == part_id)
+        if warehouse_id:
+            transactions_query = transactions_query.filter(InventoryTransaction.warehouse_id == warehouse_id)
+        if transaction_type:
+            if transaction_type == 'IN':
+                transactions_query = transactions_query.filter(
+                    InventoryTransaction.transaction_type.in_(['IN_PURCHASE', 'IN_TRANSFER', 'IN_RETURN', 'INBOUND'])
+                )
+            elif transaction_type == 'OUT':
+                transactions_query = transactions_query.filter(
+                    InventoryTransaction.transaction_type.in_(['OUT_ISSUE', 'OUT_WORK_ORDER', 'OUT_SCRAP', 'OUT_AFTER_SALES'])
+                )
+            elif transaction_type == 'TRANSFER':
+                transactions_query = transactions_query.filter(
+                    InventoryTransaction.transaction_type.in_(['IN_TRANSFER', 'OUT_TRANSFER', 'TRANSFER'])
+                )
+            elif transaction_type == 'ADJUST':
+                transactions_query = transactions_query.filter(InventoryTransaction.transaction_type == 'ADJUST')
+            else:
+                transactions_query = transactions_query.filter(InventoryTransaction.transaction_type == transaction_type)
+        if date_from:
+            try:
+                from_date = datetime.strptime(date_from, '%Y-%m-%d')
+                transactions_query = transactions_query.filter(InventoryTransaction.transaction_date >= from_date)
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                to_date = datetime.strptime(date_to, '%Y-%m-%d')
+                to_date = to_date.replace(hour=23, minute=59, second=59)
+                transactions_query = transactions_query.filter(InventoryTransaction.transaction_date <= to_date)
+            except ValueError:
+                pass
+        
+        # 取得所有符合條件的交易記錄
+        transactions = transactions_query.order_by(
+            InventoryTransaction.transaction_date.desc(),
+            InventoryTransaction.id.desc()
+        ).all()
+        
+        print(f"找到 {len(transactions)} 筆交易記錄")  # 調試信息
+        
+    except Exception as e:
+        print(f"查詢異動記錄時發生錯誤: {str(e)}")
+        return jsonify({'error': '查詢異動記錄失敗'}), 500
     
-    # 應用篩選條件
-    if part_id:
-        transactions_query = transactions_query.filter(InventoryTransaction.part_id == part_id)
-    if warehouse_id:
-        transactions_query = transactions_query.filter(InventoryTransaction.warehouse_id == warehouse_id)
-    if transaction_type:
-        transactions_query = transactions_query.filter(InventoryTransaction.transaction_type == transaction_type)
-    if date_from:
-        try:
-            from_date = datetime.strptime(date_from, '%Y-%m-%d')
-            transactions_query = transactions_query.filter(InventoryTransaction.transaction_date >= from_date)
-        except ValueError:
-            pass
-    if date_to:
-        try:
-            to_date = datetime.strptime(date_to, '%Y-%m-%d')
-            to_date = to_date.replace(hour=23, minute=59, second=59)
-            transactions_query = transactions_query.filter(InventoryTransaction.transaction_date <= to_date)
-        except ValueError:
-            pass
-    
-    # 取得所有符合條件的交易記錄
-    transactions = transactions_query.order_by(
-        InventoryTransaction.transaction_date.desc(),
-        InventoryTransaction.id.desc()
-    ).all()
-    
-    # 準備匯出資料
-    export_data = []
-    for transaction in transactions:
-        export_data.append({
-            '異動時間': transaction.transaction_date.strftime('%Y-%m-%d %H:%M:%S'),
-            '異動類型': transaction.transaction_type,
-            '零件編號': transaction.part.part_number if transaction.part else 'N/A',
-            '零件名稱': transaction.part.name if transaction.part else 'N/A',
-            '倉庫': transaction.warehouse.name if transaction.warehouse else 'N/A',
-            '數量變化': transaction.quantity,
-            '參考類型': transaction.reference_type or '',
-            '參考編號': transaction.reference_id or '',
-            '備註': transaction.notes or ''
-        })
-    
-    # 建立 DataFrame 並匯出為 Excel
-    df = pd.DataFrame(export_data)
-    
-    # 建立 Excel 檔案
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name='庫存異動記錄', index=False)
-    output.seek(0)
-    
-    # 產生檔案名稱
-    filename = f"庫存異動記錄_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-    
-    return send_file(
-        output,
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        as_attachment=True,
-        download_name=filename
-    )
+    try:
+        # 交易類型中文對照（與前端保持一致）
+        transaction_type_map = {
+            'IN_PURCHASE': '採購入庫',
+            'IN_TRANSFER': '倉庫轉入', 
+            'IN_RETURN': '退料入庫', 
+            'INBOUND': '週期單入庫',
+            'OUT_ISSUE': '領料出庫',
+            'OUT_WORK_ORDER': '工單領用',
+            'OUT_SCRAP': '報廢出庫',
+            'OUT_TRANSFER': '倉庫轉出',
+            'OUT_AFTER_SALES': '售服維修用',
+            'ADJUST': '庫存調整',
+            'TRANSFER': '調撥'
+        }
+        
+        # 準備匯出資料
+        export_data = []
+        for transaction in transactions:
+            # 安全地獲取儲位信息
+            location_name = 'N/A'
+            if hasattr(transaction, 'warehouse_location') and transaction.warehouse_location:
+                location_name = transaction.warehouse_location.location_code
+            elif hasattr(transaction, 'warehouse_location_id') and transaction.warehouse_location_id:
+                from models.part import WarehouseLocation
+                location = WarehouseLocation.query.get(transaction.warehouse_location_id)
+                if location:
+                    location_name = location.location_code
+            
+            # 轉換交易類型為中文
+            transaction_type_cn = transaction_type_map.get(transaction.transaction_type, transaction.transaction_type or 'N/A')
+            
+            export_data.append({
+                '異動時間': transaction.transaction_date.strftime('%Y-%m-%d %H:%M:%S') if transaction.transaction_date else 'N/A',
+                '異動類型': transaction_type_cn,
+                '零件編號': transaction.part.part_number if transaction.part else 'N/A',
+                '零件名稱': transaction.part.name if transaction.part else 'N/A',
+                '倉庫': transaction.warehouse.name if transaction.warehouse else 'N/A',
+                '儲位': location_name,
+                '數量變化': transaction.quantity or 0,
+                '操作人員': getattr(transaction, 'user_name', '') or '',
+                '參考類型': transaction.reference_type or '',
+                '參考編號': str(transaction.reference_id) if transaction.reference_id else '',
+                '備註': transaction.notes or ''
+            })
+        
+        print(f"準備匯出 {len(export_data)} 筆資料")  # 調試信息
+        
+        # 如果沒有數據，建立一個空的DataFrame但包含標題
+        if not export_data:
+            export_data = [{
+                '異動時間': '',
+                '異動類型': '',
+                '零件編號': '',
+                '零件名稱': '',
+                '倉庫': '',
+                '儲位': '',
+                '數量變化': '',
+                '操作人員': '',
+                '參考類型': '',
+                '參考編號': '',
+                '備註': '查詢條件內無異動記錄'
+            }]
+        
+        # 建立 DataFrame 並匯出為 Excel
+        df = pd.DataFrame(export_data)
+        
+        # 建立 Excel 檔案
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='庫存異動記錄', index=False)
+            
+            # 調整欄位寬度
+            worksheet = writer.sheets['庫存異動記錄']
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = get_column_letter(column[0].column)
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = (max_length + 2) * 1.2
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+                
+        output.seek(0)
+        
+        # 產生檔案名稱
+        filename = f"庫存異動記錄_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        
+        print(f"成功產生Excel檔案: {filename}")  # 調試信息
+        
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        print(f"匯出Excel時發生錯誤: {str(e)}")
+        return jsonify({'error': f'匯出失敗: {str(e)}'}), 500
 
 @api_bp.route('/parts/<int:part_id>/update_inventory_policy', methods=['POST'])
 @login_required

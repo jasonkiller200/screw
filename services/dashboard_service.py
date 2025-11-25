@@ -19,7 +19,7 @@ TRANSACTION_TYPE_CONFIG = {
     'outbound': {
         'OUT_WORK_ORDER': {'label': '工單領用', 'color': '#dc3545'},
         'OUT_TRANSFER': {'label': '調撥出庫', 'color': '#fd7e14'},
-        'OUT_AFTER_SALES': {'label': '售後服務', 'color': '#ffc107'},
+        'OUT_AFTER_SALES': {'label': '售服維修用', 'color': '#ffc107'},
         'OUT_SCRAP': {'label': '報廢', 'color': '#6c757d'}
     }
 }
