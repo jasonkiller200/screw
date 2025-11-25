@@ -385,7 +385,7 @@ function showPartDetails(partNumber) {
             }
 
             let inventoryHtml = '';
-            const all_locations = part?.locations || [];
+            const all_locations = (part && part.locations) ? part.locations : [];
 
             if (all_locations.length > 0) {
                 inventoryHtml = all_locations.map(loc => {
@@ -414,12 +414,12 @@ function showPartDetails(partNumber) {
                     <div class="col-md-6">
                         <h6>基本資訊</h6>
                         <table class="table table-sm">
-                            <tr><td><strong>零件編號：</strong></td><td>${part?.part_number || 'N/A'}</td></tr>
-                            <tr><td><strong>名稱：</strong></td><td>${part?.name || 'N/A'}</td></tr>
-                            <tr><td><strong>描述：</strong></td><td>${part?.description || '無'}</td></tr>
-                            <tr><td><strong>單位：</strong></td><td>${part?.unit || 'N/A'}</td></tr>
-                            <tr><td><strong>每盒數量：</strong></td><td>${part?.quantity_per_box || 'N/A'}</td></tr>
-                            <tr><td><strong>採購前置期：</strong></td><td>${part?.lead_time || 'N/A'} 天</td></tr>
+                            <tr><td><strong>零件編號：</strong></td><td>${(part && part.part_number) || 'N/A'}</td></tr>
+                            <tr><td><strong>名稱：</strong></td><td>${(part && part.name) || 'N/A'}</td></tr>
+                            <tr><td><strong>描述：</strong></td><td>${(part && part.description) || '無'}</td></tr>
+                            <tr><td><strong>單位：</strong></td><td>${(part && part.unit) || 'N/A'}</td></tr>
+                            <tr><td><strong>每盒數量：</strong></td><td>${(part && part.quantity_per_box) || 'N/A'}</td></tr>
+                            <tr><td><strong>採購前置期：</strong></td><td>${(part && part.lead_time) || 'N/A'} 天</td></tr>
                         </table>
                     </div>
                     <div class="col-md-6">
