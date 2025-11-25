@@ -4,7 +4,11 @@ function autoFillPartDetails(partNumber) {
             .then(response => response.json())
             .then(data => {
                 if (data.part_info) {
-                    document.getElementById('part_name').value = data.part_info.name || '';
+                    // 設定品名為只讀，依照零件原本設定
+                    const partNameInput = document.getElementById('part_name');
+                    partNameInput.value = data.part_info.name || '';
+                    partNameInput.readOnly = true;
+                    
                     document.getElementById('part_type').value = data.part_info.type || '';
                     
                     // 設定單位為只讀，依照零件原本設定
@@ -72,7 +76,11 @@ function autoFillPartDetails(partNumber) {
                         });
                 } else {
                     // Clear fields if part not found
-                    document.getElementById('part_name').value = '';
+                    const partNameInput = document.getElementById('part_name');
+                    partNameInput.value = '';
+                    partNameInput.readOnly = true;
+                    partNameInput.placeholder = '請先輸入零件號碼';
+                    
                     document.getElementById('part_type').value = '';
                     
                     // 重置單位欄位
@@ -91,7 +99,11 @@ function autoFillPartDetails(partNumber) {
             .catch(error => {
                 console.error('Error fetching part details:', error);
                 // Clear fields on error
-                document.getElementById('part_name').value = '';
+                const partNameInput = document.getElementById('part_name');
+                partNameInput.value = '';
+                partNameInput.readOnly = true;
+                partNameInput.placeholder = '請先輸入零件號碼';
+                
                 document.getElementById('part_type').value = '';
                 
                 // 重置單位欄位
@@ -108,7 +120,11 @@ function autoFillPartDetails(partNumber) {
             });
     } else {
         // Clear fields if part number is empty
-        document.getElementById('part_name').value = '';
+        const partNameInput = document.getElementById('part_name');
+        partNameInput.value = '';
+        partNameInput.readOnly = true;
+        partNameInput.placeholder = '請先輸入零件號碼';
+        
         document.getElementById('part_type').value = '';
         
         // 重置單位欄位

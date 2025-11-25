@@ -89,8 +89,9 @@
                             <div class="col-md-6">
                                 <label for="part_name" class="form-label">品名 <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control" id="part_name" name="part_name" 
-                                       value="{{ prefill_data.part_name if prefill_data else '' }}" required>
-                                <div class="form-text">產品或零件的完整名稱</div>
+                                       value="{{ prefill_data.part_name if prefill_data else '' }}" 
+                                       readonly placeholder="請先輸入零件號碼" required>
+                                <div class="form-text">依照零件原本設定，不可修改</div>
                             </div>
                         </div>
 
