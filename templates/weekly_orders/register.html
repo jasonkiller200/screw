@@ -112,18 +112,10 @@
                             </div>
                             <div class="col-md-4">
                                 <label for="unit" class="form-label">單位 <span class="text-danger">*</span></label>
-                                <select class="form-select" id="unit" name="unit" required>
-                                    <option value="">請選擇單位</option>
-                                    <option value="個" {{ 'selected' if prefill_data and prefill_data.unit == '個' else '' }}>個</option>
-                                    <option value="盒" {{ 'selected' if prefill_data and prefill_data.unit == '盒' else '' }}>盒</option>
-                                    <option value="包" {{ 'selected' if prefill_data and prefill_data.unit == '包' else '' }}>包</option>
-                                    <option value="組" {{ 'selected' if prefill_data and prefill_data.unit == '組' else '' }}>組</option>
-                                    <option value="公斤" {{ 'selected' if prefill_data and prefill_data.unit == '公斤' else '' }}>公斤</option>
-                                    <option value="公尺" {{ 'selected' if prefill_data and prefill_data.unit == '公尺' else '' }}>公尺</option>
-                                    <option value="片" {{ 'selected' if prefill_data and prefill_data.unit == '片' else '' }}>片</option>
-                                    <option value="支" {{ 'selected' if prefill_data and prefill_data.unit == '支' else '' }}>支</option>
-                                    <option value="條" {{ 'selected' if prefill_data and prefill_data.unit == '條' else '' }}>條</option>
-                                </select>
+                                <input type="text" class="form-control" id="unit" name="unit" 
+                                       value="{{ prefill_data.unit if prefill_data else '' }}" 
+                                       readonly placeholder="請先輸入零件號碼" required>
+                                <div class="form-text">依照零件原本設定，不可修改</div>
                             </div>
                             <div class="col-md-4">
                                 <label for="part_type" class="form-label">類型</label>

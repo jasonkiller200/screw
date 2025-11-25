@@ -78,7 +78,10 @@ function loadInventoryItems(items) {
                 if (partNameInput) partNameInput.value = item.part_name || '';
                 // 移除數量預填，讓使用者手動輸入
                 // if (quantityInput) quantityInput.value = item.suggested_quantity || '';
-                if (unitSelect) unitSelect.value = item.unit || '個';
+                if (unitSelect) {
+                    unitSelect.value = item.unit || '';
+                    unitSelect.readOnly = true;
+                }
                 if (typeInput) typeInput.value = item.part_type || '';
                 
                 // 設定優先級（低庫存項目設為緊急）
@@ -249,7 +252,11 @@ function fillItemData(index, data) {
     if (data.part_name) row.querySelector('input[name*="[part_name]"]').value = data.part_name;
     if (data.warehouse_location_id) row.querySelector('select[name*="[warehouse_location_id]"]').value = data.warehouse_location_id; // New
     if (data.quantity) row.querySelector('input[name*="[quantity]"]').value = data.quantity;
-    if (data.unit) row.querySelector('select[name*="[unit]"]').value = data.unit;
+    if (data.unit) {
+        const unitInput = row.querySelector('input[name*="[unit]"]');
+        unitInput.value = data.unit;
+        unitInput.readOnly = true;
+    }
     if (data.part_type) row.querySelector('input[name*="[part_type]"]').value = data.part_type; // New
     if (data.priority) row.querySelector('select[name*="[priority]"]').value = data.priority;
     if (data.purpose_notes) row.querySelector('input[name*="[purpose_notes]"]').value = data.purpose_notes;
@@ -277,7 +284,9 @@ function autoFillRow(partNumberInput) {
                     // Fill current row
                     row.querySelector('input[name*="[part_name]"]').value = data.part_info.name || '';
                     row.querySelector('input[name*="[part_type]"]').value = data.part_info.type || ''; // New: populate part_type input
-                    row.querySelector('select[name*="[unit]"]').value = data.part_info.unit || '';
+                    const unitInput = row.querySelector('input[name*="[unit]"]');
+                    unitInput.value = data.part_info.unit || '';
+                    unitInput.readOnly = true;
 
                     // Fetch and populate warehouse locations for the part
                     fetch(`/api/part/${partNumber}/locations`)
@@ -342,7 +351,12 @@ function autoFillRow(partNumberInput) {
                     // Clear fields if part not found
                     row.querySelector('input[name*="[part_name]"]').value = '';
                     row.querySelector('input[name*="[part_type]"]').value = '';
-                    row.querySelector('select[name*="[unit]"]').value = '';
+                    
+                    // 重置單位欄位
+                    const unitInput = row.querySelector('input[name*="[unit]"]');
+                    unitInput.value = '';
+                    unitInput.readOnly = true;
+                    unitInput.placeholder = '請先輸入品號';
                     const locationSelect = row.querySelector('select[name*="[warehouse_location_id]"]');
                     locationSelect.innerHTML = '<option value="">請先輸入有效的品號</option>';
                     locationSelect.disabled = true;
@@ -354,7 +368,12 @@ function autoFillRow(partNumberInput) {
                 // Clear fields on error
                 row.querySelector('input[name*="[part_name]"]').value = '';
                 row.querySelector('input[name*="[part_type]"]').value = '';
-                row.querySelector('select[name*="[unit]"]').value = '';
+                
+                // 重置單位欄位
+                const unitInput = row.querySelector('input[name*="[unit]"]');
+                unitInput.value = '';
+                unitInput.readOnly = true;
+                unitInput.placeholder = '請先輸入品號';
                 const locationSelect = row.querySelector('select[name*="[warehouse_location_id]"]');
                 locationSelect.innerHTML = '<option value="">請先輸入有效的品號</option>';
                 locationSelect.disabled = true;
@@ -364,7 +383,12 @@ function autoFillRow(partNumberInput) {
         // Clear fields if part number is empty
         row.querySelector('input[name*="[part_name]"]').value = '';
         row.querySelector('input[name*="[part_type]"]').value = '';
-        row.querySelector('select[name*="[unit]"]').value = '';
+        
+        // 重置單位欄位
+        const unitInput = row.querySelector('input[name*="[unit]"]');
+        unitInput.value = '';
+        unitInput.readOnly = true;
+        unitInput.placeholder = '請先輸入品號';
         const locationSelect = row.querySelector('select[name*="[warehouse_location_id]"]');
         locationSelect.innerHTML = '<option value="">請先輸入有效的品號</option>';
         locationSelect.disabled = true;

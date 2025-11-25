@@ -176,16 +176,11 @@
                    required>
         </td>
         <td>
-            <select class="form-select form-select-sm" name="items[0][unit]">
-                <option value="個">個</option>
-                <option value="件">件</option>
-                <option value="組">組</option>
-                <option value="套">套</option>
-                <option value="kg">kg</option>
-                <option value="m">m</option>
-                <option value="mm">mm</option>
-                <option value="其他">其他</option>
-            </select>
+            <input type="text" class="form-control form-control-sm" 
+                   name="items[0][unit]" 
+                   placeholder="請先輸入品號"
+                   readonly 
+                   title="依照零件原本設定，不可修改">
         </td>
         <td>
             <input type="text" class="form-control form-control-sm" 

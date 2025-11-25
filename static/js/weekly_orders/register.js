@@ -6,7 +6,11 @@ function autoFillPartDetails(partNumber) {
                 if (data.part_info) {
                     document.getElementById('part_name').value = data.part_info.name || '';
                     document.getElementById('part_type').value = data.part_info.type || '';
-                    document.getElementById('unit').value = data.part_info.unit || '';
+                    
+                    // 設定單位為只讀，依照零件原本設定
+                    const unitInput = document.getElementById('unit');
+                    unitInput.value = data.part_info.unit || '';
+                    unitInput.readOnly = true;
 
                     // Fetch and populate warehouse locations for the part
                     fetch(`/api/part/${partNumber}/locations`)
@@ -70,7 +74,12 @@ function autoFillPartDetails(partNumber) {
                     // Clear fields if part not found
                     document.getElementById('part_name').value = '';
                     document.getElementById('part_type').value = '';
-                    document.getElementById('unit').value = '';
+                    
+                    // 重置單位欄位
+                    const unitInput = document.getElementById('unit');
+                    unitInput.value = '';
+                    unitInput.readOnly = true;
+                    unitInput.placeholder = '請先輸入零件號碼';
                     const locationSelect = document.getElementById('warehouse_location_id');
                     const purposeNotesInput = document.getElementById('purpose_notes');
                     const purposeNotesRequiredStar = document.getElementById('purpose-notes-required-star');
@@ -84,7 +93,12 @@ function autoFillPartDetails(partNumber) {
                 // Clear fields on error
                 document.getElementById('part_name').value = '';
                 document.getElementById('part_type').value = '';
-                document.getElementById('unit').value = '';
+                
+                // 重置單位欄位
+                const unitInput = document.getElementById('unit');
+                unitInput.value = '';
+                unitInput.readOnly = true;
+                unitInput.placeholder = '請先輸入零件號碼';
                 const locationSelect = document.getElementById('warehouse_location_id');
                 const purposeNotesInput = document.getElementById('purpose_notes');
                 const purposeNotesRequiredStar = document.getElementById('purpose-notes-required-star');
@@ -96,7 +110,12 @@ function autoFillPartDetails(partNumber) {
         // Clear fields if part number is empty
         document.getElementById('part_name').value = '';
         document.getElementById('part_type').value = '';
-        document.getElementById('unit').value = '';
+        
+        // 重置單位欄位
+        const unitInput = document.getElementById('unit');
+        unitInput.value = '';
+        unitInput.readOnly = true;
+        unitInput.placeholder = '請先輸入零件號碼';
         const locationSelect = document.getElementById('warehouse_location_id');
         const purposeNotesInput = document.getElementById('purpose_notes');
         const purposeNotesRequiredStar = document.getElementById('purpose-notes-required-star');
