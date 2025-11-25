@@ -479,6 +479,7 @@ def inventory_transactions():
         'OUT_WORK_ORDER': '工單領用',
         'OUT_SCRAP': '報廢出庫',
         'OUT_TRANSFER': '倉庫轉出',
+        'OUT_AFTER_SALES': '售服維修用',
         'ADJUST': '庫存調整'
     }
     reference_type_map = {
