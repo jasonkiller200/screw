@@ -125,6 +125,30 @@ function updateKPIs(kpiData) {
     document.getElementById('kpi-parts-with-location').textContent = kpiData.parts_with_location_count.toLocaleString();
     document.getElementById('kpi-total-stock').textContent = kpiData.total_stock_quantity.toLocaleString();
 
+    // 根據時間範圍更新卡片標題
+    const timeRangeLabels = {
+        'today': '今日',
+        'week': '本週', 
+        'month': '本月',
+        'quarter': '本季'
+    };
+    const currentLabel = timeRangeLabels[currentTimeRange] || '本週';
+    
+    // 更新出入庫卡片標題
+    const allH6Elements = document.querySelectorAll('h6');
+    
+    allH6Elements.forEach((h6) => {
+        // 檢查是否包含出庫相關的圖示或文字
+        if (h6.innerHTML.includes('fa-truck-loading') || h6.textContent.includes('出庫')) {
+            h6.innerHTML = `<i class="fas fa-truck-loading me-2 text-danger"></i>${currentLabel}出庫`;
+        }
+        
+        // 檢查是否包含入庫相關的圖示或文字
+        if (h6.innerHTML.includes('fa-dolly-flatbed') || h6.textContent.includes('入庫')) {
+            h6.innerHTML = `<i class="fas fa-dolly-flatbed me-2 text-success"></i>${currentLabel}入庫`;
+        }
+    });
+
     // 更新出庫數據和分類明細
     document.getElementById('kpi-weekly-out').textContent = kpiData.weekly_stock_out.total.toLocaleString();
     updateTrendDisplay(document.getElementById('kpi-weekly-out-trend'), kpiData.weekly_stock_out.trend);
