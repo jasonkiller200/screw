@@ -291,15 +291,33 @@ class WeeklyOrderService:
 
             filename = f"Hartford螺絲五金耗材用品申請_{get_taipei_time().strftime('%Y%m%d')}.xlsx"
             
-            # 標記 Excel 已生成（不修改週期狀態，保持 reviewing）
+            # 標記 Excel 已生成
             cycle.excel_generated = True
             cycle.reviewed_at = get_taipei_time()
+            
+            # 檢查是否所有項目都已審查完成
+            all_registrations = OrderRegistration.query.filter_by(cycle_id=cycle.id).all()
+            reviewed_statuses = ['approved', 'rejected', 'completed', 'partially_received']
+            all_reviewed = all(reg.status in reviewed_statuses for reg in all_registrations)
+            
+            # 檢查是否已過截止時間
+            now = get_taipei_time()
+            deadline_aware = cycle.deadline
+            if deadline_aware.tzinfo is None:
+                from datetime import timezone, timedelta
+                tz_taipei = timezone(timedelta(hours=8))
+                deadline_aware = deadline_aware.replace(tzinfo=tz_taipei)
+            is_overdue = now > deadline_aware
+            
+            # 只有在過期、所有項目已審查且已匯出 Excel 時,才標記為 completed
+            if is_overdue and all_reviewed and cycle.excel_generated:
+                cycle.status = 'completed'
             
             review_log = OrderReviewLog(
                 cycle_id=cycle.id,
                 reviewer_name='系統',
                 action='export_excel',
-                notes=f'匯出Excel申請單，包含{len(registrations)}個項目'
+                notes=f'匯出Excel申請單,包含{len(registrations)}個項目'
             )
             db.session.add(review_log)
             db.session.commit()

@@ -92,14 +92,16 @@
                     <h5 class="mb-0"><i class="fas fa-history"></i> 訂單明細</h5>
                     <div class="d-flex gap-2">
                         <!-- 狀態篩選 -->
-                        <select class="form-select form-select-sm" id="statusFilter" onchange="filterCycles()" style="width: 150px;">
+                        <select class="form-select form-select-sm" id="statusFilter" onchange="filterCycles()"
+                            style="width: 150px;">
                             <option value="">全部狀態</option>
                             <option value="active">進行中</option>
                             <option value="reviewing">審查中</option>
                             <option value="completed">已完成</option>
                         </select>
                         <!-- 每頁顯示數量 -->
-                        <select class="form-select form-select-sm" id="perPageSelect" onchange="changePerPage()" style="width: 120px;">
+                        <select class="form-select form-select-sm" id="perPageSelect" onchange="changePerPage()"
+                            style="width: 120px;">
                             <option value="10" selected>10 筆/頁</option>
                             <option value="20">20 筆/頁</option>
                             <option value="50">50 筆/頁</option>
@@ -125,110 +127,113 @@
                                 {% for cycle in historical_cycles %}
                                 {# 計算實際顯示狀態 #}
                                 {% if cycle.status == 'completed' %}
+                                {% set display_status = 'completed' %}
+                                {% elif cycle.deadline < now and cycle.excel_generated and
+                                    cycle.reviewed_registrations==cycle.total_registrations and
+                                    cycle.total_registrations> 0 %}
                                     {% set display_status = 'completed' %}
-                                {% elif cycle.status == 'reviewing' or (cycle.status == 'active' and cycle.deadline < now) %}
-                                    {% set display_status = 'reviewing' %}
-                                {% elif cycle.status == 'active' %}
-                                    {% set display_status = 'active' %}
-                                {% else %}
-                                    {% set display_status = cycle.status %}
-                                {% endif %}
-                                <tr class="cycle-row" data-status="{{ display_status }}">
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <div class="avatar-circle bg-{{ 'success' if display_status == 'active' else 'warning' if display_status == 'reviewing' else 'info' }} me-2">
-                                                <i class="fas fa-{{ 'play' if display_status == 'active' else 'clipboard-check' if display_status == 'reviewing' else 'check' }} text-white"></i>
+                                    {% elif cycle.status == 'reviewing' or (cycle.status == 'active' and cycle.deadline
+                                    < now) %} {% set display_status='reviewing' %} {% elif cycle.status=='active' %} {%
+                                        set display_status='active' %} {% else %} {% set display_status=cycle.status %}
+                                        {% endif %} <tr class="cycle-row" data-status="{{ display_status }}">
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <div
+                                                    class="avatar-circle bg-{{ 'success' if display_status == 'active' else 'warning' if display_status == 'reviewing' else 'info' }} me-2">
+                                                    <i
+                                                        class="fas fa-{{ 'play' if display_status == 'active' else 'clipboard-check' if display_status == 'reviewing' else 'check' }} text-white"></i>
+                                                </div>
+                                                <div>
+                                                    <strong>{{ cycle.cycle_name }}</strong>
+                                                    <br>
+                                                    <small class="text-muted">建立於 {{ cycle.created_at.strftime('%m/%d
+                                                        %H:%M') }}</small>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <strong>{{ cycle.cycle_name }}</strong>
-                                                <br>
-                                                <small class="text-muted">建立於 {{ cycle.created_at.strftime('%m/%d %H:%M') }}</small>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <i class="far fa-calendar-alt text-muted me-1"></i>
-                                        {{ cycle.start_date.strftime('%Y-%m-%d') if cycle.start_date else '-' }}
-                                    </td>
-                                    <td>
-                                        <i class="far fa-calendar-times text-muted me-1"></i>
-                                        {{ cycle.deadline.strftime('%m/%d %H:%M') if cycle.deadline else '-' }}
-                                        {% if cycle.deadline and display_status == 'active' %}
+                                        </td>
+                                        <td>
+                                            <i class="far fa-calendar-alt text-muted me-1"></i>
+                                            {{ cycle.start_date.strftime('%Y-%m-%d') if cycle.start_date else '-' }}
+                                        </td>
+                                        <td>
+                                            <i class="far fa-calendar-times text-muted me-1"></i>
+                                            {{ cycle.deadline.strftime('%m/%d %H:%M') if cycle.deadline else '-' }}
+                                            {% if cycle.deadline and display_status == 'active' %}
                                             {% set time_left = (cycle.deadline - now).total_seconds() / 3600 %}
-                                            {% if time_left > 0 and time_left < 24 %}
-                                                <br><small class="badge bg-warning text-dark">剩 {{ "%.1f"|format(time_left) }} 小時</small>
+                                            {% if time_left > 0 and time_left < 24 %} <br><small
+                                                    class="badge bg-warning text-dark">剩 {{ "%.1f"|format(time_left) }}
+                                                    小時</small>
+                                                {% endif %}
+                                                {% endif %}
+                                        </td>
+                                        <td class="text-center">
+                                            {% if display_status == 'completed' %}
+                                            <span class="badge bg-info">
+                                                <i class="fas fa-check me-1"></i>已完成
+                                            </span>
+                                            {% elif display_status == 'reviewing' %}
+                                            <span class="badge bg-warning text-dark">
+                                                <i class="fas fa-search me-1"></i>審查中
+                                            </span>
+                                            {% elif display_status == 'active' %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-play me-1"></i>進行中
+                                            </span>
+                                            {% else %}
+                                            <span class="badge bg-secondary">{{ cycle.status }}</span>
                                             {% endif %}
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-center">
-                                        {% if display_status == 'completed' %}
-                                        <span class="badge bg-info">
-                                            <i class="fas fa-check me-1"></i>已完成
-                                        </span>
-                                        {% elif display_status == 'reviewing' %}
-                                        <span class="badge bg-warning text-dark">
-                                            <i class="fas fa-search me-1"></i>審查中
-                                        </span>
-                                        {% elif display_status == 'active' %}
-                                        <span class="badge bg-success">
-                                            <i class="fas fa-play me-1"></i>進行中
-                                        </span>
-                                        {% else %}
-                                        <span class="badge bg-secondary">{{ cycle.status }}</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-center">
-                                        {% set progress_percent = (cycle.reviewed_registrations / cycle.total_registrations * 100) if cycle.total_registrations > 0 else 0 %}
-                                        <div class="progress" style="height: 20px;" title="{{ cycle.reviewed_registrations }}/{{ cycle.total_registrations }} 已審查">
-                                            <div class="progress-bar bg-{{ 'success' if progress_percent == 100 else 'info' }}" 
-                                                 role="progressbar" 
-                                                 style="width: {{ progress_percent }}%"
-                                                 aria-valuenow="{{ progress_percent }}" 
-                                                 aria-valuemin="0" 
-                                                 aria-valuemax="100">
-                                                {{ "%.0f"|format(progress_percent) }}%
+                                        </td>
+                                        <td class="text-center">
+                                            {% set progress_percent = (cycle.reviewed_registrations /
+                                            cycle.total_registrations * 100) if cycle.total_registrations > 0 else 0 %}
+                                            <div class="progress" style="height: 20px;"
+                                                title="{{ cycle.reviewed_registrations }}/{{ cycle.total_registrations }} 已審查">
+                                                <div class="progress-bar bg-{{ 'success' if progress_percent == 100 else 'info' }}"
+                                                    role="progressbar" style="width: {{ progress_percent }}%"
+                                                    aria-valuenow="{{ progress_percent }}" aria-valuemin="0"
+                                                    aria-valuemax="100">
+                                                    {{ "%.0f"|format(progress_percent) }}%
+                                                </div>
                                             </div>
-                                        </div>
-                                        <small class="text-muted">{{ cycle.reviewed_registrations }}/{{ cycle.total_registrations }}</small>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-light text-dark fs-6">
-                                            {{ cycle.total_registrations }}
-                                        </span>
-                                    </td>
-                                    <td class="text-end">
-                                        <div class="btn-group btn-group-sm" role="group">
-                                            <a href="{{ url_for('weekly_order.manage_cycle', cycle_id=cycle.id) }}" 
-                                               class="btn btn-outline-primary"
-                                               title="查看詳情">
-                                                <i class="fas fa-eye"></i>
-                                            </a>
-                                            {% if current_user.role == 'admin' %}
+                                            <small class="text-muted">{{ cycle.reviewed_registrations }}/{{
+                                                cycle.total_registrations }}</small>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge bg-light text-dark fs-6">
+                                                {{ cycle.total_registrations }}
+                                            </span>
+                                        </td>
+                                        <td class="text-end">
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <a href="{{ url_for('weekly_order.manage_cycle', cycle_id=cycle.id) }}"
+                                                    class="btn btn-outline-primary" title="查看詳情">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                                {% if current_user.role == 'admin' %}
                                                 {% if cycle.deadline >= now %}
-                                                <a href="{{ url_for('weekly_order.review_cycle', cycle_id=cycle.id) }}" 
-                                                   class="btn btn-outline-success"
-                                                   title="審查">
+                                                <a href="{{ url_for('weekly_order.review_cycle', cycle_id=cycle.id) }}"
+                                                    class="btn btn-outline-success" title="審查">
                                                     <i class="fas fa-check"></i>
                                                 </a>
                                                 {% endif %}
-                                                <button class="btn btn-outline-danger" 
-                                                        onclick="deleteCycle({{ cycle.id }})"
-                                                        title="刪除">
+                                                <button class="btn btn-outline-danger"
+                                                    onclick="deleteCycle({{ cycle.id }})" title="刪除">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
-                                            {% endif %}
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% endfor %}
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                        </tr>
+                                        {% endfor %}
                             </tbody>
                         </table>
                     </div>
-                    
+
                     <!-- 分頁控制 -->
                     <div class="d-flex justify-content-between align-items-center mt-3">
                         <div class="text-muted">
-                            顯示第 <span id="currentStart">1</span>-<span id="currentEnd">{{ historical_cycles|length }}</span> 筆，
+                            顯示第 <span id="currentStart">1</span>-<span id="currentEnd">{{ historical_cycles|length
+                                }}</span> 筆，
                             共 <span id="totalRecords">{{ historical_cycles|length }}</span> 筆
                         </div>
                         <nav aria-label="Page navigation">
@@ -251,33 +256,33 @@
 </div>
 
 <style>
-.avatar-circle {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
+    .avatar-circle {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
 
-.cycle-row {
-    transition: all 0.2s ease;
-}
+    .cycle-row {
+        transition: all 0.2s ease;
+    }
 
-.cycle-row:hover {
-    background-color: #f8f9fa;
-    transform: translateX(2px);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
+    .cycle-row:hover {
+        background-color: #f8f9fa;
+        transform: translateX(2px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
 
-.progress {
-    box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
-}
+    .progress {
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
 
-.btn-group-sm > .btn {
-    padding: 0.25rem 0.5rem;
-}
+    .btn-group-sm>.btn {
+        padding: 0.25rem 0.5rem;
+    }
 </style>
 
 {% endblock %}
@@ -285,35 +290,35 @@
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/weekly_orders/index.js') }}"></script>
 <script>
-// 篩選功能
-function filterCycles() {
-    const status = document.getElementById('statusFilter').value;
-    const rows = document.querySelectorAll('.cycle-row');
-    
-    rows.forEach(row => {
-        if (!status || row.dataset.status === status) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
-        }
-    });
-    
-    updatePagination();
-}
+    // 篩選功能
+    function filterCycles() {
+        const status = document.getElementById('statusFilter').value;
+        const rows = document.querySelectorAll('.cycle-row');
 
-// 改變每頁顯示數量
-function changePerPage() {
-    // 這裡可以發送 AJAX 請求重新載入資料
-    // 暫時重新載入頁面
-    const perPage = document.getElementById('perPageSelect').value;
-    window.location.href = `?per_page=${perPage}`;
-}
+        rows.forEach(row => {
+            if (!status || row.dataset.status === status) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
 
-// 初始化分頁（簡單版本）
-function updatePagination() {
-    const visibleRows = document.querySelectorAll('.cycle-row:not([style*="display: none"])');
-    document.getElementById('totalRecords').textContent = visibleRows.length;
-    document.getElementById('currentEnd').textContent = visibleRows.length;
-}
+        updatePagination();
+    }
+
+    // 改變每頁顯示數量
+    function changePerPage() {
+        // 這裡可以發送 AJAX 請求重新載入資料
+        // 暫時重新載入頁面
+        const perPage = document.getElementById('perPageSelect').value;
+        window.location.href = `?per_page=${perPage}`;
+    }
+
+    // 初始化分頁（簡單版本）
+    function updatePagination() {
+        const visibleRows = document.querySelectorAll('.cycle-row:not([style*="display: none"])');
+        document.getElementById('totalRecords').textContent = visibleRows.length;
+        document.getElementById('currentEnd').textContent = visibleRows.length;
+    }
 </script>
 {% endblock %}
