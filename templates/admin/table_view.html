@@ -3,62 +3,27 @@
 {% block title %}{{ display_name }} - 資料庫管理{% endblock %}
 
 {% block extra_css %}
+<link href="{{ url_for('static', filename='css/admin.css') }}" rel="stylesheet">
+<meta name="csrf-token" content="{{ csrf_token() if csrf_token else '' }}">
 <style>
-.admin-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 1.5rem 0;
-    margin-bottom: 1.5rem;
-    border-radius: 8px;
-}
-
-.table-responsive {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    border-radius: 8px;
+.table-actions {
     background: white;
-}
-
-.table thead th {
-    background-color: #f8f9fa;
-    border-bottom: 2px solid #dee2e6;
-    font-weight: 600;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-}
-
-.table tbody tr:hover {
-    background-color: #f8f9fa;
-}
-
-.sortable {
-    cursor: pointer;
-    user-select: none;
-}
-
-.sortable:hover {
-    background-color: #e9ecef;
-}
-
-.sort-icon {
-    margin-left: 5px;
-    opacity: 0.5;
-}
-
-.sort-active {
-    opacity: 1;
-    color: #007bff;
+    padding: 1rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 1rem;
 }
 
 .search-box {
     border-radius: 25px;
     border: 2px solid #e9ecef;
     padding: 0.75rem 1.5rem;
+    transition: all 0.2s ease-in-out;
 }
 
 .search-box:focus {
     border-color: #007bff;
-    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
 }
 
 .protected-field {
@@ -69,16 +34,8 @@
 .pagination-wrapper {
     background: white;
     padding: 1rem;
-    border-radius: 8px;
+    border-radius: 10px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.table-actions {
-    background: white;
-    padding: 1rem;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    margin-bottom: 1rem;
 }
 </style>
 {% endblock %}
@@ -91,9 +48,24 @@
         <p class="mb-0">資料查看與管理</p>
     </div>
 
+    <!-- 通知容器 -->
+    <div id="notifications-container"></div>
+    
+    <!-- 未儲存變更指示器 -->
+    <div class="unsaved-indicator" style="display: none;">
+        <i class="fas fa-exclamation-triangle me-1"></i>有未儲存的變更
+    </div>
+    
+    <!-- 表格資訊 (隱藏，供JavaScript使用) -->
+    <div id="table-info" 
+         data-table-name="{{ table_name }}" 
+         data-can-edit="{{ can_edit|lower }}"
+         data-can-delete="{{ can_delete|lower }}" 
+         style="display: none;"></div>
+
     <!-- 操作工具列 -->
     <div class="table-actions">
-        <div class="row align-items-center">
+        <div class="row align-items-center mb-2">
             <div class="col-md-6">
                 <a href="{{ url_for('admin.database_management') }}" class="btn btn-outline-secondary">
                     <i class="fas fa-arrow-left me-1"></i>返回管理首頁
@@ -105,10 +77,13 @@
             <div class="col-md-6">
                 <form method="GET" class="d-flex">
                     <input type="text" class="form-control search-box me-2" 
-                           name="search" value="{{ search }}" 
-                           placeholder="搜尋資料..." onchange="this.form.submit()">
+                           name="search" value="{{ search or '' }}" 
+                           placeholder="搜尋資料...">
                     <input type="hidden" name="sort_by" value="{{ sort_by }}">
                     <input type="hidden" name="sort_order" value="{{ sort_order }}">
+                    <button type="submit" class="btn btn-primary me-1">
+                        <i class="fas fa-search"></i>
+                    </button>
                     {% if search %}
                     <a href="{{ url_for('admin.view_table', table_name=table_name) }}" class="btn btn-outline-danger">
                         <i class="fas fa-times"></i>
@@ -117,17 +92,51 @@
                 </form>
             </div>
         </div>
+        
+        <!-- 批量操作區域 -->
+        {% if can_edit or can_delete %}
+        <div class="batch-actions" style="display: none;">
+            <div class="d-flex align-items-center flex-wrap">
+                <span class="me-3">
+                    <i class="fas fa-check-square me-1"></i>
+                    已選擇 <span id="selected-count">0</span> 筆記錄
+                </span>
+                {% if can_edit %}
+                <button type="button" class="btn btn-warning btn-sm me-2" id="batch-edit-btn">
+                    <i class="fas fa-edit me-1"></i>批量編輯
+                </button>
+                {% endif %}
+                {% if can_delete %}
+                <button type="button" class="btn btn-danger btn-sm me-2" id="batch-delete-btn">
+                    <i class="fas fa-trash me-1"></i>批量刪除
+                </button>
+                {% endif %}
+                <button type="button" class="btn btn-secondary btn-sm" id="clear-selection-btn">
+                    <i class="fas fa-times me-1"></i>清除選擇
+                </button>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- 資料表格 -->
     {% if pagination.items %}
     <div class="table-responsive">
-        <table class="table table-striped table-hover mb-0">
+        <table class="table data-table table-striped table-hover mb-0">
             <thead>
                 <tr>
+                    <!-- 批量選擇欄位 -->
+                    {% if can_edit or can_delete %}
+                    <th width="40">
+                        <input type="checkbox" class="form-check-input select-all" 
+                               title="全選/取消全選">
+                    </th>
+                    {% endif %}
+                    
+                    <!-- 資料欄位 -->
                     {% for column in columns %}
                     {% if not column.protected %}
-                    <th class="sortable" onclick="sortTable('{{ column.name }}')">
+                    <th class="sortable cursor-pointer" onclick="sortTable('{{ column.name }}')">
                         {{ column.name }}
                         {% if sort_by == column.name %}
                             {% if sort_order == 'asc' %}
@@ -141,29 +150,80 @@
                     </th>
                     {% endif %}
                     {% endfor %}
+                    
+                    <!-- 操作欄位 -->
+                    {% if can_edit or can_delete %}
+                    <th width="200" class="text-center">操作</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody>
                 {% for item in pagination.items %}
-                <tr>
+                <tr data-record-id="{{ item.id if item.id is defined else item[primary_key] if primary_key else '' }}">
+                    <!-- 批量選擇 -->
+                    {% if can_edit or can_delete %}
+                    <td>
+                        <input type="checkbox" class="form-check-input row-select">
+                    </td>
+                    {% endif %}
+                    
+                    <!-- 資料欄位 -->
                     {% for column in columns %}
                     {% if not column.protected %}
-                    <td>
+                    <td data-field="{{ column.name }}" 
+                        data-type="{{ column.type.lower() }}"
+                        {% if column.protected %}class="protected-field"{% endif %}>
                         {% set value = item[column.name] if item[column.name] is defined else '' %}
                         {% if value is none %}
-                            <span class="text-muted">NULL</span>
+                            <span class="text-muted">-</span>
                         {% elif value is sameas true %}
-                            <span class="badge bg-success">是</span>
+                            是
                         {% elif value is sameas false %}
-                            <span class="badge bg-secondary">否</span>
+                            否
                         {% elif column.type.lower().startswith('datetime') and value %}
                             {{ value.strftime('%Y-%m-%d %H:%M:%S') if value.strftime else value }}
+                        {% elif column.type.lower().startswith('date') and value %}
+                            {{ value.strftime('%Y-%m-%d') if value.strftime else value }}
                         {% else %}
-                            {{ value }}
+                            {{ value if value != '' else '-' }}
                         {% endif %}
                     </td>
                     {% endif %}
                     {% endfor %}
+                    
+                    <!-- 操作按鈕 -->
+                    {% if can_edit or can_delete %}
+                    <td class="action-buttons text-center">
+                        <div class="btn-group btn-group-sm" role="group">
+                            {% if can_edit %}
+                            <!-- 編輯模式按鈕 -->
+                            <button type="button" class="btn btn-outline-primary edit-btn"
+                                    data-bs-toggle="tooltip" title="編輯記錄">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            
+                            <!-- 儲存/取消按鈕 (初始隱藏) -->
+                            <button type="button" class="btn btn-success save-btn" 
+                                    data-bs-toggle="tooltip" title="儲存變更"
+                                    style="display: none;">
+                                <i class="fas fa-save"></i>
+                            </button>
+                            <button type="button" class="btn btn-secondary cancel-btn"
+                                    data-bs-toggle="tooltip" title="取消編輯" 
+                                    style="display: none;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            {% endif %}
+                            
+                            {% if can_delete %}
+                            <button type="button" class="btn btn-outline-danger delete-btn"
+                                    data-bs-toggle="tooltip" title="刪除記錄">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
@@ -252,7 +312,13 @@
     {% endif %}
 </div>
 
-<!-- JavaScript -->
+{% endblock %}
+
+{% block extra_js %}
+<!-- 引入資料庫管理器 -->
+<script src="{{ url_for('static', filename='js/admin/database_manager.js') }}"></script>
+
+<!-- 表格功能JavaScript -->
 <script>
 function sortTable(column) {
     const currentSort = '{{ sort_by }}';
@@ -282,5 +348,55 @@ if (searchInput) {
         }, 1000); // 1秒後自動搜尋
     });
 }
+
+// 批量選擇功能
+$(document).ready(function() {
+    // 全選/取消全選
+    $('.select-all').on('change', function() {
+        const isChecked = $(this).is(':checked');
+        $('.row-select').prop('checked', isChecked);
+        updateBatchActions();
+        updateSelectedRows();
+    });
+    
+    // 單行選擇
+    $(document).on('change', '.row-select', function() {
+        updateBatchActions();
+        updateSelectedRows();
+        
+        // 更新全選狀態
+        const totalRows = $('.row-select').length;
+        const selectedRows = $('.row-select:checked').length;
+        $('.select-all').prop('indeterminate', selectedRows > 0 && selectedRows < totalRows);
+        $('.select-all').prop('checked', selectedRows === totalRows);
+    });
+    
+    // 清除選擇
+    $('#clear-selection-btn').on('click', function() {
+        $('.row-select, .select-all').prop('checked', false);
+        updateBatchActions();
+        updateSelectedRows();
+    });
+    
+    function updateBatchActions() {
+        const selectedCount = $('.row-select:checked').length;
+        $('#selected-count').text(selectedCount);
+        $('.batch-actions').toggle(selectedCount > 0);
+    }
+    
+    function updateSelectedRows() {
+        $('.row-select').each(function() {
+            const $row = $(this).closest('tr');
+            if ($(this).is(':checked')) {
+                $row.addClass('selected-row');
+            } else {
+                $row.removeClass('selected-row');
+            }
+        });
+    }
+    
+    // 初始化工具提示
+    $('[data-bs-toggle="tooltip"]').tooltip();
+});
 </script>
 {% endblock %}

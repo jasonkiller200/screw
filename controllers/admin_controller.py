@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, send_file
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, send_file, current_app
 import io
 import pandas as pd
 from datetime import datetime
@@ -306,4 +306,396 @@ def get_display_name(table_name):
         'Announcement': '📢 公告'
     }
     return display_names.get(table_name, table_name)
+
+
+@admin_bp.route('/update_record/<table_name>/<int:record_id>', methods=['POST'])
+@login_required
+@admin_required
+def update_record(table_name, record_id):
+    """更新記錄"""
+    try:
+        # 檢查表格權限
+        if table_name not in PERMISSION_LEVELS.get('EDIT', []):
+            return jsonify({
+                'success': False,
+                'message': f'沒有編輯 {table_name} 的權限'
+            }), 403
+        
+        # 獲取模型
+        model_class = get_model_by_name(table_name)
+        if not model_class:
+            return jsonify({
+                'success': False,
+                'message': '找不到對應的資料表'
+            }), 404
+        
+        # 查找記錄 - 使用動態主鍵查找
+        try:
+            # 獲取主鍵欄位名稱
+            primary_key = model_class.__table__.primary_key.columns.keys()[0]
+            record = db.session.query(model_class).filter(
+                getattr(model_class, primary_key) == record_id
+            ).first()
+            
+            if not record:
+                return jsonify({
+                    'success': False,
+                    'message': '找不到指定的記錄'
+                }), 404
+        except Exception as e:
+            current_app.logger.error(f'查找記錄時發生錯誤: {str(e)}')
+            return jsonify({
+                'success': False,
+                'message': f'查找記錄失敗: {str(e)}'
+            }), 500
+        
+        # 獲取提交的資料
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': '沒有收到更新資料'
+            }), 400
+        
+        # 獲取受保護欄位列表
+        protected_fields = PROTECTED_FIELDS.get(table_name, [])
+        protected_fields.extend(PROTECTED_FIELDS.get('ALL', []))
+        
+        # 更新欄位
+        updated_fields = []
+        for field_name, value in data.items():
+            if field_name in protected_fields:
+                continue
+                
+            if hasattr(record, field_name):
+                # 類型轉換和驗證
+                try:
+                    column = getattr(model_class, field_name)
+                    column_type = str(column.type)
+                    
+                    # 處理不同的資料類型
+                    if 'BOOLEAN' in column_type.upper():
+                        value = bool(value) if isinstance(value, bool) else str(value).lower() in ['true', '1', 'yes', '是']
+                    elif 'INTEGER' in column_type.upper() or 'NUMERIC' in column_type.upper():
+                        if value != '' and value is not None:
+                            value = float(value) if '.' in str(value) else int(value)
+                    elif 'DATETIME' in column_type.upper():
+                        if value:
+                            from datetime import datetime
+                            value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                        else:
+                            value = None
+                    elif 'DATE' in column_type.upper():
+                        if value:
+                            from datetime import datetime
+                            value = datetime.fromisoformat(value).date()
+                        else:
+                            value = None
+                    
+                    # 設定新值
+                    setattr(record, field_name, value)
+                    updated_fields.append(field_name)
+                    
+                except (ValueError, TypeError) as e:
+                    return jsonify({
+                        'success': False,
+                        'message': f'欄位 {field_name} 的值格式不正確: {str(e)}'
+                    }), 400
+        
+        if not updated_fields:
+            return jsonify({
+                'success': False,
+                'message': '沒有有效的欄位可以更新'
+            }), 400
+        
+        # 儲存變更
+        db.session.commit()
+        
+        # 記錄操作日誌
+        current_app.logger.info(f'用戶 {current_user.username} 更新了 {table_name} 記錄 ID: {record_id}, 更新欄位: {", ".join(updated_fields)}')
+        
+        # 返回更新後的資料
+        updated_data = {}
+        for field in updated_fields:
+            value = getattr(record, field)
+            if hasattr(value, 'isoformat'):
+                updated_data[field] = value.isoformat()
+            else:
+                updated_data[field] = value
+        
+        return jsonify({
+            'success': True,
+            'message': f'成功更新 {len(updated_fields)} 個欄位',
+            'data': updated_data
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'更新記錄錯誤 - 表格: {table_name}, ID: {record_id}, 錯誤: {str(e)}')
+        import traceback
+        current_app.logger.error(f'詳細錯誤: {traceback.format_exc()}')
+        return jsonify({
+            'success': False,
+            'message': f'更新失敗: {str(e)}'
+        }), 500
+
+
+@admin_bp.route('/delete_record/<table_name>/<int:record_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def delete_record(table_name, record_id):
+    """刪除記錄"""
+    try:
+        # 檢查表格權限
+        if table_name not in PERMISSION_LEVELS.get('DELETE', []):
+            return jsonify({
+                'success': False,
+                'message': f'沒有刪除 {table_name} 的權限'
+            }), 403
+        
+        # 獲取模型
+        model_class = get_model_by_name(table_name)
+        if not model_class:
+            return jsonify({
+                'success': False,
+                'message': '找不到對應的資料表'
+            }), 404
+        
+        # 查找記錄 - 使用動態主鍵查找
+        try:
+            # 獲取主鍵欄位名稱
+            primary_key = model_class.__table__.primary_key.columns.keys()[0]
+            record = db.session.query(model_class).filter(
+                getattr(model_class, primary_key) == record_id
+            ).first()
+            
+            if not record:
+                return jsonify({
+                    'success': False,
+                    'message': '找不到指定的記錄'
+                }), 404
+        except Exception as e:
+            current_app.logger.error(f'查找記錄時發生錯誤: {str(e)}')
+            return jsonify({
+                'success': False,
+                'message': f'查找記錄失敗: {str(e)}'
+            }), 500
+        
+        # 備份記錄資訊用於日誌
+        record_info = {}
+        for column in model_class.__table__.columns:
+            if column.name not in PROTECTED_FIELDS.get('ALL', []):
+                value = getattr(record, column.name)
+                record_info[column.name] = str(value) if value is not None else 'NULL'
+        
+        # 刪除記錄
+        db.session.delete(record)
+        db.session.commit()
+        
+        # 記錄操作日誌
+        current_app.logger.warning(f'用戶 {current_user.username} 刪除了 {table_name} 記錄 ID: {record_id}, 內容: {record_info}')
+        
+        return jsonify({
+            'success': True,
+            'message': '記錄已成功刪除'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'刪除記錄錯誤 - 表格: {table_name}, ID: {record_id}, 錯誤: {str(e)}')
+        import traceback
+        current_app.logger.error(f'詳細錯誤: {traceback.format_exc()}')
+        return jsonify({
+            'success': False,
+            'message': f'刪除失敗: {str(e)}'
+        }), 500
+
+
+@admin_bp.route('/batch_update/<table_name>', methods=['POST'])
+@login_required
+@admin_required
+def batch_update(table_name):
+    """批量更新記錄"""
+    try:
+        # 檢查表格權限
+        if table_name not in PERMISSION_LEVELS.get('EDIT', []):
+            return jsonify({
+                'success': False,
+                'message': f'沒有編輯 {table_name} 的權限'
+            }), 403
+        
+        # 獲取模型
+        model_class = get_model_by_name(table_name)
+        if not model_class:
+            return jsonify({
+                'success': False,
+                'message': '找不到對應的資料表'
+            }), 404
+        
+        # 獲取請求資料
+        data = request.get_json()
+        record_ids = data.get('record_ids', [])
+        update_data = data.get('update_data', {})
+        
+        if not record_ids or not update_data:
+            return jsonify({
+                'success': False,
+                'message': '請提供記錄ID列表和更新資料'
+            }), 400
+        
+        # 獲取受保護欄位
+        protected_fields = PROTECTED_FIELDS.get(table_name, [])
+        protected_fields.extend(PROTECTED_FIELDS.get('ALL', []))
+        
+        # 過濾受保護欄位
+        filtered_data = {k: v for k, v in update_data.items() if k not in protected_fields}
+        
+        if not filtered_data:
+            return jsonify({
+                'success': False,
+                'message': '沒有可更新的欄位'
+            }), 400
+        
+        # 批量更新 - 使用動態主鍵
+        try:
+            primary_key = model_class.__table__.primary_key.columns.keys()[0]
+            primary_key_attr = getattr(model_class, primary_key)
+            updated_count = db.session.query(model_class).filter(
+                primary_key_attr.in_(record_ids)
+            ).update(filtered_data, synchronize_session=False)
+        except Exception as e:
+            current_app.logger.error(f'批量更新時發生錯誤: {str(e)}')
+            return jsonify({
+                'success': False,
+                'message': f'批量更新失敗: {str(e)}'
+            }), 500
+        
+        db.session.commit()
+        
+        # 記錄操作日誌
+        current_app.logger.info(f'用戶 {current_user.username} 批量更新了 {updated_count} 筆 {table_name} 記錄')
+        
+        return jsonify({
+            'success': True,
+            'message': f'成功更新 {updated_count} 筆記錄'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'批量更新錯誤: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'批量更新失敗: {str(e)}'
+        }), 500
+
+
+@admin_bp.route('/batch_delete/<table_name>', methods=['POST'])
+@login_required
+@admin_required
+def batch_delete(table_name):
+    """批量刪除記錄"""
+    try:
+        # 檢查表格權限
+        if table_name not in PERMISSION_LEVELS.get('DELETE', []):
+            return jsonify({
+                'success': False,
+                'message': f'沒有刪除 {table_name} 的權限'
+            }), 403
+        
+        # 獲取模型
+        model_class = get_model_by_name(table_name)
+        if not model_class:
+            return jsonify({
+                'success': False,
+                'message': '找不到對應的資料表'
+            }), 404
+        
+        # 獲取記錄ID列表
+        data = request.get_json()
+        record_ids = data.get('record_ids', [])
+        
+        if not record_ids:
+            return jsonify({
+                'success': False,
+                'message': '請提供要刪除的記錄ID列表'
+            }), 400
+        
+        # 批量刪除 - 使用動態主鍵
+        try:
+            primary_key = model_class.__table__.primary_key.columns.keys()[0]
+            primary_key_attr = getattr(model_class, primary_key)
+            deleted_count = db.session.query(model_class).filter(
+                primary_key_attr.in_(record_ids)
+            ).delete(synchronize_session=False)
+        except Exception as e:
+            current_app.logger.error(f'批量刪除時發生錯誤: {str(e)}')
+            return jsonify({
+                'success': False,
+                'message': f'批量刪除失敗: {str(e)}'
+            }), 500
+        
+        db.session.commit()
+        
+        # 記錄操作日誌
+        current_app.logger.warning(f'用戶 {current_user.username} 批量刪除了 {deleted_count} 筆 {table_name} 記錄')
+        
+        return jsonify({
+            'success': True,
+            'message': f'成功刪除 {deleted_count} 筆記錄'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'批量刪除錯誤: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'批量刪除失敗: {str(e)}'
+        }), 500
+
+
+def get_model_by_name(table_name):
+    """根據表格名稱獲取模型類別"""
+    try:
+        # 直接從已載入的模組中獲取模型
+        import sys
+        
+        # 檢查模型是否已經在 sys.modules 中
+        model_paths = {
+            'User': 'models.weekly_order.User',
+            'Part': 'models.part.Part',
+            'CurrentInventory': 'models.inventory.CurrentInventory',
+            'InventoryTransaction': 'models.inventory.InventoryTransaction', 
+            'WorkOrderDemand': 'models.work_order.WorkOrderDemand',
+            'WeeklyOrderCycle': 'models.weekly_order.WeeklyOrderCycle',
+            'OrderRegistration': 'models.weekly_order.OrderRegistration',
+            'Notification': 'models.notification.Notification',
+            'Announcement': 'models.notification.Announcement'
+        }
+        
+        if table_name not in model_paths:
+            current_app.logger.error(f'Unknown table name: {table_name}')
+            return None
+            
+        model_path = model_paths[table_name]
+        module_name, class_name = model_path.rsplit('.', 1)
+        
+        # 檢查模組是否已載入
+        if module_name in sys.modules:
+            module = sys.modules[module_name]
+            if hasattr(module, class_name):
+                return getattr(module, class_name)
+        
+        # 如果模組未載入，嘗試導入
+        try:
+            module = __import__(module_name, fromlist=[class_name])
+            return getattr(module, class_name)
+        except ImportError as ie:
+            current_app.logger.error(f'Failed to import {model_path}: {str(ie)}')
+            return None
+        
+    except Exception as e:
+        current_app.logger.error(f'Error getting model {table_name}: {str(e)}')
+        import traceback
+        current_app.logger.error(f'Traceback: {traceback.format_exc()}')
+        return None
 
