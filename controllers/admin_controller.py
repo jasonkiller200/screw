@@ -313,9 +313,15 @@ def get_display_name(table_name):
 @admin_required
 def update_record(table_name, record_id):
     """更新記錄"""
+    import traceback
+    
     try:
+        # 記錄開始
+        current_app.logger.info(f'=== 開始更新 {table_name} 記錄 ID: {record_id} ===')
+        
         # 檢查表格權限
         if table_name not in PERMISSION_LEVELS.get('EDIT', []):
+            current_app.logger.error(f'權限不足：無法編輯 {table_name}')
             return jsonify({
                 'success': False,
                 'message': f'沒有編輯 {table_name} 的權限'
@@ -324,6 +330,7 @@ def update_record(table_name, record_id):
         # 獲取模型
         model_class = get_model_by_name(table_name)
         if not model_class:
+            current_app.logger.error(f'找不到模型: {table_name}')
             return jsonify({
                 'success': False,
                 'message': '找不到對應的資料表'
@@ -338,12 +345,14 @@ def update_record(table_name, record_id):
             ).first()
             
             if not record:
+                current_app.logger.error(f'找不到記錄 ID: {record_id}')
                 return jsonify({
                     'success': False,
                     'message': '找不到指定的記錄'
                 }), 404
         except Exception as e:
             current_app.logger.error(f'查找記錄時發生錯誤: {str(e)}')
+            current_app.logger.error(traceback.format_exc())
             return jsonify({
                 'success': False,
                 'message': f'查找記錄失敗: {str(e)}'
@@ -351,7 +360,10 @@ def update_record(table_name, record_id):
         
         # 獲取提交的資料
         data = request.get_json()
+        current_app.logger.info(f'收到的資料: {data}')
+        
         if not data:
+            current_app.logger.error('沒有收到更新資料')
             return jsonify({
                 'success': False,
                 'message': '沒有收到更新資料'
@@ -360,11 +372,15 @@ def update_record(table_name, record_id):
         # 獲取受保護欄位列表
         protected_fields = PROTECTED_FIELDS.get(table_name, [])
         protected_fields.extend(PROTECTED_FIELDS.get('ALL', []))
+        current_app.logger.info(f'受保護欄位: {protected_fields}')
         
         # 更新欄位
         updated_fields = []
         for field_name, value in data.items():
+            current_app.logger.info(f'處理欄位: {field_name} = {value} (類型: {type(value).__name__})')
+            
             if field_name in protected_fields:
+                current_app.logger.info(f'跳過受保護欄位: {field_name}')
                 continue
                 
             if hasattr(record, field_name):
@@ -372,6 +388,9 @@ def update_record(table_name, record_id):
                 try:
                     column = getattr(model_class, field_name)
                     column_type = str(column.type)
+                    current_app.logger.info(f'欄位 {field_name} 資料庫類型: {column_type}')
+                    
+                    old_value = getattr(record, field_name)
                     
                     # 處理不同的資料類型
                     if 'BOOLEAN' in column_type.upper():
@@ -393,23 +412,31 @@ def update_record(table_name, record_id):
                             value = None
                     
                     # 設定新值
+                    current_app.logger.info(f'欄位 {field_name}: {old_value} → {value}')
                     setattr(record, field_name, value)
                     updated_fields.append(field_name)
                     
                 except (ValueError, TypeError) as e:
+                    current_app.logger.error(f'欄位 {field_name} 轉換失敗: {str(e)}')
+                    current_app.logger.error(traceback.format_exc())
                     return jsonify({
                         'success': False,
                         'message': f'欄位 {field_name} 的值格式不正確: {str(e)}'
                     }), 400
+            else:
+                current_app.logger.warning(f'模型沒有此欄位: {field_name}')
         
         if not updated_fields:
+            current_app.logger.warning(f'沒有欄位被更新。資料: {data}, 受保護欄位: {protected_fields}')
             return jsonify({
                 'success': False,
                 'message': '沒有有效的欄位可以更新'
             }), 400
         
         # 儲存變更
+        current_app.logger.info(f'準備提交變更，更新欄位: {updated_fields}')
         db.session.commit()
+        current_app.logger.info('變更已提交成功')
         
         # 記錄操作日誌
         current_app.logger.info(f'用戶 {current_user.username} 更新了 {table_name} 記錄 ID: {record_id}, 更新欄位: {", ".join(updated_fields)}')
