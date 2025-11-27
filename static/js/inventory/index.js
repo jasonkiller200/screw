@@ -1,3 +1,61 @@
+// 追蹤每行的原始值
+const originalValues = new Map();
+
+// 標記該行有未儲存的變更
+function markRowAsModified(row, isModified) {
+    const saveBtn = row.querySelector('.save-stock-levels-btn');
+    
+    if (isModified) {
+        // 標記為已修改
+        row.classList.add('row-modified');
+        saveBtn.classList.remove('btn-outline-primary');
+        saveBtn.classList.add('btn-warning');
+        saveBtn.innerHTML = '<i class="fas fa-save"></i> 儲存變更';
+        saveBtn.title = '有未儲存的變更，點擊儲存';
+        
+        // 閃爍提示
+        saveBtn.style.animation = 'pulse 1.5s ease-in-out 3';
+    } else {
+        // 移除修改標記
+        row.classList.remove('row-modified');
+        saveBtn.classList.remove('btn-warning');
+        saveBtn.classList.add('btn-outline-primary');
+        saveBtn.innerHTML = '<i class="fas fa-save"></i>';
+        saveBtn.title = '儲存變更';
+        saveBtn.style.animation = '';
+    }
+}
+
+// 檢查值是否有變更
+function checkIfModified(inputElement) {
+    const row = inputElement.closest('.inventory-row');
+    const partId = row.dataset.partId;
+    const locationId = row.dataset.locationId;
+    const key = `${partId}-${locationId}`;
+    
+    const safetyStockInput = row.querySelector('.safety-stock-input');
+    const reorderPointInput = row.querySelector('.reorder-point-input');
+    
+    const currentSafety = parseFloat(safetyStockInput.value) || 0;
+    const currentReorder = parseFloat(reorderPointInput.value) || 0;
+    
+    const original = originalValues.get(key);
+    if (!original) {
+        // 初始化原始值
+        originalValues.set(key, {
+            safety: currentSafety,
+            reorder: currentReorder
+        });
+        return false;
+    }
+    
+    // 檢查是否有變更
+    const isModified = (currentSafety !== original.safety) || (currentReorder !== original.reorder);
+    markRowAsModified(row, isModified);
+    
+    return isModified;
+}
+
 // 驗證安全庫存和補貨點的合理性
 function validateStockLevels(inputElement) {
     const row = inputElement.closest('.inventory-row');
@@ -6,6 +64,9 @@ function validateStockLevels(inputElement) {
     
     const safetyStock = parseFloat(safetyStockInput.value) || 0;
     const reorderPoint = parseFloat(reorderPointInput.value) || 0;
+    
+    // 檢查是否有變更
+    checkIfModified(inputElement);
     
     // 移除舊的警告樣式
     safetyStockInput.classList.remove('is-invalid', 'border-warning');
@@ -300,12 +361,46 @@ function validateQuickActionWorkOrderId() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 初始驗證所有行
+    // 初始化所有行的原始值並進行驗證
     const allRows = document.querySelectorAll('.inventory-row');
     allRows.forEach(row => {
+        const partId = row.dataset.partId;
+        const locationId = row.dataset.locationId;
+        const key = `${partId}-${locationId}`;
+        
+        const safetyStockInput = row.querySelector('.safety-stock-input');
         const reorderPointInput = row.querySelector('.reorder-point-input');
+        
+        // 儲存原始值
+        originalValues.set(key, {
+            safety: parseFloat(safetyStockInput.value) || 0,
+            reorder: parseFloat(reorderPointInput.value) || 0
+        });
+        
+        // 初始驗證
         if (reorderPointInput) {
             validateStockLevels(reorderPointInput);
+        }
+        
+        // 監聽輸入變更
+        safetyStockInput.addEventListener('input', function() {
+            checkIfModified(this);
+        });
+        
+        reorderPointInput.addEventListener('input', function() {
+            checkIfModified(this);
+        });
+    });
+    
+    // 離開頁面前檢查是否有未儲存的變更
+    window.addEventListener('beforeunload', (event) => {
+        const hasUnsavedChanges = document.querySelectorAll('.row-modified').length > 0;
+        
+        if (hasUnsavedChanges) {
+            const message = '您有未儲存的庫存設定變更，確定要離開嗎？';
+            event.preventDefault();
+            event.returnValue = message; // 標準寫法
+            return message; // 部分瀏覽器需要
         }
     });
     
@@ -393,6 +488,17 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(data => {
                 if (data.success) {
+                    // 更新原始值（儲存成功後）
+                    const locationId = row.dataset.locationId;
+                    const key = `${partId}-${locationId}`;
+                    originalValues.set(key, {
+                        safety: safetyStock,
+                        reorder: reorderPoint
+                    });
+                    
+                    // 移除修改標記
+                    markRowAsModified(row, false);
+                    
                     // Visual feedback for success
                     row.style.transition = 'background-color 0.5s ease';
                     row.style.backgroundColor = '#d4edda'; // Light green
