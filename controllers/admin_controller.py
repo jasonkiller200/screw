@@ -392,20 +392,31 @@ def update_record(table_name, record_id):
                     
                     old_value = getattr(record, field_name)
                     
+                    # 處理空值標記（前端用 '-' 表示 NULL）
+                    if value == '-' or value == '' or value == 'None':
+                        value = None
+                    
                     # 處理不同的資料類型
                     if 'BOOLEAN' in column_type.upper():
                         value = bool(value) if isinstance(value, bool) else str(value).lower() in ['true', '1', 'yes', '是']
                     elif 'INTEGER' in column_type.upper() or 'NUMERIC' in column_type.upper():
-                        if value != '' and value is not None:
-                            value = float(value) if '.' in str(value) else int(value)
+                        if value is not None:
+                            try:
+                                value = float(value) if '.' in str(value) else int(value)
+                            except (ValueError, TypeError):
+                                # 如果轉換失敗，檢查欄位是否可為空
+                                if column.nullable:
+                                    value = None
+                                else:
+                                    raise ValueError(f'欄位 {field_name} 不可為空，且無法轉換為數字')
                     elif 'DATETIME' in column_type.upper():
-                        if value:
+                        if value and value != '-':
                             from datetime import datetime
                             value = datetime.fromisoformat(value.replace('Z', '+00:00'))
                         else:
                             value = None
                     elif 'DATE' in column_type.upper():
-                        if value:
+                        if value and value != '-':
                             from datetime import datetime
                             value = datetime.fromisoformat(value).date()
                         else:
