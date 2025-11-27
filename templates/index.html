@@ -135,7 +135,7 @@
         <div class="card card-metric">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="mb-0"><i class="fas fa-truck-loading me-2 text-danger"></i>本週出庫</h6>
+                    <h6 class="mb-0" id="outbound-title"><i class="fas fa-truck-loading me-2 text-danger"></i>本週出庫</h6>
                     <span id="kpi-weekly-out-trend" class="badge"></span>
                 </div>
                 <div id="kpi-weekly-out" class="metric-value mb-3">...</div>
@@ -155,7 +155,7 @@
         <div class="card card-metric">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="mb-0"><i class="fas fa-dolly-flatbed me-2 text-success"></i>本週入庫</h6>
+                    <h6 class="mb-0" id="inbound-title"><i class="fas fa-dolly-flatbed me-2 text-success"></i>本週入庫</h6>
                     <span id="kpi-weekly-in-trend" class="badge"></span>
                 </div>
                 <div id="kpi-weekly-in" class="metric-value mb-3">...</div>
@@ -247,11 +247,11 @@
             <div class="card-body">
                 <ul class="list-group list-group-flush">
                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                        本週總入庫
+                        <span id="stat-in-label">本週總入庫</span>
                         <span id="stat-weekly-in" class="badge bg-success rounded-pill">...</span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                        本週總出庫
+                        <span id="stat-out-label">本週總出庫</span>
                         <span id="stat-weekly-out" class="badge bg-danger rounded-pill">...</span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center">

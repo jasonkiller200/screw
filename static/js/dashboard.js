@@ -107,9 +107,18 @@ function updateTrendDisplay(element, trendValue) {
     element.appendChild(span);
     element.appendChild(icon);
 
+    // 動態顯示 VS 對比文字
+    const vsTextMap = {
+        'today': 'vs 昨天',
+        'week': 'vs 上週',
+        'month': 'vs 上月',
+        'quarter': 'vs 上季'
+    };
+    const vsText = vsTextMap[currentTimeRange] || 'vs 上週';
+    
     const textMuted = document.createElement('span');
     textMuted.classList.add('text-muted', 'ms-1');
-    textMuted.textContent = 'vs 上週';
+    textMuted.textContent = vsText;
     element.appendChild(textMuted);
 }
 
@@ -134,20 +143,38 @@ function updateKPIs(kpiData) {
     };
     const currentLabel = timeRangeLabels[currentTimeRange] || '本週';
     
-    // 更新出入庫卡片標題
-    const allH6Elements = document.querySelectorAll('h6');
+    // VS 對比標籤
+    const vsLabels = {
+        'today': 'VS 昨天',
+        'week': 'VS 上週',
+        'month': 'VS 上月',
+        'quarter': 'VS 上季'
+    };
+    const vsLabel = vsLabels[currentTimeRange] || 'VS 上週';
     
-    allH6Elements.forEach((h6) => {
-        // 檢查是否包含出庫相關的圖示或文字
-        if (h6.innerHTML.includes('fa-truck-loading') || h6.textContent.includes('出庫')) {
-            h6.innerHTML = `<i class="fas fa-truck-loading me-2 text-danger"></i>${currentLabel}出庫`;
-        }
-        
-        // 檢查是否包含入庫相關的圖示或文字
-        if (h6.innerHTML.includes('fa-dolly-flatbed') || h6.textContent.includes('入庫')) {
-            h6.innerHTML = `<i class="fas fa-dolly-flatbed me-2 text-success"></i>${currentLabel}入庫`;
-        }
-    });
+    // 更新出入庫卡片標題（使用精確的 ID 選擇器）
+    const outboundTitle = document.getElementById('outbound-title');
+    const inboundTitle = document.getElementById('inbound-title');
+    
+    if (outboundTitle) {
+        outboundTitle.innerHTML = `<i class="fas fa-truck-loading me-2 text-danger"></i>${currentLabel}出庫`;
+    }
+    
+    if (inboundTitle) {
+        inboundTitle.innerHTML = `<i class="fas fa-dolly-flatbed me-2 text-success"></i>${currentLabel}入庫`;
+    }
+    
+    // 更新快速統計面板的標題
+    const statInLabel = document.getElementById('stat-in-label');
+    const statOutLabel = document.getElementById('stat-out-label');
+    
+    if (statInLabel) {
+        statInLabel.textContent = `${currentLabel}總入庫`;
+    }
+    
+    if (statOutLabel) {
+        statOutLabel.textContent = `${currentLabel}總出庫`;
+    }
 
     // 更新出庫數據和分類明細
     document.getElementById('kpi-weekly-out').textContent = kpiData.weekly_stock_out.total.toLocaleString();
