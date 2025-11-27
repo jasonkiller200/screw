@@ -510,6 +510,28 @@ class InventoryService:
         if not all([warehouse_id, safety_stock is not None, reorder_point is not None]):
             return {'success': False, 'error': 'Missing warehouse_id, safety_stock or reorder_point'}
 
+        # 驗證數值合理性
+        try:
+            safety_stock = float(safety_stock)
+            reorder_point = float(reorder_point)
+        except (ValueError, TypeError):
+            return {'success': False, 'error': '安全庫存和補貨點必須是有效的數字'}
+        
+        if safety_stock < 0 or reorder_point < 0:
+            return {'success': False, 'error': '安全庫存和補貨點不能為負數'}
+        
+        # 嚴格驗證：補貨點不能小於安全庫存
+        if reorder_point < safety_stock:
+            return {
+                'success': False, 
+                'error': f'補貨點 ({reorder_point}) 不能小於安全庫存 ({safety_stock})。建議公式：補貨點 = (平均每日用量 × 採購前置期) + 安全庫存'
+            }
+        
+        # 警告：補貨點等於安全庫存（允許儲存，但記錄警告）
+        warning_message = None
+        if reorder_point == safety_stock and reorder_point > 0:
+            warning_message = f'提醒：補貨點 ({reorder_point}) 等於安全庫存 ({safety_stock})，建議使用公式計算：補貨點 = (日用量 × 前置期) + 安全庫存'
+
         from models.part import WarehouseLocation
         
         # 如果指定了具體儲位，只更新該儲位
@@ -592,7 +614,10 @@ class InventoryService:
         
         try:
             db.session.commit()
-            return {'success': True, 'message': 'Inventory policy updated successfully'}
+            result = {'success': True, 'message': 'Inventory policy updated successfully'}
+            if warning_message:
+                result['warning'] = warning_message
+            return result
         except Exception as e:
             db.session.rollback()
             return {'success': False, 'error': str(e)}

@@ -1,3 +1,66 @@
+// 驗證安全庫存和補貨點的合理性
+function validateStockLevels(inputElement) {
+    const row = inputElement.closest('.inventory-row');
+    const safetyStockInput = row.querySelector('.safety-stock-input');
+    const reorderPointInput = row.querySelector('.reorder-point-input');
+    
+    const safetyStock = parseFloat(safetyStockInput.value) || 0;
+    const reorderPoint = parseFloat(reorderPointInput.value) || 0;
+    
+    // 移除舊的警告樣式
+    safetyStockInput.classList.remove('is-invalid', 'border-warning');
+    reorderPointInput.classList.remove('is-invalid', 'border-warning');
+    
+    // 移除舊的提示訊息
+    const oldFeedback = row.querySelectorAll('.invalid-feedback, .warning-feedback');
+    oldFeedback.forEach(el => el.remove());
+    
+    let hasError = false;
+    let hasWarning = false;
+    
+    // 檢查補貨點是否小於安全庫存（錯誤）
+    if (reorderPoint > 0 && safetyStock > 0 && reorderPoint < safetyStock) {
+        reorderPointInput.classList.add('is-invalid');
+        const feedback = document.createElement('div');
+        feedback.className = 'invalid-feedback d-block';
+        feedback.style.fontSize = '0.7rem';
+        feedback.innerHTML = '<i class="fas fa-exclamation-circle"></i> 補貨點不應小於安全庫存';
+        reorderPointInput.parentElement.appendChild(feedback);
+        hasError = true;
+    }
+    
+    // 檢查補貨點是否等於安全庫存（警告）
+    if (!hasError && reorderPoint > 0 && safetyStock > 0 && reorderPoint === safetyStock) {
+        reorderPointInput.classList.add('border-warning');
+        const feedback = document.createElement('div');
+        feedback.className = 'warning-feedback d-block text-warning';
+        feedback.style.fontSize = '0.7rem';
+        feedback.innerHTML = '<i class="fas fa-exclamation-triangle"></i> 建議補貨點 = (日用量 × 前置期) + 安全庫存';
+        reorderPointInput.parentElement.appendChild(feedback);
+        hasWarning = true;
+    }
+    
+    // 更新提示文字顏色
+    const hintText = row.querySelector('.reorder-hint .hint-text');
+    if (hintText) {
+        if (hasError) {
+            hintText.className = 'hint-text text-danger';
+            hintText.innerHTML = '必須 ≥ 安全庫存';
+        } else if (hasWarning) {
+            hintText.className = 'hint-text text-warning';
+            hintText.innerHTML = '建議使用公式計算';
+        } else if (reorderPoint > safetyStock) {
+            hintText.className = 'hint-text text-success';
+            hintText.innerHTML = '✓ 設定合理';
+        } else {
+            hintText.className = 'hint-text';
+            hintText.innerHTML = '應 ≥ 安全庫存';
+        }
+    }
+    
+    return !hasError;
+}
+
 // 快速入庫
 function quickStockIn(partNumber, locationId) {
     document.getElementById('quickActionTitle').textContent = '快速入庫';
@@ -237,6 +300,15 @@ function validateQuickActionWorkOrderId() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // 初始驗證所有行
+    const allRows = document.querySelectorAll('.inventory-row');
+    allRows.forEach(row => {
+        const reorderPointInput = row.querySelector('.reorder-point-input');
+        if (reorderPointInput) {
+            validateStockLevels(reorderPointInput);
+        }
+    });
+    
     const saveButtons = document.querySelectorAll('.save-stock-levels-btn');
 
     saveButtons.forEach(button => {
@@ -247,12 +319,53 @@ document.addEventListener('DOMContentLoaded', () => {
             const safetyStockInput = row.querySelector('.safety-stock-input');
             const reorderPointInput = row.querySelector('.reorder-point-input');
 
-            const safetyStock = safetyStockInput.value;
-            const reorderPoint = reorderPointInput.value;
+            const safetyStock = parseFloat(safetyStockInput.value);
+            const reorderPoint = parseFloat(reorderPointInput.value);
 
             if (!partId || safetyStock === '' || reorderPoint === '') {
                 alert('無法獲取零件ID或庫存值');
                 return;
+            }
+            
+            // 驗證數值合理性
+            if (safetyStock < 0 || reorderPoint < 0) {
+                alert('❌ 安全庫存和補貨點不能為負數');
+                return;
+            }
+            
+            // 驗證補貨點是否小於安全庫存（不允許儲存）
+            if (reorderPoint < safetyStock) {
+                const partNumber = row.dataset.partNumber;
+                const partName = row.dataset.partName;
+                
+                alert(
+                    `❌ 補貨點設定錯誤，無法儲存\n\n` +
+                    `零件：${partNumber} - ${partName}\n` +
+                    `安全庫存：${safetyStock}\n` +
+                    `補貨點：${reorderPoint}\n\n` +
+                    `❌ 補貨點 (${reorderPoint}) 不能小於安全庫存 (${safetyStock})\n\n` +
+                    `📝 建議公式：\n` +
+                    `補貨點 = (平均每日用量 × 採購前置期) + 安全庫存\n\n` +
+                    `範例：日用量100個 × 前置期5天 + 安全庫存300 = 800`
+                );
+                
+                // 觸發驗證顯示錯誤訊息
+                validateStockLevels(reorderPointInput);
+                return;
+            }else if (reorderPoint === safetyStock && reorderPoint > 0) {
+                // 警告：補貨點等於安全庫存
+                const confirmed = confirm(
+                    `⚠️ 補貨點設定提醒\n\n` +
+                    `補貨點 (${reorderPoint}) 等於安全庫存 (${safetyStock})\n\n` +
+                    `📝 建議使用公式計算：\n` +
+                    `補貨點 = (平均每日用量 × 採購前置期) + 安全庫存\n\n` +
+                    `範例：日用量100個 × 前置期5天 + 安全庫存300 = 800\n\n` +
+                    `是否繼續儲存？`
+                );
+                
+                if (!confirmed) {
+                    return;
+                }
             }
 
             // Add visual feedback that something is happening
@@ -283,16 +396,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Visual feedback for success
                     row.style.transition = 'background-color 0.5s ease';
                     row.style.backgroundColor = '#d4edda'; // Light green
+                    
+                    // 顯示成功訊息
+                    const successMsg = document.createElement('div');
+                    successMsg.className = 'alert alert-success alert-dismissible fade show position-fixed';
+                    successMsg.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 300px;';
+                    successMsg.innerHTML = `
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>設定已儲存</strong>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    `;
+                    document.body.appendChild(successMsg);
+                    
                     setTimeout(() => {
                         row.style.backgroundColor = ''; // Reset background
-                    }, 2000);
+                        successMsg.remove();
+                    }, 3000);
+                    
+                    // 清除驗證提示
+                    validateStockLevels(reorderPointInput);
                 } else {
                     throw new Error(data.error || '更新失敗');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert(`更新失敗: ${error.message}`);
+                alert(`❌ 更新失敗: ${error.message}`);
                 // Visual feedback for error
                 row.style.backgroundColor = '#f8d7da'; // Light red
                 setTimeout(() => {

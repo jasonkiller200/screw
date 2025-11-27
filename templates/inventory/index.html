@@ -311,11 +311,24 @@
                                 <td>{{ inventory.available_quantity }}</td>
                                 <td>
                                     <input type="number" class="form-control form-control-sm safety-stock-input"
-                                        value="{{ inventory.safety_stock }}" style="width: 80px;">
+                                        value="{{ inventory.safety_stock }}" 
+                                        min="0"
+                                        style="width: 80px;"
+                                        data-row-id="row-{{ loop.index }}"
+                                        onchange="validateStockLevels(this)">
+                                    <small class="text-muted d-block" style="font-size: 0.7rem;">安全庫存</small>
                                 </td>
                                 <td>
                                     <input type="number" class="form-control form-control-sm reorder-point-input"
-                                        value="{{ inventory.reorder_point }}" style="width: 80px;">
+                                        value="{{ inventory.reorder_point }}" 
+                                        min="0"
+                                        style="width: 80px;"
+                                        data-row-id="row-{{ loop.index }}"
+                                        onchange="validateStockLevels(this)">
+                                    <small class="text-muted d-block reorder-hint" style="font-size: 0.7rem;">
+                                        <i class="fas fa-info-circle"></i> 
+                                        <span class="hint-text">應 ≥ 安全庫存</span>
+                                    </small>
                                 </td>
                                 <td>{{ inventory.unit }}</td>
                                 <td>
@@ -451,6 +464,59 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 安全庫存與補貨點驗證樣式 */
+    .safety-stock-input.is-invalid,
+    .reorder-point-input.is-invalid {
+        border-color: #dc3545 !important;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+    }
+    
+    .safety-stock-input.border-warning,
+    .reorder-point-input.border-warning {
+        border-color: #ffc107 !important;
+        box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
+    }
+    
+    .invalid-feedback {
+        display: block;
+        margin-top: 0.25rem;
+        color: #dc3545;
+    }
+    
+    .warning-feedback {
+        display: block;
+        margin-top: 0.25rem;
+        color: #856404;
+    }
+    
+    .reorder-hint {
+        transition: color 0.3s ease;
+    }
+    
+    .hint-text.text-danger {
+        color: #dc3545 !important;
+        font-weight: 600;
+    }
+    
+    .hint-text.text-warning {
+        color: #856404 !important;
+    }
+    
+    .hint-text.text-success {
+        color: #28a745 !important;
+    }
+    
+    /* 輸入框焦點效果 */
+    .safety-stock-input:focus,
+    .reorder-point-input:focus {
+        border-color: #80bdff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+</style>
 {% endblock %}
 
 {% block extra_js %}
