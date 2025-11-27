@@ -6,6 +6,7 @@ from models.inventory import CurrentInventory, InventoryTransaction, StockCount
 from extensions import db
 from controllers.user_controller import admin_required
 from datetime import datetime, timedelta
+import sqlalchemy as sa
 import os
 import pandas as pd
 from werkzeug.utils import secure_filename
@@ -338,25 +339,132 @@ def import_parts_example():
 @login_required
 def inventory():
     """庫存管理首頁"""
+    # 取得查詢參數
     warehouse_id = request.args.get('warehouse_id', type=int)
     sort_by = request.args.get('sort_by', 'status')
     sort_order = request.args.get('sort_order', 'asc')
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    search_term = request.args.get('search', '')
     
     warehouses = Warehouse.get_all()
-    inventories = CurrentInventory.get_detailed_inventory_view(
-        warehouse_id=warehouse_id,
-        sort_by=sort_by,
-        sort_order=sort_order
+    
+    # 建立基礎查詢
+    from models.part import Part, WarehouseLocation, PartWarehouseLocation
+    from sqlalchemy import func
+    
+    query = (db.session.query(
+        Part.id.label('part_id'),
+        Part.part_number,
+        Part.name.label('part_name'),
+        Part.type.label('part_type'),
+        Part.unit,
+        Warehouse.id.label('warehouse_id'),
+        Warehouse.name.label('warehouse_name'),
+        Warehouse.code.label('warehouse_code'),
+        WarehouseLocation.id.label('location_id'),
+        WarehouseLocation.location_code,
+        CurrentInventory.quantity_on_hand,
+        CurrentInventory.reserved_quantity,
+        CurrentInventory.available_quantity,
+        CurrentInventory.safety_stock,
+        CurrentInventory.reorder_point
     )
+    .select_from(Part)
+    .join(PartWarehouseLocation, Part.id == PartWarehouseLocation.part_id)
+    .join(WarehouseLocation, PartWarehouseLocation.warehouse_location_id == WarehouseLocation.id)
+    .join(Warehouse, WarehouseLocation.warehouse_id == Warehouse.id)
+    .outerjoin(CurrentInventory, sa.and_(
+        Part.id == CurrentInventory.part_id,
+        WarehouseLocation.id == CurrentInventory.warehouse_location_id
+    )))
+    
+    # 套用倉庫篩選
+    if warehouse_id:
+        query = query.filter(Warehouse.id == warehouse_id)
+    
+    # 套用搜尋條件
+    if search_term:
+        search_pattern = f'%{search_term}%'
+        query = query.filter(
+            db.or_(
+                Part.part_number.like(search_pattern),
+                Part.name.like(search_pattern),
+                WarehouseLocation.location_code.like(search_pattern)
+            )
+        )
+    
+    # 排序邏輯
+    sort_column = None
+    if sort_by == 'status':
+        status_case = db.case(
+            (func.coalesce(CurrentInventory.available_quantity, 0) <= 0, 1),
+            (func.coalesce(CurrentInventory.available_quantity, 0) <= func.coalesce(CurrentInventory.reorder_point, 0), 2),
+            else_=3
+        )
+        sort_column = status_case
+    elif sort_by == 'part_number':
+        sort_column = Part.part_number
+    elif sort_by == 'part_name':
+        sort_column = Part.name
+    elif sort_by == 'location':
+        sort_column = func.concat(Warehouse.name, '-', WarehouseLocation.location_code)
+    elif sort_by == 'quantity_on_hand':
+        sort_column = func.coalesce(CurrentInventory.quantity_on_hand, 0)
+    elif sort_by == 'available_quantity':
+        sort_column = func.coalesce(CurrentInventory.available_quantity, 0)
+    elif sort_by == 'safety_stock':
+        sort_column = func.coalesce(CurrentInventory.safety_stock, 0)
+    elif sort_by == 'reorder_point':
+        sort_column = func.coalesce(CurrentInventory.reorder_point, 0)
+    elif sort_by == 'unit':
+        sort_column = Part.unit
+    
+    if sort_column is not None:
+        if sort_order == 'desc':
+            query = query.order_by(db.desc(sort_column))
+        else:
+            query = query.order_by(sort_column)
+    else:
+        query = query.order_by(Warehouse.code, Part.part_number, WarehouseLocation.location_code)
+    
+    # 執行分頁查詢
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    
+    # 轉換為字典格式
+    inventories = []
+    for row in pagination.items:
+        inventories.append({
+            'part_id': row.part_id,
+            'part_number': row.part_number,
+            'part_name': row.part_name,
+            'part_type': row.part_type,
+            'unit': row.unit,
+            'warehouse_id': row.warehouse_id,
+            'warehouse_name': row.warehouse_name,
+            'warehouse_code': row.warehouse_code,
+            'location_id': row.location_id,
+            'location_code': row.location_code,
+            'quantity_on_hand': row.quantity_on_hand if row.quantity_on_hand is not None else 0,
+            'reserved_quantity': row.reserved_quantity if row.reserved_quantity is not None else 0,
+            'available_quantity': row.available_quantity if row.available_quantity is not None else 0,
+            'safety_stock': row.safety_stock if row.safety_stock is not None else 0,
+            'reorder_point': row.reorder_point if row.reorder_point is not None else 0,
+        })
+    
     low_stock_items = CurrentInventory.get_low_stock_items(warehouse_id)
     
     return render_template('inventory/index.html', 
                          warehouses=warehouses, 
                          inventories=inventories,
+                         pagination=pagination,
                          low_stock_items=low_stock_items,
                          selected_warehouse_id=warehouse_id,
                          sort_by=sort_by,
-                         sort_order=sort_order)
+                         sort_order=sort_order,
+                         search_term=search_term,
+                         per_page=per_page)
+
 
 @web_bp.route('/inventory/adjustment')
 @login_required
@@ -887,15 +995,36 @@ from services.part_service import PartService # Import the new service
 @login_required
 def warehouse_locations():
     """倉位管理頁面"""
+    # 取得查詢參數
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    search_term = request.args.get('search', '')
+    
     warehouses = Warehouse.get_all()
     
-    locations = db.session.query(WarehouseLocation, Warehouse)\
-        .join(Warehouse, WarehouseLocation.warehouse_id == Warehouse.id)\
-        .order_by(Warehouse.name, WarehouseLocation.location_code)\
-        .all()
+    # 建立查詢
+    query = db.session.query(WarehouseLocation, Warehouse)\
+        .join(Warehouse, WarehouseLocation.warehouse_id == Warehouse.id)
     
+    # 套用搜尋條件
+    if search_term:
+        search_pattern = f'%{search_term}%'
+        query = query.filter(
+            db.or_(
+                Warehouse.name.like(search_pattern),
+                Warehouse.code.like(search_pattern),
+                WarehouseLocation.location_code.like(search_pattern),
+                WarehouseLocation.description.like(search_pattern)
+            )
+        )
+    
+    # 排序並分頁
+    query = query.order_by(Warehouse.name, WarehouseLocation.location_code)
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    
+    # 轉換為字典格式
     locations_data = []
-    for loc, wh in locations:
+    for loc, wh in pagination.items:
         locations_data.append({
             'id': loc.id,
             'warehouse_id': loc.warehouse_id,
@@ -905,9 +1034,31 @@ def warehouse_locations():
             'description': loc.description
         })
     
+    # 建立分頁物件（模擬 Part.get_all 的回傳格式）
+    class PaginationWrapper:
+        def __init__(self, items, page, per_page, total):
+            self.items = items
+            self.page = page
+            self.per_page = per_page
+            self.total = total
+            self.pages = (total + per_page - 1) // per_page if per_page > 0 else 0
+            self.has_prev = page > 1
+            self.has_next = page < self.pages
+            self.prev_num = page - 1 if self.has_prev else None
+            self.next_num = page + 1 if self.has_next else None
+    
+    pagination_obj = PaginationWrapper(
+        items=locations_data,
+        page=page,
+        per_page=per_page,
+        total=pagination.total
+    )
+    
     return render_template('warehouse_locations.html', 
                          warehouses=warehouses, 
-                         locations=locations_data)
+                         pagination=pagination_obj,
+                         search_term=search_term,
+                         per_page=per_page)
 
 @web_bp.route('/warehouse-locations/add', methods=['POST'])
 @login_required

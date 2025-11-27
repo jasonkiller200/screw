@@ -2,6 +2,8 @@
 
 {% block title %}庫存管理 - 五金零件庫存管理系統{% endblock %}
 
+{% from '_pagination.html' import render_pagination %}
+
 {% block content %}
 <div class="row">
     <div class="col-12">
@@ -10,35 +12,9 @@
     </div>
 </div>
 
-<!-- 倉庫選擇和快捷操作 -->
+<!-- 快捷操作 -->
 <div class="row mb-4">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="fas fa-filter me-1"></i>倉庫篩選</h6>
-            </div>
-            <div class="card-body">
-                <form method="GET">
-                    <div class="input-group">
-                        <select class="form-select" name="warehouse_id" onchange="this.form.submit()">
-                            <option value="">所有倉庫</option>
-                            {% for warehouse in warehouses %}
-                            <option value="{{ warehouse['id'] }}" {{ 'selected' if
-                                warehouse['id']==selected_warehouse_id else '' }}>
-                                {{ warehouse['code'] }} - {{ warehouse['name'] }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                        <button class="btn btn-outline-secondary" type="submit">
-                            <i class="fas fa-search"></i>
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-6">
+    <div class="col-md-12">
         <div class="card">
             <div class="card-header">
                 <h6 class="mb-0"><i class="fas fa-tools me-1"></i>快捷操作</h6>
@@ -153,6 +129,55 @@
 </div>
 {% endif %}
 
+<!-- 搜尋和篩選 -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('web.inventory') }}" class="mb-0">
+            <div class="row g-3">
+                <div class="col-md-5">
+                    <label class="form-label"><i class="fas fa-search me-1"></i>搜尋零件</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" name="search" 
+                               placeholder="搜尋零件編號、名稱或儲位..." 
+                               value="{{ search_term or '' }}">
+                        <button class="btn btn-outline-primary" type="submit">
+                            <i class="fas fa-search"></i> 搜尋
+                        </button>
+                        {% if search_term %}
+                        <a href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, per_page=per_page) }}" 
+                           class="btn btn-outline-danger">
+                            <i class="fas fa-times"></i> 清除
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label"><i class="fas fa-filter me-1"></i>倉庫篩選</label>
+                    <select class="form-select" name="warehouse_id" onchange="this.form.submit()">
+                        <option value="">所有倉庫</option>
+                        {% for warehouse in warehouses %}
+                        <option value="{{ warehouse['id'] }}" {{ 'selected' if warehouse['id']==selected_warehouse_id else '' }}>
+                            {{ warehouse['code'] }} - {{ warehouse['name'] }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><i class="fas fa-list me-1"></i>每頁筆數</label>
+                    <select class="form-select" name="per_page" onchange="this.form.submit()">
+                        {% for num in [50, 100, 150, 200] %}
+                        <option value="{{ num }}" {% if num==per_page %}selected{% endif %}>{{ num }} 筆/頁</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <!-- 保留排序參數 -->
+            <input type="hidden" name="sort_by" value="{{ sort_by }}">
+            <input type="hidden" name="sort_order" value="{{ sort_order }}">
+        </form>
+    </div>
+</div>
+
 <!-- 庫存清單 -->
 <div class="row">
     <div class="col-12">
@@ -160,7 +185,7 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-boxes me-2"></i>庫存清單
-                    <span class="badge bg-primary ms-2">{{ inventories|length }}</span>
+                    <span class="badge bg-primary ms-2">{{ pagination.total }}</span>
                 </h5>
                 <div>
                     <div class="btn-group">
@@ -208,47 +233,47 @@
                                         onclick="toggleSelectAll(this)" title="全選/取消全選">
                                 </th>
                                 <th><a
-                                        href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, sort_by='part_number', sort_order='desc' if sort_by == 'part_number' and sort_order == 'asc' else 'asc') }}">零件編號
+                                        href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, search=search_term, per_page=per_page, sort_by='part_number', sort_order='desc' if sort_by == 'part_number' and sort_order == 'asc' else 'asc') }}">零件編號
                                         {% if sort_by == 'part_number' %}<i
                                             class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{%
                                         endif %}</a></th>
                                 <th><a
-                                        href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, sort_by='part_name', sort_order='desc' if sort_by == 'part_name' and sort_order == 'asc' else 'asc') }}">零件名稱
+                                        href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, search=search_term, per_page=per_page, sort_by='part_name', sort_order='desc' if sort_by == 'part_name' and sort_order == 'asc' else 'asc') }}">零件名稱
                                         {% if sort_by == 'part_name' %}<i
                                             class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{%
                                         endif %}</a></th>
                                 <th><a
-                                        href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, sort_by='location', sort_order='desc' if sort_by == 'location' and sort_order == 'asc' else 'asc') }}">儲位
+                                        href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, search=search_term, per_page=per_page, sort_by='location', sort_order='desc' if sort_by == 'location' and sort_order == 'asc' else 'asc') }}">儲位
                                         {% if sort_by == 'location' %}<i
                                             class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{%
                                         endif %}</a></th>
                                 <th><a
-                                        href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, sort_by='quantity_on_hand', sort_order='desc' if sort_by == 'quantity_on_hand' and sort_order == 'asc' else 'asc') }}">現有庫存
+                                        href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, search=search_term, per_page=per_page, sort_by='quantity_on_hand', sort_order='desc' if sort_by == 'quantity_on_hand' and sort_order == 'asc' else 'asc') }}">現有庫存
                                         {% if sort_by == 'quantity_on_hand' %}<i
                                             class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{%
                                         endif %}</a></th>
                                 <th><a
-                                        href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, sort_by='available_quantity', sort_order='desc' if sort_by == 'available_quantity' and sort_order == 'asc' else 'asc') }}">可用庫存
+                                        href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, search=search_term, per_page=per_page, sort_by='available_quantity', sort_order='desc' if sort_by == 'available_quantity' and sort_order == 'asc' else 'asc') }}">可用庫存
                                         {% if sort_by == 'available_quantity' %}<i
                                             class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{%
                                         endif %}</a></th>
                                 <th><a
-                                        href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, sort_by='safety_stock', sort_order='desc' if sort_by == 'safety_stock' and sort_order == 'asc' else 'asc') }}">安全庫存
+                                        href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, search=search_term, per_page=per_page, sort_by='safety_stock', sort_order='desc' if sort_by == 'safety_stock' and sort_order == 'asc' else 'asc') }}">安全庫存
                                         {% if sort_by == 'safety_stock' %}<i
                                             class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{%
                                         endif %}</a></th>
                                 <th><a
-                                        href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, sort_by='reorder_point', sort_order='desc' if sort_by == 'reorder_point' and sort_order == 'asc' else 'asc') }}">補貨點
+                                        href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, search=search_term, per_page=per_page, sort_by='reorder_point', sort_order='desc' if sort_by == 'reorder_point' and sort_order == 'asc' else 'asc') }}">補貨點
                                         {% if sort_by == 'reorder_point' %}<i
                                             class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{%
                                         endif %}</a></th>
                                 <th><a
-                                        href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, sort_by='unit', sort_order='desc' if sort_by == 'unit' and sort_order == 'asc' else 'asc') }}">單位
+                                        href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, search=search_term, per_page=per_page, sort_by='unit', sort_order='desc' if sort_by == 'unit' and sort_order == 'asc' else 'asc') }}">單位
                                         {% if sort_by == 'unit' %}<i
                                             class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{%
                                         endif %}</a></th>
                                 <th><a
-                                        href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, sort_by='status', sort_order='desc' if sort_by == 'status' and sort_order == 'asc' else 'asc') }}">狀態
+                                        href="{{ url_for('web.inventory', warehouse_id=selected_warehouse_id, search=search_term, per_page=per_page, sort_by='status', sort_order='desc' if sort_by == 'status' and sort_order == 'asc' else 'asc') }}">狀態
                                         {% if sort_by == 'status' %}<i
                                             class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>{%
                                         endif %}</a></th>
@@ -327,6 +352,13 @@
                         </tbody>
                     </table>
                 </div>
+                
+                <!-- 分頁控制 -->
+                {% if pagination.pages > 1 %}
+                <hr>
+                {{ render_pagination(pagination, 'web.inventory', search_term, sort_by, sort_order, per_page, selected_warehouse_id) }}
+                {% endif %}
+                
                 {% else %}
                 <div class="text-center py-5">
                     <i class="fas fa-boxes fa-3x text-muted mb-3"></i>
