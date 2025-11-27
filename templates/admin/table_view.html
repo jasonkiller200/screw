@@ -41,11 +41,20 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid mt-4">
     <!-- 標題區 -->
-    <div class="admin-header text-center">
-        <h2><i class="fas fa-table me-2"></i>{{ display_name }}</h2>
-        <p class="mb-0">資料查看與管理</p>
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h2><i class="fas fa-table me-2"></i>{{ display_name }}</h2>
+        </div>
+        <div class="col-md-6 text-end">
+            <a href="{{ url_for('admin.database_management') }}" class="btn btn-outline-secondary me-2">
+                <i class="fas fa-arrow-left me-1"></i>返回管理首頁
+            </a>
+            <a href="{{ url_for('admin.export_table', table_name=table_name) }}" class="btn btn-success">
+                <i class="fas fa-download me-1"></i>匯出 Excel
+            </a>
+        </div>
     </div>
 
     <!-- 通知容器 -->
@@ -63,253 +72,253 @@
          data-can-delete="{{ can_delete|lower }}" 
          style="display: none;"></div>
 
-    <!-- 操作工具列 -->
-    <div class="table-actions">
-        <div class="row align-items-center mb-2">
-            <div class="col-md-6">
-                <a href="{{ url_for('admin.database_management') }}" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left me-1"></i>返回管理首頁
-                </a>
-                <a href="{{ url_for('admin.export_table', table_name=table_name) }}" class="btn btn-success ms-2">
-                    <i class="fas fa-download me-1"></i>匯出 Excel
-                </a>
-            </div>
-            <div class="col-md-6">
-                <form method="GET" class="d-flex">
-                    <input type="text" class="form-control search-box me-2" 
-                           name="search" value="{{ search or '' }}" 
+    <!-- 搜尋與篩選 -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <form method="GET" class="row g-3 align-items-center">
+                <div class="col-md-4">
+                    <input type="text" class="form-control" name="search" 
+                           value="{{ search or '' }}" 
                            placeholder="搜尋資料...">
                     <input type="hidden" name="sort_by" value="{{ sort_by }}">
                     <input type="hidden" name="sort_order" value="{{ sort_order }}">
-                    <button type="submit" class="btn btn-primary me-1">
-                        <i class="fas fa-search"></i>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i>搜尋
                     </button>
-                    {% if search %}
-                    <a href="{{ url_for('admin.view_table', table_name=table_name) }}" class="btn btn-outline-danger">
-                        <i class="fas fa-times"></i>
+                </div>
+                {% if search %}
+                <div class="col-md-2">
+                    <a href="{{ url_for('admin.view_table', table_name=table_name) }}" class="btn btn-outline-danger w-100">
+                        <i class="fas fa-times me-1"></i>清除
                     </a>
-                    {% endif %}
-                </form>
-            </div>
-        </div>
-        
-        <!-- 批量操作區域 -->
-        {% if can_edit or can_delete %}
-        <div class="batch-actions" style="display: none;">
-            <div class="d-flex align-items-center flex-wrap">
-                <span class="me-3">
-                    <i class="fas fa-check-square me-1"></i>
-                    已選擇 <span id="selected-count">0</span> 筆記錄
-                </span>
-                {% if can_edit %}
-                <button type="button" class="btn btn-warning btn-sm me-2" id="batch-edit-btn">
-                    <i class="fas fa-edit me-1"></i>批量編輯
-                </button>
+                </div>
                 {% endif %}
-                {% if can_delete %}
-                <button type="button" class="btn btn-danger btn-sm me-2" id="batch-delete-btn">
-                    <i class="fas fa-trash me-1"></i>批量刪除
-                </button>
-                {% endif %}
-                <button type="button" class="btn btn-secondary btn-sm" id="clear-selection-btn">
-                    <i class="fas fa-times me-1"></i>清除選擇
-                </button>
-            </div>
+            </form>
         </div>
-        {% endif %}
     </div>
+        
+    <!-- 批量操作區域 -->
+    {% if can_edit or can_delete %}
+    <div class="batch-actions mb-3" style="display: none;">
+        <div class="d-flex align-items-center flex-wrap">
+            <span class="me-3">
+                <i class="fas fa-check-square me-1"></i>
+                已選擇 <span id="selected-count">0</span> 筆記錄
+            </span>
+            {% if can_edit %}
+            <button type="button" class="btn btn-warning btn-sm me-2" id="batch-edit-btn">
+                <i class="fas fa-edit me-1"></i>批量編輯
+            </button>
+            {% endif %}
+            {% if can_delete %}
+            <button type="button" class="btn btn-danger btn-sm me-2" id="batch-delete-btn">
+                <i class="fas fa-trash me-1"></i>批量刪除
+            </button>
+            {% endif %}
+            <button type="button" class="btn btn-secondary btn-sm" id="clear-selection-btn">
+                <i class="fas fa-times me-1"></i>清除選擇
+            </button>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- 資料表格 -->
-    {% if pagination.items %}
-    <div class="table-responsive">
-        <table class="table data-table table-striped table-hover mb-0">
-            <thead>
-                <tr>
-                    <!-- 批量選擇欄位 -->
-                    {% if can_edit or can_delete %}
-                    <th width="40">
-                        <input type="checkbox" class="form-check-input select-all" 
-                               title="全選/取消全選">
-                    </th>
-                    {% endif %}
-                    
-                    <!-- 資料欄位 -->
-                    {% for column in columns %}
-                    {% if not column.protected %}
-                    <th class="sortable cursor-pointer" onclick="sortTable('{{ column.name }}')">
-                        {{ column.name }}
-                        {% if sort_by == column.name %}
-                            {% if sort_order == 'asc' %}
-                                <i class="fas fa-sort-up sort-icon sort-active"></i>
-                            {% else %}
-                                <i class="fas fa-sort-down sort-icon sort-active"></i>
-                            {% endif %}
-                        {% else %}
-                            <i class="fas fa-sort sort-icon"></i>
-                        {% endif %}
-                    </th>
-                    {% endif %}
-                    {% endfor %}
-                    
-                    <!-- 操作欄位 -->
-                    {% if can_edit or can_delete %}
-                    <th width="200" class="text-center">操作</th>
-                    {% endif %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in pagination.items %}
-                <tr data-record-id="{{ item.id if item.id is defined else item[primary_key] if primary_key else '' }}">
-                    <!-- 批量選擇 -->
-                    {% if can_edit or can_delete %}
-                    <td>
-                        <input type="checkbox" class="form-check-input row-select">
-                    </td>
-                    {% endif %}
-                    
-                    <!-- 資料欄位 -->
-                    {% for column in columns %}
-                    {% if not column.protected %}
-                    <td data-field="{{ column.name }}" 
-                        data-type="{{ column.type.lower() }}"
-                        {% if column.protected %}class="protected-field"{% endif %}>
-                        {% set value = item[column.name] if item[column.name] is defined else '' %}
-                        {% if value is none %}
-                            <span class="text-muted">-</span>
-                        {% elif value is sameas true %}
-                            是
-                        {% elif value is sameas false %}
-                            否
-                        {% elif column.type.lower().startswith('datetime') and value %}
-                            {{ value.strftime('%Y-%m-%d %H:%M:%S') if value.strftime else value }}
-                        {% elif column.type.lower().startswith('date') and value %}
-                            {{ value.strftime('%Y-%m-%d') if value.strftime else value }}
-                        {% else %}
-                            {{ value if value != '' else '-' }}
-                        {% endif %}
-                    </td>
-                    {% endif %}
-                    {% endfor %}
-                    
-                    <!-- 操作按鈕 -->
-                    {% if can_edit or can_delete %}
-                    <td class="action-buttons text-center">
-                        <div class="btn-group btn-group-sm" role="group">
-                            {% if can_edit %}
-                            <!-- 編輯模式按鈕 -->
-                            <button type="button" class="btn btn-outline-primary edit-btn"
-                                    data-bs-toggle="tooltip" title="編輯記錄">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            
-                            <!-- 儲存/取消按鈕 (初始隱藏) -->
-                            <button type="button" class="btn btn-success save-btn" 
-                                    data-bs-toggle="tooltip" title="儲存變更"
-                                    style="display: none;">
-                                <i class="fas fa-save"></i>
-                            </button>
-                            <button type="button" class="btn btn-secondary cancel-btn"
-                                    data-bs-toggle="tooltip" title="取消編輯" 
-                                    style="display: none;">
-                                <i class="fas fa-times"></i>
-                            </button>
+    <div class="card">
+        <div class="card-body">
+            {% if pagination.items %}
+            <div class="table-responsive">
+                <table class="table data-table table-striped table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <!-- 批量選擇欄位 -->
+                            {% if can_edit or can_delete %}
+                            <th width="40">
+                                <input type="checkbox" class="form-check-input select-all" 
+                                       title="全選/取消全選">
+                            </th>
                             {% endif %}
                             
-                            {% if can_delete %}
-                            <button type="button" class="btn btn-outline-danger delete-btn"
-                                    data-bs-toggle="tooltip" title="刪除記錄">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                            {% endif %}
-                        </div>
-                    </td>
-                    {% endif %}
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
-    <!-- 分頁導航 -->
-    {% if pagination.pages > 1 %}
-    <div class="pagination-wrapper mt-3">
-        <div class="row align-items-center">
-            <div class="col-md-6">
-                <span class="text-muted">
-                    顯示第 {{ pagination.per_page * (pagination.page - 1) + 1 }} - 
-                    {{ pagination.per_page * pagination.page if pagination.page < pagination.pages else pagination.total }} 筆，
-                    共 {{ pagination.total }} 筆記錄
-                </span>
-            </div>
-            <div class="col-md-6">
-                <nav>
-                    <ul class="pagination justify-content-end mb-0">
-                        <!-- 第一頁 -->
-                        {% if pagination.has_prev %}
-                        <li class="page-item">
-                            <a class="page-link" href="{{ url_for('admin.view_table', table_name=table_name, page=1, search=search, sort_by=sort_by, sort_order=sort_order) }}">
-                                <i class="fas fa-angle-double-left"></i>
-                            </a>
-                        </li>
-                        <li class="page-item">
-                            <a class="page-link" href="{{ url_for('admin.view_table', table_name=table_name, page=pagination.prev_num, search=search, sort_by=sort_by, sort_order=sort_order) }}">
-                                <i class="fas fa-angle-left"></i>
-                            </a>
-                        </li>
-                        {% endif %}
-
-                        <!-- 頁碼 -->
-                        {% for page_num in pagination.iter_pages(left_edge=2, right_edge=2, left_current=2, right_current=3) %}
-                            {% if page_num %}
-                                {% if page_num != pagination.page %}
-                                <li class="page-item">
-                                    <a class="page-link" href="{{ url_for('admin.view_table', table_name=table_name, page=page_num, search=search, sort_by=sort_by, sort_order=sort_order) }}">{{ page_num }}</a>
-                                </li>
+                            <!-- 資料欄位 -->
+                            {% for column in columns %}
+                            {% if not column.protected %}
+                            <th class="sortable cursor-pointer" onclick="sortTable('{{ column.name }}')">
+                                {{ column.name }}
+                                {% if sort_by == column.name %}
+                                    {% if sort_order == 'asc' %}
+                                        <i class="fas fa-sort-up sort-icon sort-active"></i>
+                                    {% else %}
+                                        <i class="fas fa-sort-down sort-icon sort-active"></i>
+                                    {% endif %}
                                 {% else %}
-                                <li class="page-item active">
-                                    <span class="page-link">{{ page_num }}</span>
+                                    <i class="fas fa-sort sort-icon"></i>
+                                {% endif %}
+                            </th>
+                            {% endif %}
+                            {% endfor %}
+                            
+                            <!-- 操作欄位 -->
+                            {% if can_edit or can_delete %}
+                            <th width="200" class="text-center">操作</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in pagination.items %}
+                        <tr data-record-id="{{ item.id if item.id is defined else item[primary_key] if primary_key else '' }}">
+                            <!-- 批量選擇 -->
+                            {% if can_edit or can_delete %}
+                            <td>
+                                <input type="checkbox" class="form-check-input row-select">
+                            </td>
+                            {% endif %}
+                            
+                            <!-- 資料欄位 -->
+                            {% for column in columns %}
+                            {% if not column.protected %}
+                            <td data-field="{{ column.name }}" 
+                                data-type="{{ column.type.lower() }}"
+                                {% if column.protected %}class="protected-field"{% endif %}>
+                                {% set value = item[column.name] if item[column.name] is defined else '' %}
+                                {% if value is none %}
+                                    <span class="text-muted">-</span>
+                                {% elif value is sameas true %}
+                                    是
+                                {% elif value is sameas false %}
+                                    否
+                                {% elif column.type.lower().startswith('datetime') and value %}
+                                    {{ value.strftime('%Y-%m-%d %H:%M:%S') if value.strftime else value }}
+                                {% elif column.type.lower().startswith('date') and value %}
+                                    {{ value.strftime('%Y-%m-%d') if value.strftime else value }}
+                                {% else %}
+                                    {{ value if value != '' else '-' }}
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                            {% endfor %}
+                            
+                            <!-- 操作按鈕 -->
+                            {% if can_edit or can_delete %}
+                            <td class="action-buttons text-center">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    {% if can_edit %}
+                                    <!-- 編輯模式按鈕 -->
+                                    <button type="button" class="btn btn-outline-primary edit-btn"
+                                            data-bs-toggle="tooltip" title="編輯記錄">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    
+                                    <!-- 儲存/取消按鈕 (初始隱藏) -->
+                                    <button type="button" class="btn btn-success save-btn" 
+                                            data-bs-toggle="tooltip" title="儲存變更"
+                                            style="display: none;">
+                                        <i class="fas fa-save"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-secondary cancel-btn"
+                                            data-bs-toggle="tooltip" title="取消編輯" 
+                                            style="display: none;">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                    {% endif %}
+                                    
+                                    {% if can_delete %}
+                                    <button type="button" class="btn btn-outline-danger delete-btn"
+                                            data-bs-toggle="tooltip" title="刪除記錄">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 分頁導航 -->
+            {% if pagination.pages > 1 %}
+            <div class="pagination-wrapper mt-3 border-0 shadow-none p-0">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <span class="text-muted">
+                            顯示第 {{ pagination.per_page * (pagination.page - 1) + 1 }} - 
+                            {{ pagination.per_page * pagination.page if pagination.page < pagination.pages else pagination.total }} 筆，
+                            共 {{ pagination.total }} 筆記錄
+                        </span>
+                    </div>
+                    <div class="col-md-6">
+                        <nav>
+                            <ul class="pagination justify-content-end mb-0">
+                                <!-- 第一頁 -->
+                                {% if pagination.has_prev %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('admin.view_table', table_name=table_name, page=1, search=search, sort_by=sort_by, sort_order=sort_order) }}">
+                                        <i class="fas fa-angle-double-left"></i>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('admin.view_table', table_name=table_name, page=pagination.prev_num, search=search, sort_by=sort_by, sort_order=sort_order) }}">
+                                        <i class="fas fa-angle-left"></i>
+                                    </a>
                                 </li>
                                 {% endif %}
-                            {% else %}
-                                <li class="page-item disabled">
-                                    <span class="page-link">…</span>
-                                </li>
-                            {% endif %}
-                        {% endfor %}
 
-                        <!-- 最後一頁 -->
-                        {% if pagination.has_next %}
-                        <li class="page-item">
-                            <a class="page-link" href="{{ url_for('admin.view_table', table_name=table_name, page=pagination.next_num, search=search, sort_by=sort_by, sort_order=sort_order) }}">
-                                <i class="fas fa-angle-right"></i>
-                            </a>
-                        </li>
-                        <li class="page-item">
-                            <a class="page-link" href="{{ url_for('admin.view_table', table_name=table_name, page=pagination.pages, search=search, sort_by=sort_by, sort_order=sort_order) }}">
-                                <i class="fas fa-angle-double-right"></i>
-                            </a>
-                        </li>
-                        {% endif %}
-                    </ul>
-                </nav>
+                                <!-- 頁碼 -->
+                                {% for page_num in pagination.iter_pages(left_edge=2, right_edge=2, left_current=2, right_current=3) %}
+                                    {% if page_num %}
+                                        {% if page_num != pagination.page %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="{{ url_for('admin.view_table', table_name=table_name, page=page_num, search=search, sort_by=sort_by, sort_order=sort_order) }}">{{ page_num }}</a>
+                                        </li>
+                                        {% else %}
+                                        <li class="page-item active">
+                                            <span class="page-link">{{ page_num }}</span>
+                                        </li>
+                                        {% endif %}
+                                    {% else %}
+                                        <li class="page-item disabled">
+                                            <span class="page-link">…</span>
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+
+                                <!-- 最後一頁 -->
+                                {% if pagination.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('admin.view_table', table_name=table_name, page=pagination.next_num, search=search, sort_by=sort_by, sort_order=sort_order) }}">
+                                        <i class="fas fa-angle-right"></i>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('admin.view_table', table_name=table_name, page=pagination.pages, search=search, sort_by=sort_by, sort_order=sort_order) }}">
+                                        <i class="fas fa-angle-double-right"></i>
+                                    </a>
+                                </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
             </div>
+            {% endif %}
+
+            {% else %}
+            <!-- 無資料顯示 -->
+            <div class="text-center py-5">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <h4 class="text-muted">沒有找到資料</h4>
+                {% if search %}
+                <p class="text-muted">搜尋「{{ search }}」沒有找到相符的記錄</p>
+                <a href="{{ url_for('admin.view_table', table_name=table_name) }}" class="btn btn-primary">清除搜尋</a>
+                {% else %}
+                <p class="text-muted">此表格目前沒有任何記錄</p>
+                {% endif %}
+            </div>
+            {% endif %}
         </div>
     </div>
-    {% endif %}
-
-    {% else %}
-    <!-- 無資料顯示 -->
-    <div class="text-center py-5">
-        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-        <h4 class="text-muted">沒有找到資料</h4>
-        {% if search %}
-        <p class="text-muted">搜尋「{{ search }}」沒有找到相符的記錄</p>
-        <a href="{{ url_for('admin.view_table', table_name=table_name) }}" class="btn btn-primary">清除搜尋</a>
-        {% else %}
-        <p class="text-muted">此表格目前沒有任何記錄</p>
-        {% endif %}
-    </div>
-    {% endif %}
 </div>
 
 {% endblock %}

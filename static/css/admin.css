@@ -8,12 +8,12 @@
    ====================== */
 
 .admin-header {
-    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-    color: white;
+    background: white;
+    color: #333;
     padding: 2rem 0;
     margin-bottom: 2rem;
     border-radius: 10px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: none;
 }
 
 .admin-header h1 {
@@ -33,14 +33,14 @@
 .table-card {
     transition: transform 0.2s ease-in-out;
     border: none;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     border-radius: 10px;
     overflow: hidden;
 }
 
 .table-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .table-card .card-header {
@@ -84,7 +84,7 @@
     margin-top: 1rem;
     border-radius: 10px;
     overflow: hidden;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     background: white;
 }
 
@@ -120,18 +120,11 @@ table.data-table thead th,
     transition: background-color 0.2s ease;
 }
 
+
+/* 表格行懸停效果 */
 .data-table tbody tr:hover {
-    background-color: #f8f9fa;
-}
-
-/* 編輯模式的行 */
-.editing-row {
-    background-color: #fff3cd !important;
-    box-shadow: inset 3px 0 0 #ffc107;
-}
-
-.editing-row td {
-    border-color: #ffc107;
+    background-color: #f1f3f5 !important;
+    color: #212529 !important;
 }
 
 /* 編輯中的輸入欄位 */
@@ -229,7 +222,7 @@ table.data-table thead th,
     padding: 1rem;
     margin-bottom: 1rem;
     border: 1px solid #dee2e6;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .batch-actions .btn {
@@ -266,7 +259,8 @@ table.data-table thead th,
 }
 
 /* 選擇框樣式 */
-.row-select, .select-all {
+.row-select,
+.select-all {
     transform: scale(1.2);
     margin: 0 0.5rem;
 }
@@ -324,9 +318,17 @@ table.data-table thead th,
 }
 
 @keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.7; }
-    100% { opacity: 1; }
+    0% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.7;
+    }
+
+    100% {
+        opacity: 1;
+    }
 }
 
 /* ======================
@@ -354,6 +356,7 @@ table.data-table thead th,
         transform: translateX(100%);
         opacity: 0;
     }
+
     to {
         transform: translateX(0);
         opacity: 1;
@@ -406,29 +409,29 @@ table.data-table thead th,
         padding: 1rem 0;
         margin-bottom: 1rem;
     }
-    
+
     .admin-header h1 {
         font-size: 1.5rem;
     }
-    
+
     .table-responsive {
         font-size: 0.875rem;
     }
-    
+
     .btn-group .btn {
         padding: 0.25rem 0.5rem;
         font-size: 0.875rem;
     }
-    
+
     .batch-actions {
         padding: 0.5rem;
     }
-    
+
     .batch-actions .btn {
         width: 100%;
         margin-bottom: 0.5rem;
     }
-    
+
     #notifications-container {
         left: 10px;
         right: 10px;
@@ -441,12 +444,12 @@ table.data-table thead th,
         padding: 0.2rem 0.4rem;
         font-size: 0.75rem;
     }
-    
+
     .permission-badge {
         font-size: 0.65rem;
         padding: 0.2rem 0.4rem;
     }
-    
+
     .count-badge {
         font-size: 0.9rem;
         padding: 0.3rem 0.6rem;
@@ -461,29 +464,29 @@ table.data-table thead th,
     .admin-header {
         background: linear-gradient(135deg, #495057 0%, #343a40 100%);
     }
-    
+
     .table-card {
         background: #212529;
         color: #f8f9fa;
     }
-    
+
     .table-card .card-header {
         background: linear-gradient(45deg, #343a40, #495057);
         color: #f8f9fa;
     }
-    
+
     .data-table th {
         background: linear-gradient(45deg, #212529, #343a40);
     }
-    
+
     .data-table tbody tr:hover {
         background-color: #343a40;
     }
-    
+
     .editing-row {
         background-color: #3d3d00 !important;
     }
-    
+
     .protected-field {
         background-color: #343a40;
         color: #adb5bd;
@@ -499,8 +502,13 @@ table.data-table thead th,
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 .slide-up {
@@ -512,6 +520,7 @@ table.data-table thead th,
         transform: translateY(20px);
         opacity: 0;
     }
+
     to {
         transform: translateY(0);
         opacity: 1;

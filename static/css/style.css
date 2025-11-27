@@ -211,3 +211,20 @@ body {
     font-size: 1rem;
     opacity: 0.9;
 }
+/* 淺色表格標題樣式 */
+.table-light th {
+    color: #000 !important;
+    font-weight: bold !important;
+}
+
+/* 淺色表格標題內的連結樣式 */
+.table-light th a {
+    color: #000 !important;
+    font-weight: bold !important;
+    text-decoration: none;
+}
+
+.table-light th a:hover {
+    color: #333 !important;
+    text-decoration: underline;
+}
