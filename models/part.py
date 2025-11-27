@@ -210,10 +210,18 @@ class Part(db.Model):
             query = query.outerjoin(PartWarehouseLocation).outerjoin(WarehouseLocation).outerjoin(Warehouse)
 
         if search_term:
-            query = query.filter(or_(
-                cls.name.ilike(f'%{search_term}%'),
-                cls.part_number.ilike(f'%{search_term}%')
-            ))
+            # 支援多關鍵字搜尋（空格分隔）
+            keywords = search_term.strip().split()
+            
+            for keyword in keywords:
+                # 每個關鍵字都要匹配（AND邏輯）
+                search_pattern = f'%{keyword}%'
+                query = query.filter(or_(
+                    cls.name.ilike(search_pattern),
+                    cls.part_number.ilike(search_pattern),
+                    cls.type.ilike(search_pattern),
+                    cls.description.ilike(search_pattern)
+                ))
         
         # Basic validation for sort_by
         valid_columns = ['part_number', 'name', 'type', 'description', 'unit', 'quantity_per_box', 

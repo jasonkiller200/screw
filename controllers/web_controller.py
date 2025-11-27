@@ -383,16 +383,24 @@ def inventory():
     if warehouse_id:
         query = query.filter(Warehouse.id == warehouse_id)
     
-    # 套用搜尋條件
+    # 套用搜尋條件 - 模糊搜尋支援多關鍵字
     if search_term:
-        search_pattern = f'%{search_term}%'
-        query = query.filter(
-            db.or_(
-                Part.part_number.like(search_pattern),
-                Part.name.like(search_pattern),
-                WarehouseLocation.location_code.like(search_pattern)
+        # 移除多餘空白並分割成關鍵字
+        keywords = search_term.strip().split()
+        
+        for keyword in keywords:
+            # 每個關鍵字都要匹配（AND邏輯）
+            search_pattern = f'%{keyword}%'
+            query = query.filter(
+                db.or_(
+                    Part.part_number.ilike(search_pattern),  # 不區分大小寫
+                    Part.name.ilike(search_pattern),
+                    Part.type.ilike(search_pattern),
+                    WarehouseLocation.location_code.ilike(search_pattern),
+                    Warehouse.name.ilike(search_pattern),
+                    Warehouse.code.ilike(search_pattern)
+                )
             )
-        )
     
     # 排序邏輯
     sort_column = None
