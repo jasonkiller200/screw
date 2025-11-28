@@ -8,7 +8,7 @@ from controllers.ai_controller import ai_bp
 from controllers.auth_controller import auth_bp  # 新增
 from controllers.user_controller import user_bp  # 使用者管理
 from controllers.admin_controller import admin_bp  # 管理員控制器
-from extensions import db, migrate, login_manager  # 新增 login_manager
+from extensions import db, migrate, login_manager, socketio  # 新增 socketio
 from datetime import timedelta, datetime
 
 def create_app():
@@ -90,6 +90,13 @@ def create_app():
     from controllers.notification_controller import notification_bp
     app.register_blueprint(notification_bp)     # 通知路由 (/notifications/...)
     
+    # Import SocketIO events handler
+    from controllers.online_users_controller import online_users_bp
+    app.register_blueprint(online_users_bp)
+    
+    # Initialize SocketIO with app
+    socketio.init_app(app)
+    
     return app
 
 app = create_app()
@@ -114,9 +121,9 @@ if __name__ == '__main__':
         print("🔐 啟用 HTTPS 模式")
         print("📱 iOS 裝置現在可以使用 Service Worker 和相機功能")
         ssl_context = (cert_file, key_file)
-        app.run(host='0.0.0.0', port=5005, debug=True, ssl_context=ssl_context)
+        socketio.run(app, host='0.0.0.0', port=5005, debug=True, ssl_context=ssl_context, allow_unsafe_werkzeug=True)
     else:
         # 使用 HTTP (僅限 Android 和開發測試)
         print("⚠️  HTTP 模式 (iOS 功能受限)")
         print("💡 執行 'python generate_ssl_cert.py' 生成 SSL 憑證以啟用 HTTPS")
-        app.run(host='0.0.0.0', port=5005, debug=True)
+        socketio.run(app, host='0.0.0.0', port=5005, debug=True, allow_unsafe_werkzeug=True)

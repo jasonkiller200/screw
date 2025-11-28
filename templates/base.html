@@ -117,9 +117,17 @@
                     </li>
                 </ul>
                 
-                <!-- 使用者資訊區域 -->
+                 <!-- 使用者資訊區域 -->
                 <ul class="navbar-nav ms-auto">
                     {% if current_user.is_authenticated %}
+                    <!-- 線上人數顯示 -->
+                    <li class="nav-item d-flex align-items-center me-3">
+                        <span class="text-white">
+                            <i class="fas fa-users me-1"></i>
+                            <span id="onlineCount" class="badge bg-success">0</span>
+                        </span>
+                    </li>
+                    
                     <!-- 通知圖標 -->
                     <li class="nav-item dropdown me-3">
                         <a class="nav-link position-relative" href="#" id="notificationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -253,6 +261,9 @@
     <!-- jQuery (必須在其他腳本之前載入) -->
     <script src="{{ url_for('static', filename='vendor/jquery.min.js') }}"></script>
     
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    
     <!-- Bootstrap JS -->
     <script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
@@ -290,6 +301,27 @@
     <!-- 通知系統 JavaScript -->
     {% if current_user.is_authenticated %}
     <script>
+        // Socket.IO 連線（線上人數功能）
+        const socket = io();
+        
+        socket.on('connect', function() {
+            console.log('✅ Socket.IO 已連線');
+            socket.emit('request_online_count');
+        });
+        
+        socket.on('disconnect', function() {
+            console.log('❌ Socket.IO 已斷線');
+        });
+        
+        socket.on('online_count_update', function(data) {
+            const badge = document.getElementById('onlineCount');
+            if (badge) {
+                badge.textContent = data.count;
+                badge.title = `目前有 ${data.count} 位使用者在線上`;
+            }
+            console.log(`👥 線上人數: ${data.count}`);
+        });
+        
         // 通知系統功能
         let notificationUpdateInterval;
         
