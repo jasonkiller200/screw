@@ -16,15 +16,15 @@ head = None
 
 def upgrade():
     # Add columns to track quantity modifications
-    op.add_column('order_registration', 
+    op.add_column('order_registrations', 
                   sa.Column('original_quantity', sa.Integer(), nullable=True, comment='原始申請數量'))
-    op.add_column('order_registration', 
+    op.add_column('order_registrations', 
                   sa.Column('quantity_modified_by', sa.String(length=50), nullable=True, comment='數量修改者'))
-    op.add_column('order_registration', 
+    op.add_column('order_registrations', 
                   sa.Column('quantity_modified_at', sa.DateTime(), nullable=True, comment='數量修改時間'))
 
 def downgrade():
     # Remove the added columns
-    op.drop_column('order_registration', 'quantity_modified_at')
-    op.drop_column('order_registration', 'quantity_modified_by')
-    op.drop_column('order_registration', 'original_quantity')
+    op.drop_column('order_registrations', 'quantity_modified_at')
+    op.drop_column('order_registrations', 'quantity_modified_by')
+    op.drop_column('order_registrations', 'original_quantity')

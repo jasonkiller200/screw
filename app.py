@@ -1,3 +1,4 @@
+import os
 from flask import Flask
 from flask_cors import CORS
 from controllers.api_controller import api_bp
@@ -77,26 +78,32 @@ def create_app():
     # Enable Cross-Origin Resource Sharing for mobile app
     CORS(app)
     
-    # 註冊藍圖
-    app.register_blueprint(auth_bp)             # 驗證路由 (/login, /register, /logout)
-    app.register_blueprint(user_bp)             # 使用者管理路由 (/users/...)
-    app.register_blueprint(admin_bp)            # 管理員路由 (/admin/...)
-    app.register_blueprint(api_bp)              # API 路由 (/api/...)
-    app.register_blueprint(inventory_api_bp)    # 庫存 API 路由 (/api/inventory/...)
-    app.register_blueprint(web_bp)              # 網頁路由 (/...)
-    app.register_blueprint(weekly_order_bp)     # 週期訂單路由 (/weekly-orders/...)
-    app.register_blueprint(ai_bp)               # AI 相關路由 (/ai/...)
-    
-    from controllers.notification_controller import notification_bp
-    app.register_blueprint(notification_bp)     # 通知路由 (/notifications/...)
-    
-    # Import SocketIO events handler
-    from controllers.online_users_controller import online_users_bp
-    app.register_blueprint(online_users_bp)
-    
-    # Initialize SocketIO with app
-    socketio.init_app(app)
-    
+    # Conditional blueprint registration for Alembic
+    if os.environ.get("ALEMBIC_RUNNING") != "true":
+        # 註冊藍圖
+        app.register_blueprint(auth_bp)             # 驗證路由 (/login, /register, /logout)
+        app.register_blueprint(user_bp)             # 使用者管理路由 (/users/...)
+        app.register_blueprint(admin_bp)            # 管理員路由 (/admin/...)
+        app.register_blueprint(api_bp)              # API 路由 (/api/...)
+        app.register_blueprint(inventory_api_bp)    # 庫存 API 路由 (/api/inventory/...)
+        app.register_blueprint(web_bp)              # 網頁路由 (/...)
+        app.register_blueprint(weekly_order_bp)     # 週期訂單路由 (/weekly-orders/...)
+        app.register_blueprint(ai_bp)               # AI 相關路由 (/ai/...)
+        
+        from controllers.notification_controller import notification_bp
+        app.register_blueprint(notification_bp)     # 通知路由 (/notifications/...)
+        
+        # Import SocketIO events handler
+        from controllers.online_users_controller import online_users_bp
+        app.register_blueprint(online_users_bp)
+        
+        # Initialize SocketIO with app
+        socketio.init_app(app)
+    else:
+        # Initialize SocketIO without registering blueprints that might load models
+        # This is a minimal initialization for Alembic
+        socketio.init_app(app)
+        
     return app
 
 app = create_app()

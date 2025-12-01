@@ -116,6 +116,9 @@ def run_migrations_online():
 if context.is_offline_mode():
     run_migrations_offline()
 else:
+    # Set an environment variable to indicate Alembic is running
+    os.environ["ALEMBIC_RUNNING"] = "true"
+    
     # Ensure app context is pushed for online mode
     with app.app_context():
         # These lines now execute within the app context
@@ -129,3 +132,6 @@ else:
         from models.work_order import WorkOrderDemand
 
         run_migrations_online()
+    
+    # Unset the environment variable after running migrations
+    del os.environ["ALEMBIC_RUNNING"]
