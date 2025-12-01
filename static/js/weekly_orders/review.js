@@ -1,4 +1,5 @@
 let currentRegistrationId = null;
+let currentRegistrationData = null;
 
 // 篩選功能
 document.querySelectorAll('input[name="statusFilter"]').forEach(radio => {
@@ -104,16 +105,22 @@ function confirmReject() {
 }
 
 // 提交審查結果
-function submitReview(registrationId, action, notes) {
+function submitReview(registrationId, action, notes, modifiedQuantity = null) {
+    const requestData = {
+        action: action,
+        notes: notes
+    };
+    
+    if (modifiedQuantity !== null) {
+        requestData.modified_quantity = modifiedQuantity;
+    }
+    
     fetch(`/weekly_orders/review/${registrationId}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-            action: action,
-            notes: notes
-        })
+        body: JSON.stringify(requestData)
     })
     .then(response => response.json())
     .then(data => {
@@ -378,4 +385,56 @@ function showPartDetails(partNumber) {
             console.error('Error fetching part details:', error);
             detailContent.innerHTML = `<div class="alert alert-danger">載入零件詳情失敗：${error.message}</div>`;
         });
+}
+
+// 修改數量
+function modifyQuantity(registrationId) {
+    currentRegistrationId = registrationId;
+    
+    // 獲取當前項目詳細信息
+    fetch(`/weekly_orders/registration/${registrationId}`)
+        .then(response => response.json())
+        .then(data => {
+            currentRegistrationData = data;
+            
+            // 填充模態框
+            document.getElementById('modifyItemInfo').value = `${data.part_number} - ${data.part_name}`;
+            document.getElementById('originalQuantity').value = `${data.quantity} ${data.unit}`;
+            document.getElementById('modifiedQuantity').value = data.quantity;
+            document.getElementById('modifyReason').value = '';
+            
+            // 顯示模態框
+            new bootstrap.Modal(document.getElementById('modifyModal')).show();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('載取項目信息失敗');
+        });
+}
+
+// 確認修改數量
+function confirmModify() {
+    const modifiedQuantity = parseInt(document.getElementById('modifiedQuantity').value);
+    const modifyReason = document.getElementById('modifyReason').value.trim();
+    
+    if (!modifiedQuantity || modifiedQuantity <= 0) {
+        alert('請輸入有效的數量');
+        return;
+    }
+    
+    if (!modifyReason) {
+        alert('請填寫修改說明');
+        document.getElementById('modifyReason').focus();
+        return;
+    }
+    
+    if (modifiedQuantity === currentRegistrationData.quantity) {
+        alert('修改後的數量與原數量相同，將直接核准');
+        submitReview(currentRegistrationId, 'approved', modifyReason);
+    } else {
+        submitReview(currentRegistrationId, 'approved', modifyReason, modifiedQuantity);
+    }
+    
+    // 隱藏模態框
+    bootstrap.Modal.getInstance(document.getElementById('modifyModal')).hide();
 }

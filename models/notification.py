@@ -15,7 +15,7 @@ class Notification(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    type = db.Column(db.String(50), nullable=False)  # order_rejected, announcement, system
+    type = db.Column(db.String(50), nullable=False)  # order_rejected, order_modified, announcement, system
     title = db.Column(db.String(200), nullable=False)
     content = db.Column(db.Text)
     is_read = db.Column(db.Boolean, default=False, index=True)

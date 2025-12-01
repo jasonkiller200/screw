@@ -148,6 +148,9 @@ class OrderRegistration(db.Model):
     department = db.Column(db.String(100), nullable=True, comment='申請單位')
     status = db.Column(db.String(20), nullable=False, default='registered', comment='狀態: registered, approved, partially_received, completed, rejected')
     admin_notes = db.Column(db.Text, nullable=True, comment='主管備註')
+    original_quantity = db.Column(db.Integer, nullable=True, comment='原始申請數量')
+    quantity_modified_by = db.Column(db.String(50), nullable=True, comment='數量修改者')
+    quantity_modified_at = db.Column(db.DateTime, nullable=True, comment='數量修改時間')
     created_at = db.Column(db.DateTime, default=get_taipei_time)
     updated_at = db.Column(db.DateTime, default=get_taipei_time, onupdate=get_taipei_time)
     
@@ -178,6 +181,9 @@ class OrderRegistration(db.Model):
             'department': self.department,
             'status': self.status,
             'admin_notes': self.admin_notes,
+            'original_quantity': self.original_quantity,
+            'quantity_modified_by': self.quantity_modified_by,
+            'quantity_modified_at': self.quantity_modified_at.isoformat() if self.quantity_modified_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 

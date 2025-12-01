@@ -700,8 +700,8 @@ class WeeklyOrderService:
             return {'success': False, 'message': str(e)}
 
     @staticmethod
-    def review_order_registration(registration_id, action, notes, reviewer_id, reviewer_name):
-        from models.weekly_order import OrderReviewLog
+    def review_order_registration(registration_id, action, notes, reviewer_id, reviewer_name, modified_quantity=None):
+        from models.weekly_order import OrderReviewLog, get_taipei_time
         from services.notification_service import NotificationService
         try:
             registration = OrderRegistration.query.get(registration_id)
@@ -709,6 +709,23 @@ class WeeklyOrderService:
                 return {'success': False, 'message': '找不到指定的登記項目'}
             
             old_status = registration.status
+            quantity_changed = False
+            
+            # 處理數量修改邏輯
+            if modified_quantity is not None and modified_quantity != registration.quantity:
+                # 保存原始數量（如果還沒有保存過）
+                if registration.original_quantity is None:
+                    registration.original_quantity = registration.quantity
+                
+                # 更新數量和修改記錄
+                registration.quantity = modified_quantity
+                registration.quantity_modified_by = reviewer_name
+                registration.quantity_modified_at = get_taipei_time()
+                quantity_changed = True
+                
+                # 自動添加修改備註
+                quantity_note = f"\n主管審查數量調整{registration.original_quantity}-->{modified_quantity} 個"
+                registration.admin_notes = (registration.admin_notes or '') + quantity_note
             
             if action == 'approved':
                 registration.status = 'approved'
@@ -717,7 +734,11 @@ class WeeklyOrderService:
             else:
                 return {'success': False, 'message': '無效的操作'}
             
-            registration.admin_notes = notes
+            # 如果有其他備註，添加到現有備註中
+            if notes and not quantity_changed:
+                registration.admin_notes = notes
+            elif notes and quantity_changed:
+                registration.admin_notes += f"\n審查說明：{notes}"
             
             review_log = OrderReviewLog(
                 cycle_id=registration.cycle_id,
@@ -727,34 +748,53 @@ class WeeklyOrderService:
                 action=action,
                 old_status=old_status,
                 new_status=registration.status,
-                notes=notes
+                notes=notes + (f" (數量從 {registration.original_quantity} 修改為 {modified_quantity})" if quantity_changed else "")
             )
             db.session.add(review_log)
             
-            # 如果是拒絕操作，且申請者有效，創建通知
-            if action == 'rejected' and registration.applicant_id:
-                title = f"週期訂單申請被拒絕"
-                content = f"您的申請項目「{registration.part_name}」（品號：{registration.part_number}）已被拒絕。"
-                if notes:
-                    content += f"\n\n拒絕原因：{notes}"
+            # 創建通知
+            notification_sent = False
+            if registration.applicant_id:
+                if action == 'rejected':
+                    title = f"週期訂單申請被拒絕"
+                    content = f"您的申請項目「{registration.part_name}」（品號：{registration.part_number}）已被拒絕。"
+                    if notes:
+                        content += f"\n\n拒絕原因：{notes}"
+                elif quantity_changed:
+                    title = f"週期訂單數量已修改"
+                    content = f"您的申請項目「{registration.part_name}」（品號：{registration.part_number}）數量已被修改。\n原申請數量：{registration.original_quantity} {registration.unit}\n修改後數量：{modified_quantity} {registration.unit}"
+                    if notes:
+                        content += f"\n\n修改說明：{notes}"
                 
-                notification_success, notification_result = NotificationService.create_notification(
-                    user_id=registration.applicant_id,
-                    notification_type='order_rejected',
-                    title=title,
-                    content=content,
-                    order_registration_id=registration.id
-                )
-                
-                if not notification_success:
-                    print(f"警告：創建拒絕通知失敗 - {notification_result}")
+                if action == 'rejected' or quantity_changed:
+                    notification_type = 'order_rejected' if action == 'rejected' else 'order_modified'
+                    notification_success, notification_result = NotificationService.create_notification(
+                        user_id=registration.applicant_id,
+                        notification_type=notification_type,
+                        title=title,
+                        content=content,
+                        order_registration_id=registration.id
+                    )
+                    
+                    if notification_success:
+                        notification_sent = True
+                    else:
+                        print(f"警告：創建通知失敗 - {notification_result}")
             
             db.session.commit()
             
+            message = f"項目已{'通過' if action == 'approved' else '拒絕'}"
+            if quantity_changed:
+                message += f"，數量已修改為 {modified_quantity} {registration.unit}"
+            if notification_sent:
+                message += "，已通知申請者"
+            
             return {
                 'success': True,
-                'message': f"項目已{'通過' if action == 'approved' else '拒絕'}",
-                'new_status': registration.status
+                'message': message,
+                'new_status': registration.status,
+                'quantity_changed': quantity_changed,
+                'new_quantity': modified_quantity if quantity_changed else registration.quantity
             }
             
         except Exception as e:

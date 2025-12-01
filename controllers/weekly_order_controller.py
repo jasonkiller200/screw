@@ -379,13 +379,24 @@ def review_registration(registration_id):
     data = request.get_json()
     action = data.get('action')  # approved, rejected
     notes = data.get('notes', '')
+    modified_quantity = data.get('modified_quantity')  # 新增：修改後的數量
+
+    # 驗證數量格式
+    if modified_quantity is not None:
+        try:
+            modified_quantity = int(modified_quantity)
+            if modified_quantity <= 0:
+                return jsonify({'success': False, 'message': '數量必須為正整數'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': '數量格式錯誤'}), 400
 
     result = WeeklyOrderService.review_order_registration(
         registration_id, 
         action, 
         notes, 
         reviewer_id=current_user.id,
-        reviewer_name=current_user.full_name
+        reviewer_name=current_user.full_name,
+        modified_quantity=modified_quantity
     )
     
     if result['success']:

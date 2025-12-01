@@ -198,6 +198,9 @@
                                             <button class="btn btn-success btn-sm" onclick="reviewRegistration({{ registration.id }}, 'approved')" title="通過此申請">
                                                 <i class="fas fa-check"></i>
                                             </button>
+                                            <button class="btn btn-warning btn-sm" onclick="modifyQuantity({{ registration.id }})" title="修改數量">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
                                             <button class="btn btn-danger btn-sm" onclick="reviewRegistration({{ registration.id }}, 'rejected')" title="拒絕此申請">
                                                 <i class="fas fa-times"></i>
                                             </button>
@@ -267,6 +270,42 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
                 <button type="button" class="btn btn-danger" onclick="confirmReject()">確認拒絕</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 修改數量模態 -->
+<div class="modal fade" id="modifyModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">修改申請數量</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">申請項目</label>
+                    <input type="text" class="form-control" id="modifyItemInfo" readonly>
+                </div>
+                <div class="row">
+                    <div class="col-6">
+                        <label class="form-label">原申請數量</label>
+                        <input type="text" class="form-control" id="originalQuantity" readonly>
+                    </div>
+                    <div class="col-6">
+                        <label for="modifiedQuantity" class="form-label">修改後數量 <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="modifiedQuantity" min="1" required>
+                    </div>
+                </div>
+                <div class="mb-3 mt-3">
+                    <label for="modifyReason" class="form-label">修改說明 <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="modifyReason" rows="3" required placeholder="請說明修改數量的原因..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-warning" onclick="confirmModify()">確認修改並核准</button>
             </div>
         </div>
     </div>
