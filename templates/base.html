@@ -261,8 +261,8 @@
     <!-- jQuery (必須在其他腳本之前載入) -->
     <script src="{{ url_for('static', filename='vendor/jquery.min.js') }}"></script>
     
-    <!-- Socket.IO -->
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <!-- Socket.IO (本地版本，適用於內網環境) -->
+    <script src="{{ url_for('static', filename='vendor/socket.io.min.js') }}"></script>
     
     <!-- Bootstrap JS -->
     <script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>

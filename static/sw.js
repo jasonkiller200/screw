@@ -4,12 +4,12 @@ const urlsToCache = [
   '/',
   '/static/css/style.css',
   '/static/js/app.js',
+  '/static/vendor/bootstrap/css/bootstrap.min.css',
+  '/static/css/all.min.css',
   '/inventory',
   '/part_lookup',
   '/inventory/stock-in',
-  '/inventory/stock-out',
-  'https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'
+  '/inventory/stock-out'
 ];
 
 // 安裝 Service Worker
