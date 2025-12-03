@@ -13,6 +13,9 @@ from werkzeug.utils import secure_filename
 from io import BytesIO
 from services.part_service import PartService # Import the new service
 from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.datavalidation import DataValidation
 
 web_bp = Blueprint('web', __name__)
 
@@ -310,28 +313,157 @@ def import_parts():
 @web_bp.route('/parts/import/example')
 @login_required
 def import_parts_example():
-    """Downloads a sample XLSX file for batch import."""
-    data = {
-        '零件編號': ['PN-001', 'PN-002'],
-        '名稱': ['螺絲 A', '螺帽 B'],
-        '描述': ['M5x10 規格', 'M5 規格'],
-        '單位': ['個', '個'],
-        '每盒數量': [100, 200],
-        '儲存位置(倉別代碼:位置代碼, 逗號分隔)': ['W001:A-01-01, W001:B-02-03', 'W002:C-03-01'] # New format
-    }
-    df = pd.DataFrame(data)
+    """Downloads a sample XLSX file for batch import with dropdowns and proper formatting."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "零件清單"
     
+    # 定義樣式
+    header_font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+    header_alignment = Alignment(horizontal="center", vertical="center")
+    border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    # 定義標題行（與匯出格式一致）
+    headers = ['零件編號', '零件名稱', '類型', '備註', '單位', '每盒數量', '採購前置期 (天)', '儲存位置']
+    required_columns = [1, 2, 3, 5]  # 零件編號、零件名稱、類型、單位為必填
+    
+    # 寫入標題行
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num)
+        cell.value = header
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+        cell.border = border
+        
+        # 必填欄位標示紅色星號
+        if col_num in required_columns:
+            cell.value = f"{header} *"
+    
+    # 寫入範例資料
+    examples = [
+        ['PN-001', '螺絲 M6x20', 'ZROM', 'M6 規格螺絲', '個', 100, 5, '主倉-A-01-01'],
+        ['PN-002', '螺帽 M6', 'A', 'M6 規格螺帽', '個', 200, 7, '主倉-B-02-03, 副倉-C-03-01'],
+        ['PN-003', '手套', 'B', '防護手套', '盒', 50, 3, '']
+    ]
+    
+    for row_num, example in enumerate(examples, 2):
+        for col_num, value in enumerate(example, 1):
+            cell = ws.cell(row=row_num, column=col_num)
+            cell.value = value
+            cell.border = border
+            if col_num in [6, 7]:  # 數字欄位右對齊
+                cell.alignment = Alignment(horizontal="right")
+    
+    # 建立類型下拉選單（第3欄，C欄）- 與系統一致
+    type_options = '"ZROM,A,B,C"'
+    type_validation = DataValidation(type="list", formula1=type_options, allow_blank=False)
+    type_validation.error = '請選擇有效的類型'
+    type_validation.errorTitle = '無效的類型'
+    type_validation.prompt = 'ZROM:市購件,金額小,倉庫不撥料 | A:市購件,未納入BOM表 | B:生產工具(手套) | C:生產耗材(顆粒布)'
+    type_validation.promptTitle = '類型說明'
+    ws.add_data_validation(type_validation)
+    type_validation.add(f'C2:C1000')  # 套用到 C2 到 C1000
+    
+    # 建立單位下拉選單（第5欄，E欄）- 與系統一致
+    unit_options = '"個,盒,包,組,公斤,公尺,片,捲"'
+    unit_validation = DataValidation(type="list", formula1=unit_options, allow_blank=False)
+    unit_validation.error = '請選擇有效的單位'
+    unit_validation.errorTitle = '無效的單位'
+    ws.add_data_validation(unit_validation)
+    unit_validation.add(f'E2:E1000')  # 套用到 E2 到 E1000
+    
+    # 自動調整欄寬
+    for col_num in range(1, len(headers) + 1):
+        column_letter = get_column_letter(col_num)
+        max_length = len(str(ws.cell(row=1, column=col_num).value))
+        
+        # 檢查範例資料的寬度
+        for row_num in range(2, 2 + len(examples)):
+            cell_value = ws.cell(row=row_num, column=col_num).value
+            if cell_value:
+                # 中文字元算2個單位
+                cell_length = sum(2 if '\u4e00' <= char <= '\u9fff' else 1 for char in str(cell_value))
+                if cell_length > max_length:
+                    max_length = cell_length
+        
+        # 設定欄寬（加一些邊距，並限制最大值）
+        adjusted_width = min(max_length + 3, 50)
+        ws.column_dimensions[column_letter].width = adjusted_width
+    
+    # 加入說明工作表
+    ws_info = wb.create_sheet("填寫說明")
+    ws_info.column_dimensions['A'].width = 80
+    
+    info_texts = [
+        "【零件批量匯入範本】",
+        "",
+        "必填欄位（標示 * 號）：",
+        "  1. 零件編號 - 唯一識別碼，不可重複",
+        "  2. 零件名稱 - 零件的名稱",
+        "  3. 類型 - 請從下拉選單選擇",
+        "      ZROM: 市購件,金額小,倉庫不撥料",
+        "      A: 市購件,未納入BOM表(PT100)",
+        "      B: 生產工具(手套)",
+        "      C: 生產耗材(顆粒布)",
+        "  4. 單位 - 請從下拉選單選擇（個、盒、包、組、公斤、公尺、片、捲）",
+        "",
+        "選填欄位：",
+        "  5. 備註 - 零件的詳細說明或備註",
+        "  6. 每盒數量 - 每盒包含的數量，預設為 1",
+        "  7. 採購前置期 (天) - 採購所需天數，預設為 5",
+        "  8. 儲存位置 - 格式：倉別代碼:位置代碼（可先不填，後續再設定）",
+        "",
+        "儲存位置格式說明：",
+        "  - 格式：倉庫名-位置代碼（與匯出格式一致）",
+        "  - 單一位置：主倉-A-01-01",
+        "  - 多個位置：主倉-A-01-01, 副倉-B-02-03",
+        "  - 注意：倉庫必須事先在系統中建立",
+        "  - 如果不確定格式，可從系統匯出零件清單查看",
+        "",
+        "使用流程建議：",
+        "  1. 先匯入基本資料（零件編號、名稱、類型、單位等）",
+        "  2. 在系統中設定倉庫和儲位",
+        "  3. 從系統匯出零件清單",
+        "  4. 在匯出的檔案中填寫儲存位置",
+        "  5. 再次匯入更新儲存位置",
+        "",
+        "注意事項：",
+        "  - 如果零件編號已存在，將更新該零件資訊",
+        "  - 類型和單位請使用下拉選單選擇，避免輸入錯誤",
+        "  - 儲存位置如果不存在，系統會自動建立（但倉庫必須存在）",
+        "  - 建議先下載此範例檔案了解格式"
+    ]
+    
+    for row_num, text in enumerate(info_texts, 1):
+        cell = ws_info.cell(row=row_num, column=1)
+        cell.value = text
+        if text.startswith("【"):
+            cell.font = Font(bold=True, size=14, color="0000FF")
+        elif text.startswith("  "):
+            cell.font = Font(size=10)
+        else:
+            cell.font = Font(bold=True, size=11)
+    
+    # 儲存到記憶體
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='零件')
-    
+    wb.save(output)
     output.seek(0)
+    
+    from datetime import datetime
+    filename = f"零件匯入範本_{datetime.now().strftime('%Y%m%d')}.xlsx"
     
     return send_file(
         output,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         as_attachment=True,
-        download_name='batch_import_example.xlsx'
+        download_name=filename
     )
 
 # 庫存管理路由

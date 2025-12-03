@@ -199,12 +199,52 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p>請上傳 .xlsx 格式的檔案。檔案必須包含以下欄位：</p>
-                    <code>零件編號, 名稱, 描述, 單位, 每盒數量, 儲存位置(多個, 逗號分隔)</code>
-                    <div class="my-3">
+                    <div class="alert alert-info mb-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>檔案格式說明：</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>檔案格式：<code>.xlsx</code></li>
+                            <li><strong class="text-danger">必填欄位</strong>：<code>零件編號</code>、<code>零件名稱</code>、<code>類型</code>、<code>單位</code></li>
+                            <li>選填欄位：<code>備註</code>、<code>每盒數量</code>、<code>採購前置期</code>、<code>儲存位置</code></li>
+                            <li>類型選項：<code>ZROM</code>、<code>A</code>、<code>B</code>、<code>C</code>（與系統一致）</li>
+                            <li>單位選項：<code>個、盒、包、組、公斤、公尺、片、捲</code>（與系統一致）</li>
+                            <li>範例檔案包含下拉選單，方便選擇類型和單位</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">選擇 Excel 檔案</label>
                         <input class="form-control" type="file" name="file" required accept=".xlsx">
                     </div>
-                    <p><a href="{{ url_for('web.import_parts_example') }}">下載範例檔案</a></p>
+                    
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>使用流程建議：</strong>
+                        <ol class="mb-0 mt-2">
+                            <li>先匯入基本資料（零件編號、名稱、類型、單位等）</li>
+                            <li>在系統中設定倉庫和儲位</li>
+                            <li>從系統匯出零件清單</li>
+                            <li>在匯出的檔案中填寫儲存位置</li>
+                            <li>再次匯入更新儲存位置</li>
+                        </ol>
+                    </div>
+                    
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>注意事項：</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>零件編號已存在 → 更新零件資訊</li>
+                            <li>儲位不存在 → 自動建立（<strong class="text-danger">但倉庫必須先存在</strong>）</li>
+                            <li>儲存位置可先不填，後續再設定</li>
+                            <li>範例檔案與匯出格式一致，方便操作</li>
+                        </ul>
+                    </div>
+                    
+                    <p class="mb-0">
+                        <a href="{{ url_for('web.import_parts_example') }}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-download me-1"></i>下載範例檔案（含下拉選單）
+                        </a>
+                    </p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>

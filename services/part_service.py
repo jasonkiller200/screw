@@ -468,5 +468,275 @@ class PartService:
 
     @staticmethod
     def import_parts_from_excel(file_stream):
-        # ... (existing method) ...
-        pass
+        """批量匯入零件從 Excel 檔案
+        
+        Excel 格式要求（與匯出格式一致）：
+        - 零件編號 (必填)
+        - 零件名稱 (必填)
+        - 類型 (必填) - ZROM、A-事購件、B-生產工具、C-生產耗材
+        - 備註
+        - 單位 (必填)
+        - 每盒數量
+        - 採購前置期 (天)
+        - 儲存位置 - 格式：倉別代碼:位置代碼，逗號分隔（可為空）
+        
+        Returns:
+            dict: {
+                'success': bool,
+                'message': str,
+                'error': str (if failed),
+                'errors': list of str (individual row errors),
+                'created_count': int,
+                'updated_count': int,
+                'total_rows': int
+            }
+        """
+        try:
+            # 讀取 Excel 檔案
+            df = pd.read_excel(file_stream, sheet_name=0)
+            
+            # 清理欄位名稱：移除星號和多餘空白
+            df.columns = df.columns.str.replace('*', '').str.strip()
+            
+            # 檢查必要欄位（處理可能的欄位名稱變化）
+            # 支援兩種欄位名稱格式以向後相容
+            column_mapping = {
+                '零件編號': ['零件編號', 'Part Number'],
+                '零件名稱': ['零件名稱', '名稱', 'Name'],
+                '類型': ['類型', 'Type'],
+                '備註': ['備註', '描述', 'Description'],
+                '單位': ['單位', 'Unit'],
+                '每盒數量': ['每盒數量', 'Quantity Per Box'],
+                '採購前置期': ['採購前置期 (天)', '採購前置期', 'Lead Time'],
+                '儲存位置': ['儲存位置', 'Storage Location', '儲存位置(倉別代碼:位置代碼, 逗號分隔)']
+            }
+            
+            # 找到實際使用的欄位名稱
+            actual_columns = {}
+            for key, possible_names in column_mapping.items():
+                for name in possible_names:
+                    if name in df.columns:
+                        actual_columns[key] = name
+                        break
+            
+            # 檢查必填欄位
+            required_fields = ['零件編號', '零件名稱', '類型', '單位']
+            missing_fields = [field for field in required_fields if field not in actual_columns]
+            
+            if missing_fields:
+                return {
+                    'success': False,
+                    'error': f'Excel 檔案缺少必要欄位：{", ".join(missing_fields)}',
+                    'errors': []
+                }
+            
+            total_rows = len(df)
+            created_count = 0
+            updated_count = 0
+            errors = []
+            
+            # 有效的類型選項（與系統一致）
+            valid_types = ['ZROM', 'A', 'B', 'C']
+            
+            for index, row in df.iterrows():
+                try:
+                    row_num = index + 2  # Excel row (1-indexed, +1 for header)
+                    
+                    # 取得必填欄位
+                    part_number = str(row.get(actual_columns['零件編號'], '')).strip()
+                    name = str(row.get(actual_columns['零件名稱'], '')).strip()
+                    part_type = str(row.get(actual_columns['類型'], '')).strip()
+                    unit = str(row.get(actual_columns['單位'], '')).strip()
+                    
+                    # 驗證必填欄位
+                    if not part_number or part_number == 'nan':
+                        errors.append(f'第 {row_num} 行：零件編號為必填項目')
+                        continue
+                    
+                    if not name or name == 'nan':
+                        errors.append(f'第 {row_num} 行：零件名稱為必填項目')
+                        continue
+                    
+                    if not part_type or part_type == 'nan':
+                        errors.append(f'第 {row_num} 行：類型為必填項目')
+                        continue
+                    
+                    # 驗證類型是否有效
+                    if part_type not in valid_types:
+                        errors.append(f'第 {row_num} 行：類型「{part_type}」無效，請選擇：{", ".join(valid_types)}')
+                        continue
+                    
+                    if not unit or unit == 'nan':
+                        errors.append(f'第 {row_num} 行：單位為必填項目')
+                        continue
+                    
+                    # 取得選填欄位
+                    description = ''
+                    if '備註' in actual_columns:
+                        description = str(row.get(actual_columns['備註'], '')).strip()
+                        if description == 'nan':
+                            description = ''
+                    
+                    # 每盒數量
+                    try:
+                        if '每盒數量' in actual_columns:
+                            quantity_per_box = int(row.get(actual_columns['每盒數量'], 1))
+                        else:
+                            quantity_per_box = 1
+                    except (ValueError, TypeError):
+                        quantity_per_box = 1
+                    
+                    # 採購前置期
+                    try:
+                        if '採購前置期' in actual_columns:
+                            lead_time = int(row.get(actual_columns['採購前置期'], 5))
+                        else:
+                            lead_time = 5
+                    except (ValueError, TypeError):
+                        lead_time = 5
+                    
+                    # 解析儲存位置（選填）
+                    locations_data = []
+                    if '儲存位置' in actual_columns:
+                        location_str = str(row.get(actual_columns['儲存位置'], '')).strip()
+                        
+                        if location_str and location_str != 'nan' and location_str != '無':
+                            # 分割多個位置 (逗號分隔)
+                            location_pairs = [loc.strip() for loc in location_str.split(',')]
+                            
+                            for loc_pair in location_pairs:
+                                if not loc_pair:
+                                    continue
+                                
+                                # 支援兩種格式：倉庫名-位置代碼 或 倉別代碼:位置代碼
+                                if ':' in loc_pair:
+                                    # 格式：W001:A-01-01
+                                    parts = loc_pair.split(':')
+                                    if len(parts) != 2:
+                                        errors.append(f'第 {row_num} 行：儲存位置格式錯誤 "{loc_pair}"')
+                                        continue
+                                    
+                                    warehouse_code = parts[0].strip()
+                                    location_code = parts[1].strip()
+                                elif '-' in loc_pair:
+                                    # 格式：倉庫名-位置代碼（匯出格式）
+                                    parts = loc_pair.split('-', 1)
+                                    warehouse_name = parts[0].strip()
+                                    location_code = parts[1].strip()
+                                    
+                                    # 根據倉庫名稱查找倉庫代碼
+                                    warehouse = Warehouse.query.filter_by(name=warehouse_name).first()
+                                    if not warehouse:
+                                        errors.append(f'第 {row_num} 行：找不到倉庫「{warehouse_name}」')
+                                        continue
+                                    warehouse_code = warehouse.code
+                                else:
+                                    errors.append(f'第 {row_num} 行：儲存位置格式錯誤 "{loc_pair}"，應為「倉別代碼:位置代碼」或「倉庫名-位置代碼」')
+                                    continue
+                                
+                                # 查找倉庫
+                                warehouse = Warehouse.query.filter_by(code=warehouse_code).first()
+                                if not warehouse:
+                                    errors.append(f'第 {row_num} 行：找不到倉庫代碼 "{warehouse_code}"，請先在系統中建立倉庫')
+                                    continue
+                                
+                                # 查找或建立儲位
+                                location = WarehouseLocation.query.filter_by(
+                                    warehouse_id=warehouse.id,
+                                    location_code=location_code
+                                ).first()
+                                
+                                if not location:
+                                    # 自動建立儲位
+                                    location = WarehouseLocation(
+                                        warehouse.id,
+                                        location_code,
+                                        description=f'由批量匯入自動建立'
+                                    )
+                                    db.session.add(location)
+                                    db.session.flush()  # 取得 location.id
+                                
+                                locations_data.append({
+                                    'warehouse_id': warehouse.id,
+                                    'location_code': location_code
+                                })
+                    
+                    # 檢查零件是否已存在
+                    existing_part = Part.get_by_part_number(part_number)
+                    
+                    if existing_part:
+                        # 更新現有零件
+                        result = Part.update(
+                            part_id=existing_part.id,
+                            part_number=part_number,
+                            name=name,
+                            type=part_type,
+                            description=description,
+                            unit=unit,
+                            quantity_per_box=quantity_per_box,
+                            locations_data=locations_data,
+                            lead_time=lead_time,
+                            standard_cost=existing_part.standard_cost,  # 保留原有值
+                            is_active=True
+                        )
+                        
+                        if result.get('success'):
+                            updated_count += 1
+                        else:
+                            errors.append(f'第 {row_num} 行 ({part_number})：{result.get("error", "更新失敗")}')
+                    else:
+                        # 建立新零件
+                        result = Part.create(
+                            part_number=part_number,
+                            name=name,
+                            type=part_type,
+                            description=description,
+                            unit=unit,
+                            quantity_per_box=quantity_per_box,
+                            locations_data=locations_data,
+                            lead_time=lead_time,
+                            standard_cost=0,  # 預設值
+                            is_active=True
+                        )
+                        
+                        if result.get('success'):
+                            created_count += 1
+                        else:
+                            errors.append(f'第 {row_num} 行 ({part_number})：{result.get("error", "建立失敗")}')
+                
+                except Exception as e:
+                    errors.append(f'第 {row_num} 行：處理時發生錯誤 - {str(e)}')
+                    continue
+            
+            # 提交所有變更
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                return {
+                    'success': False,
+                    'error': f'資料庫提交失敗: {str(e)}',
+                    'errors': errors
+                }
+            
+            # 產生結果訊息
+            success_msg = f'匯入完成：新增 {created_count} 筆，更新 {updated_count} 筆'
+            if errors:
+                success_msg += f'，{len(errors)} 筆失敗'
+            
+            return {
+                'success': True,
+                'message': success_msg,
+                'errors': errors,
+                'created_count': created_count,
+                'updated_count': updated_count,
+                'total_rows': total_rows
+            }
+            
+        except Exception as e:
+            db.session.rollback()
+            return {
+                'success': False,
+                'error': f'讀取 Excel 檔案失敗: {str(e)}',
+                'errors': []
+            }
