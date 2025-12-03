@@ -624,7 +624,8 @@ function showPartDetails(partNumber) {
 
             if (all_locations.length > 0) {
                 inventoryHtml = all_locations.map(loc => {
-                    const inv = inventories.find(i => i.warehouse_id === loc.warehouse_id);
+                    // 從 inventories 陣列中尋找此儲位的庫存記錄（改用 location_id 匹配）
+                    const inv = inventories.find(i => i.warehouse_location_id === loc.id);
 
                     const quantity_on_hand = inv ? inv.quantity_on_hand : 0;
                     const reserved_quantity = inv ? inv.reserved_quantity : 0;
@@ -658,7 +659,7 @@ function showPartDetails(partNumber) {
                         </table>
                     </div>
                     <div class="col-md-6">
-                        <h6>各倉庫庫存</h6>
+                        <h6>各儲位庫存</h6>
                         <div class="table-responsive">
                             <table class="table table-sm table-striped">
                                 <thead>
