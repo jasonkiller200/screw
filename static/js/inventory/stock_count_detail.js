@@ -265,8 +265,8 @@ function submitImport() {
                 h === '備註' || h === 'notes' || h === 'Notes'
             );
             
-            if (partNumberIdx === -1 || countedQtyIdx === -1) {
-                alert('檔案格式錯誤：缺少必要欄位（零件編號、實盤數量）');
+            if (partNumberIdx === -1 || countedQtyIdx === -1 || storageLocationIdx === -1) {
+                alert('檔案格式錯誤：缺少必要欄位（零件編號、儲位、實盤數量）');
                 document.getElementById('importProgress').style.display = 'none';
                 return;
             }
@@ -291,9 +291,17 @@ function submitImport() {
                     continue;
                 }
                 
+                // 儲位必須存在
+                const locationCode = String(storageLocation).trim();
+                if (!locationCode) {
+                    errors.push(`第 ${i + 1} 行 ${partNumber}: 缺少儲位資訊`);
+                    errorCount++;
+                    continue;
+                }
+                
                 updates.push({
                     part_number: String(partNumber).trim(),
-                    storage_location: String(storageLocation).trim(),
+                    location_code: locationCode,
                     counted_quantity: parseInt(countedQty),
                     notes: String(notes).trim()
                 });
