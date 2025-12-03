@@ -396,27 +396,55 @@ function startCounting() {
 
 // 完成盤點
 function completeCounting() {
-    const countId = document.getElementById('stock-count-card').dataset.countId;
+    const stockCountCard = document.getElementById('stock-count-card');
+    const countId = stockCountCard.dataset.countId;
+    const countType = stockCountCard.dataset.countType;
+    
+    // 如果是全盤點，先檢查是否有未填寫的項目
+    if (countType === 'full') {
+        const inputs = document.querySelectorAll('.count-input');
+        let emptyCount = 0;
+        inputs.forEach(input => {
+            if (input.value === '' || input.value === null) {
+                emptyCount++;
+            }
+        });
+        
+        if (emptyCount > 0) {
+            alert(`全盤點必須填寫所有項目的實盤數量（可填寫 0）。\n目前還有 ${emptyCount} 項未填寫，請先完成填寫。`);
+            return;
+        }
+    }
+    
     const verifiedBy = prompt('請輸入驗證人員姓名：');
     if (verifiedBy) {
+        const applyAdjustments = confirm('是否同時應用盤點差異調整？\n\n按「確定」將會自動調整庫存；\n按「取消」則只記錄盤點結果，不調整庫存。');
+        
         fetch(`/api/inventory/stock-counts/${countId}/complete`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 verified_by: verifiedBy,
-                apply_adjustments: confirm('是否同時應用盤點差異調整？')
+                apply_adjustments: applyAdjustments
             })
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => {
+                    throw new Error(err.error || '完成盤點失敗');
+                });
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
-                alert('盤點已完成');
+                alert(data.message || '盤點已完成');
                 location.reload();
             } else {
-                alert('操作失敗：' + data.error);
+                alert('操作失敗：' + (data.error || '未知錯誤'));
             }
         })
-        .catch(err => alert('網路錯誤：' + err.message));
+        .catch(err => alert('操作失敗：' + err.message));
     }
 }
 

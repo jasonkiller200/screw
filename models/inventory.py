@@ -562,7 +562,16 @@ class StockCount(db.Model):
     def complete_count(cls, count_id, verified_by='', apply_adjustments=False, user_id=None):
         count = cls.query.get(count_id)
         if not count:
-            return False
+            return False, '找不到盤點記錄'
+        
+        # 全盤點必須填寫所有項目
+        if count.count_type == 'full':
+            uncounted = StockCountDetail.query.filter_by(
+                stock_count_id=count_id
+            ).filter(StockCountDetail.counted_quantity.is_(None)).count()
+            
+            if uncounted > 0:
+                return False, f'全盤點必須填寫所有項目的實盤數量（可填寫 0），還有 {uncounted} 項未填寫'
         
         count.status = 'completed'
         count.verified_by = verified_by
@@ -585,11 +594,11 @@ class StockCount(db.Model):
         
         try:
             db.session.commit()
-            return True
+            return True, '盤點完成成功'
         except Exception as e:
             db.session.rollback()
             print(f"Error completing count: {e}")
-            return False
+            return False, f'盤點完成失敗: {str(e)}'
 
     @classmethod
     def batch_update_count_details(cls, updates):

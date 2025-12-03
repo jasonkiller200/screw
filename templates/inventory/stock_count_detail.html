@@ -96,8 +96,15 @@
     </div>
 </div>
 
-<div class="row" id="stock-count-card" data-count-id="{{ count_info.id }}">
+<div class="row" id="stock-count-card" data-count-id="{{ count_info.id }}" data-count-type="{{ count_info.count_type }}">
     <div class="col-12">
+        {% if count_info.status == 'counting' and count_info.count_type == 'full' %}
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>全盤點提醒：</strong>完成盤點前，必須填寫所有項目的實盤數量（可填寫 0）。未填寫的項目將無法完成盤點。
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
 <h5 class="mb-0">盤點明細</h5>

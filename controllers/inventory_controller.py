@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from models.inventory import CurrentInventory, InventoryTransaction, StockCount, get_taipei_time
-from models.part import Part, Warehouse
+from models.part import Part, Warehouse, WarehouseLocation
 import csv
 import io
 from services.inventory_service import InventoryService # Import the new service
@@ -357,15 +357,14 @@ def complete_stock_count(count_id):
     verified_by = data.get('verified_by', '')
     apply_adjustments = data.get('apply_adjustments', False)
     
-    success = StockCount.complete_count(count_id, verified_by, apply_adjustments, user_id=current_user.id)
+    success, message = StockCount.complete_count(count_id, verified_by, apply_adjustments, user_id=current_user.id)
     
     if success:
-        message = 'Stock count completed successfully'
         if apply_adjustments:
-            message += ' and adjustments applied'
+            message += '，差異調整已套用'
         return jsonify({'success': True, 'message': message})
     else:
-        return jsonify({'error': 'Failed to complete stock count'}), 500
+        return jsonify({'error': message}), 400
 
 # 建立盤點
 @inventory_api_bp.route('/stock-counts', methods=['POST'])
@@ -476,31 +475,47 @@ def update_count_item(count_id, part_id):
 @inventory_api_bp.route('/stock-counts/<int:count_id>/items/update-by-part', methods=['POST'])
 @login_required
 def update_count_item_by_part_number(count_id):
-    """根據零件編號更新盤點項目"""
+    """根據零件編號和儲位更新盤點項目"""
     from models.inventory import StockCountDetail
+    from models.part import WarehouseLocation
     from extensions import db
     
     data = request.get_json()
     part_number = data.get('part_number')
+    location_code = data.get('location_code') # 新增儲位代碼
     counted_quantity = data.get('counted_quantity')
     notes = data.get('notes', '')
     
-    if not part_number or counted_quantity is None:
-        return jsonify({'error': 'Part number and counted quantity are required'}), 400
+    if not all([part_number, location_code, counted_quantity is not None]):
+        return jsonify({'error': 'Part number, location code, and counted quantity are required'}), 400
     
     # 查找零件
     part = Part.get_by_part_number(part_number)
     if not part:
         return jsonify({'error': f'Part not found: {part_number}'}), 404
-    
-    # 查找盤點明細
+
+    # 查找盤點單以確認倉庫ID
+    stock_count = StockCount.query.get(count_id)
+    if not stock_count:
+        return jsonify({'error': 'Stock count not found'}), 404
+
+    # 根據儲位代碼和倉庫ID查找儲位
+    location = WarehouseLocation.query.filter_by(
+        location_code=location_code,
+        warehouse_id=stock_count.warehouse_id
+    ).first()
+    if not location:
+        return jsonify({'error': f'Location code {location_code} not found in this warehouse'}), 404
+
+    # 使用 part_id 和 location_id 查找盤點明細
     detail = StockCountDetail.query.filter_by(
         stock_count_id=count_id,
-        part_id=part.id
+        part_id=part.id,
+        warehouse_location_id=location.id
     ).first()
     
     if not detail:
-        return jsonify({'error': f'Count item not found for part: {part_number}'}), 404
+        return jsonify({'error': f'Count item not found for part {part_number} at location {location_code}'}), 404
     
     try:
         detail.counted_quantity = counted_quantity
