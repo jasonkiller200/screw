@@ -17,7 +17,7 @@ from extensions import db
 
 class AIService:
     def __init__(self):
-        self.model_name = "llama3.1:8b"  # 預設模型，可以配置
+        self.model_name = "gemma3:4b"  # 預設模型，可以配置
         self.db_path = "instance/hardware.db"  # 正確的資料庫路徑
         self.conversation_history = {}  # 存儲對話歷史，按會話ID分組
         

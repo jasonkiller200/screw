@@ -25,6 +25,16 @@ def get_inventory():
     inventories = CurrentInventory.get_all_inventory(warehouse_id)
     return jsonify(inventories)
 
+@inventory_api_bp.route('/warehouse/<int:warehouse_id>', methods=['GET'])
+@login_required
+def get_warehouse_inventory(warehouse_id):
+    """取得指定倉庫的庫存清單（用於批量出庫模板）"""
+    try:
+        inventories = CurrentInventory.get_all_inventory(warehouse_id)
+        return jsonify({'success': True, 'inventory': inventories})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @inventory_api_bp.route('/stock/<string:part_number>', methods=['GET'])
 @login_required
 def get_part_stock(part_number):

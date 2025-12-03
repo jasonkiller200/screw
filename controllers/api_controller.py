@@ -18,6 +18,7 @@ from services.inventory_service import InventoryService # Import InventoryServic
 from services.part_service import PartService # Import PartService
 from services.work_order_service import WorkOrderService # Import WorkOrderService
 from services.dashboard_service import DashboardService # Import DashboardService
+from services.template_service import TemplateService # Import TemplateService
 
 @api_bp.route('/inventory/stock/export', methods=['GET'])
 @login_required
@@ -550,5 +551,105 @@ def get_dashboard_data():
     service = DashboardService()
     data = service.get_dashboard_data(timespan=timespan, time_range=time_range)
     return jsonify(data)
+
+
+# ============ 出庫模板管理 API ============
+
+@api_bp.route('/templates/stock-out', methods=['GET'])
+@login_required
+def get_stock_out_templates():
+    """獲取指定倉庫的出庫模板清單"""
+    warehouse_id = request.args.get('warehouse_id', type=int)
+    if not warehouse_id:
+        return jsonify({'success': False, 'error': 'warehouse_id is required'}), 400
+    try:
+        templates = TemplateService.get_templates_by_warehouse(warehouse_id)
+        return jsonify({'success': True, 'templates': templates})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/templates/stock-out/<int:template_id>', methods=['GET'])
+@login_required
+def get_stock_out_template_details(template_id):
+    """獲取模板詳細內容"""
+    try:
+        template = TemplateService.get_template_with_items(template_id)
+        return jsonify({'success': True, 'template': template})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/templates/stock-out', methods=['POST'])
+@login_required
+def create_stock_out_template():
+    """建立新的出庫模板"""
+    try:
+        data = request.get_json()
+        
+        # 驗證必要欄位
+        required_fields = ['name', 'warehouse_id', 'items']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'success': False, 'error': f'缺少必要欄位: {field}'}), 400
+        
+        # 驗證模板項目
+        validation = TemplateService.validate_template_items(data['items'])
+        if not validation['valid']:
+            return jsonify({'success': False, 'error': validation['message']}), 400
+        
+        # 建立模板
+        result = TemplateService.create_template(
+            name=data['name'],
+            warehouse_id=data['warehouse_id'],
+            created_by=current_user.id,
+            items_data=data['items']
+        )
+        
+        if result['success']:
+            return jsonify(result), 201
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/templates/stock-out/<int:template_id>', methods=['PUT'])
+@login_required
+def update_stock_out_template(template_id):
+    """更新出庫模板"""
+    try:
+        data = request.get_json()
+        
+        # 驗證必要欄位
+        required_fields = ['name', 'items']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'success': False, 'error': f'缺少必要欄位: {field}'}), 400
+        
+        # 驗證模板項目
+        validation = TemplateService.validate_template_items(data['items'])
+        if not validation['valid']:
+            return jsonify({'success': False, 'error': validation['message']}), 400
+        
+        # 更新模板
+        result = TemplateService.update_template(
+            template_id=template_id,
+            name=data['name'],
+            items_data=data['items']
+        )
+        
+        return jsonify(result) if result['success'] else jsonify(result), 400
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/templates/stock-out/<int:template_id>', methods=['DELETE'])
+@login_required
+def delete_stock_out_template(template_id):
+    """刪除出庫模板"""
+    try:
+        result = TemplateService.delete_template(template_id)
+        return jsonify(result) if result['success'] else jsonify(result), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 

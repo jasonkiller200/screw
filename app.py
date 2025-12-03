@@ -115,6 +115,7 @@ from models.order import Order
 from models.inventory import CurrentInventory, InventoryTransaction, StockCount, StockCountDetail
 from models.work_order import WorkOrderDemand # ADD THIS LINE
 from models.weekly_order import WeeklyOrderCycle, OrderRegistration, User, OrderReviewLog
+from models.template import StockOutTemplate, StockOutTemplateItem  # 導入模板模型
 
 if __name__ == '__main__':
     import os

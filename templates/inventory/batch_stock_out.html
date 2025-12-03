@@ -71,6 +71,9 @@
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="barcode-tab" data-bs-toggle="tab" data-bs-target="#barcode-pane" type="button" role="tab" aria-controls="barcode-pane" aria-selected="false">條碼掃描出庫</button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="templates-tab" data-bs-toggle="tab" data-bs-target="#templates-pane" type="button" role="tab" aria-controls="templates-pane" aria-selected="false">常用模板</button>
+                    </li>
                 </ul>
             </div>
             <div class="card-body">
@@ -131,6 +134,71 @@
                                 <tbody id="scanned-items-to-submit">
                                     <tr>
                                         <td colspan="6" class="text-center text-muted py-3">尚無掃描品項</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="templates-pane" role="tabpanel" aria-labelledby="templates-tab" tabindex="0">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>使用現有模板</h6>
+                                <div class="mb-3">
+                                    <label for="template-select" class="form-label">選擇模板</label>
+                                    <select class="form-select" id="template-select">
+                                        <option value="">請先選擇倉庫...</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <button type="button" class="btn btn-success btn-sm" id="load-template" disabled>
+                                        <i class="fas fa-download me-2"></i>載入模板
+                                    </button>
+                                    <button type="button" class="btn btn-info btn-sm ms-2" id="preview-template" disabled>
+                                        <i class="fas fa-eye me-2"></i>預覽
+                                    </button>
+                                    <button type="button" class="btn btn-warning btn-sm ms-2" id="edit-template" disabled>
+                                        <i class="fas fa-edit me-2"></i>編輯
+                                    </button>
+                                    <button type="button" class="btn btn-danger btn-sm ms-2" id="delete-template" disabled>
+                                        <i class="fas fa-trash me-2"></i>刪除
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>建立新模板</h6>
+                                <div class="mb-3">
+                                    <label for="new-template-name" class="form-label">模板名稱</label>
+                                    <input type="text" class="form-control" id="new-template-name" placeholder="輸入模板名稱">
+                                </div>
+                                <div class="mb-3">
+                                    <button type="button" class="btn btn-primary btn-sm" id="save-as-template" disabled>
+                                        <i class="fas fa-save me-2"></i>儲存當前清單為模板
+                                    </button>
+                                </div>
+                                <div class="alert alert-info small mb-0">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    請先在「手動選擇品項」頁籤中選擇零件並設定數量，然後回到此處儲存為模板。
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <h6>模板項目預覽</h6>
+                        <div class="table-responsive" style="max-height: 300px;">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>零件編號</th>
+                                        <th>零件名稱</th>
+                                        <th>儲位</th>
+                                        <th>可用庫存</th>
+                                        <th>預設數量</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="template-preview-list">
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-3">請選擇模板以預覽內容</td>
                                     </tr>
                                 </tbody>
                             </table>
