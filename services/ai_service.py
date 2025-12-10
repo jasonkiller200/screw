@@ -20,6 +20,7 @@ class AIService:
         self.model_name = "gemma3:4b"  # 預設模型，可以配置
         self.db_path = "instance/hardware.db"  # 正確的資料庫路徑
         self.conversation_history = {}  # 存儲對話歷史，按會話ID分組
+        self.ollama_client = ollama.Client(host='http://192.168.6.122:11434')  # Ollama 服務器位址
         
     def _get_schema_info(self) -> str:
         """獲取資料庫結構資訊"""
@@ -154,7 +155,7 @@ class AIService:
         messages.append({'role': 'user', 'content': user_question})
         
         try:
-            response = ollama.chat(
+            response = self.ollama_client.chat(
                 model=self.model_name,
                 messages=messages
             )
@@ -261,7 +262,7 @@ class AIService:
         messages.append({'role': 'user', 'content': user_prompt})
         
         try:
-            response = ollama.chat(
+            response = self.ollama_client.chat(
                 model=self.model_name,
                 messages=messages
             )
@@ -292,7 +293,7 @@ class AIService:
         """
         
         try:
-            response = ollama.chat(
+            response = self.ollama_client.chat(
                 model=self.model_name,
                 messages=[
                     {'role': 'system', 'content': system_prompt},
@@ -373,7 +374,7 @@ class AIService:
         """檢查Ollama連接"""
         try:
             # 嘗試列出可用模型
-            models = ollama.list()
+            models = self.ollama_client.list()
             
             # 檢查我們的模型是否可用
             model_available = any(model['name'].startswith(self.model_name) for model in models.get('models', []))
