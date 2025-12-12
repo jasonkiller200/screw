@@ -34,6 +34,9 @@ def api_list():
         limit=limit, 
         only_unread=only_unread
     )
+    print(f"DEBUG: api_list - only_unread: {only_unread}, notifications count: {len(notifications)}")
+    # for n in notifications:
+    #     print(f"DEBUG: Notification ID: {n['id']}, Title: {n['title']}, Is Read: {n['is_read']}")
     
     return jsonify({'notifications': notifications})
 
@@ -73,12 +76,6 @@ def api_delete(notification_id):
         'message': message
     })
 
-
-@notification_bp.route('/')
-@login_required
-def index():
-    """通知中心頁面"""
-    return render_template('notifications/index.html')
 
 
 @notification_bp.route('/announcements')
