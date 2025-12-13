@@ -348,149 +348,160 @@ document.addEventListener('DOMContentLoaded', function () {
         const part = data.part_info;
         const history = data.order_history;
         const inventories = data.inventories || [];
+        const summary = data.summary || null;  // 新增：整體摘要
         
-        console.log('🔍 showResults 接收到的 part 物件:', part); // 添加這行來診斷
+        console.log('🔍 showResults 接收到的資料:', data);
 
         // 保存當前零件的儲位資訊
-        currentPartLocations = part?.locations || []; // 使用可選鏈接
-
-        let historyHtml = '';
-        if (history.length > 0) {
+        currentPartLocations = part?.locations || [];
+        
+        // 輔助函數：訂單狀態 Badge
+        function getOrderStatusBadge(status) {
             const statusMap = {
-                'registered': { text: '已登記', class: 'secondary' },
-                'approved': { text: '已核准', class: 'primary' },
-                'partially_received': { text: '部分到貨', class: 'info' },
-                'completed': { text: '已完成', class: 'success' },
-                'rejected': { text: '已拒絕', class: 'danger' }
+                'registered': 'bg-secondary',
+                'approved': 'bg-primary',
+                'partially_received': 'bg-info',
+                'completed': 'bg-success',
+                'rejected': 'bg-danger'
             };
-
-            historyHtml = history.map(reg => {
-                const date = new Date(reg.created_at);
-                const formattedDate = date.getFullYear() + '-' +
-                                      String(date.getMonth() + 1).padStart(2, '0') + '-' +
-                                      String(date.getDate()).padStart(2, '0');
-                
-                const statusInfo = statusMap[reg.status] || { text: reg.status, class: 'light' };
-
-                return `
-                    <tr>
-                        <td>${formattedDate}</td>
-                        <td>${reg.applicant_name || 'N/A'}</td>
-                        <td>${reg.location_display || '無指定'}</td>
-                        <td>${reg.quantity}</td>
-                        <td>
-                            <span class="badge bg-${statusInfo.class}">
-                                ${statusInfo.text}
-                            </span>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-        } else {
-            historyHtml = '<tr><td colspan="4" class="text-center text-muted">暫無申請記錄</td></tr>';
+            return statusMap[status] || 'bg-light';
         }
         
-        // 顯示各倉庫庫存（包含倉位信息）
-        let inventoryHtml = '';
-        const all_locations = part?.locations || [];
-
-        if (all_locations.length > 0) {
-            inventoryHtml = all_locations.map(loc => {
-                // 從 inventories 陣列中尋找此儲位的庫存記錄（改用 location_id 匹配）
-                const inv = inventories.find(i => i.warehouse_location_id === loc.id);
-
-                const quantity_on_hand = inv ? inv.quantity_on_hand : 0;
-                const reserved_quantity = inv ? inv.reserved_quantity : 0;
-                const available_quantity = inv ? inv.available_quantity : 0;
-
-                return `
-                    <tr>
-                        <td>${loc.warehouse_name} (${loc.warehouse_code})</td>
-                        <td>${loc.location_code}</td>
-                        <td>${quantity_on_hand}</td>
-                        <td>${reserved_quantity}</td>
-                        <td><strong>${available_quantity}</strong></td>
-                    </tr>
-                `;
-            }).join('');
-        } else {
-            inventoryHtml = '<tr><td colspan="5" class="text-center text-muted">此零件未設定儲位</td></tr>';
+        // 輔助函數：訂單狀態文字
+        function getOrderStatusText(status) {
+            const statusMap = {
+                'registered': '已登記',
+                'approved': '已核准',
+                'partially_received': '部分到貨',
+                'completed': '已完成',
+                'rejected': '已拒絕'
+            };
+            return statusMap[status] || status;
         }
         
-        results.innerHTML = `
+        let html = `
             <div class="card mb-3">
-                <div class="card-header d-flex justify-content-between align-items-center">
+                <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">零件資訊</h5>
-                    <div>
-                        <button class="btn btn-success btn-sm" id="showWeeklyOrderModalBtn" 
-                                data-part-number="${part?.part_number || ''}" 
-                                data-part-name="${part?.name || ''}" 
-                                data-part-unit="${part?.unit || ''}"
-                                data-part-type="${part?.type || ''}"
-                                data-part-locations='${JSON.stringify(part?.locations || [])}'>
-                            <i class="fas fa-calendar-plus me-1"></i>加入申請
-                        </button>
+                </div>
+                <div class="card-body part-info">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <strong>零件編號:</strong> ${part.part_number}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>零件名稱:</strong> ${part.name}
+                        </div>
+                        <div class="col-md-2">
+                            <strong>類型:</strong> ${part.type || '未分類'}
+                        </div>
+                        <div class="col-md-2">
+                            <strong>單位:</strong> ${part.unit}
+                        </div>
+                        <div class="col-md-2">
+                            <strong>前置期:</strong> ${part.lead_time} 天
+                        </div>
                     </div>
+                    ${part.description ? `
+                        <div class="row mt-2">
+                            <div class="col-12">
+                                <strong>備註:</strong> ${part.description}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-success" id="showWeeklyOrderModalBtn" 
+                            data-part-number="${part.part_number}" 
+                            data-part-name="${part.name}" 
+                            data-part-unit="${part.unit}"
+                            data-part-type="${part.type || ''}"
+                            data-part-locations='${JSON.stringify(part.locations || [])}'>
+                        <i class="fas fa-calendar-plus me-1"></i>加入週期申請
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 訂單歷史 (移到這裡) -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">📋 最近訂單歷史 <small class="text-muted">(最多顯示10筆)</small></h5>
                 </div>
                 <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="part-info p-3 rounded mb-3">
-                                <h6><strong>零件編號：</strong>${part?.part_number || 'N/A'}</h6>
-                                <p class="mb-2"><strong>名稱：：</strong>${part?.name || 'N/A'}</p>
-                                <p class="mb-2"><strong>備註：</strong>${part?.description || '無'}</p>
-                                <p class="mb-2"><strong>單位：</strong>${part?.unit || 'N/A'}</p>
-                                <p class="mb-2"><strong>每盒數量：：</strong>${part?.quantity_per_box || 'N/A'}</p>
-                                <p class="mb-2"><strong>採購前置期：</strong>${part?.lead_time || 'N/A'} 天</p>
-                                <p class="mb-0"><strong>儲存位置：</strong>
-                                    ${part?.locations && part.locations.length > 0 ? 
-                                        part.locations.map(loc => `${loc.warehouse_name}:${loc.location_code}`).join(', ') : 
-                                        '無'}
-                                </p>
-                            </div>
-                            
-                            <h6>各儲位庫存</h6>
-                            <div class="table-responsive">
-                                <table class="table table-sm table-striped">
-                                    <thead>
-                                        <tr>
-                                            <th>倉庫</th>
-                                            <th>倉位</th>
-                                            <th>在庫數量</th>
-                                            <th>預留數量</th>
-                                            <th>可用數量</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${inventoryHtml}
-                                    </tbody>
-                                </table>
-                            </div>
+                    ${history.length > 0 ? `
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>申請日期</th>
+                                        <th>申請人</th>
+                                        <th>數量</th>
+                                        <th>儲位</th>
+                                        <th>狀態</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${history.map(order => {
+                                        const date = new Date(order.created_at);
+                                        const formattedDate = date.getFullYear() + '-' +
+                                                              String(date.getMonth() + 1).padStart(2, '0') + '-' +
+                                                              String(date.getDate()).padStart(2, '0');
+                                        
+                                        return `
+                                            <tr>
+                                                <td>${formattedDate}</td>
+                                                <td>${order.applicant_name || '未知'}</td>
+                                                <td>${order.quantity || order.quantity_ordered || 0} ${part.unit}</td>
+                                                <td>${order.location_display || order.location_code || '未指定'}</td>
+                                                <td>
+                                                    <span class="badge ${getOrderStatusBadge(order.status)}">
+                                                        ${getOrderStatusText(order.status)}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
                         </div>
-                        <div class="col-md-6">
-                            <h6>訂購歷史</h6>
-                            <div class="order-history">
-                                <table class="table table-sm">
-                                    <thead>
-                                        <tr>
-                                            <th>申請日期</th>
-                                            <th>申請人</th>
-                                            <th>儲位</th>
-                                            <th>數量</th>
-                                            <th>狀態</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${historyHtml}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                    ` : '<p class="text-muted mb-0">暫無訂單記錄</p>'}
+                </div>
+            </div>
+            
+            <!-- 新增：整體消耗摘要卡片 -->
+            ${summary ? `
+                <div class="card mb-3">
+                    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">📊 整體消耗狀態</h5>
+                        <small>基於近30天工作日數據</small>
                     </div>
+                    <div class="card-body">
+                        ${window.ConsumptionUtils ? window.ConsumptionUtils.renderOverallSummary(summary) : '<p>載入中...</p>'}
+                    </div>
+                </div>
+            ` : ''}
+            
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">📦 各儲位詳細分析</h5>
+                </div>
+                <div class="card-body">
+                    ${inventories.length > 0 ? 
+                        inventories.map(inv => window.ConsumptionUtils ? window.ConsumptionUtils.renderLocationDetailCard(inv) : `
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <p>儲位: ${inv.location_code}</p>
+                                    <p>現有庫存: ${inv.quantity_on_hand} ${inv.unit}</p>
+                                </div>
+                            </div>
+                        `).join('') : 
+                        '<p class="text-muted">無庫存資訊</p>'
+                    }
                 </div>
             </div>
         `;
         
+        results.innerHTML = html;
         results.style.display = 'block';
 
         // 為新的"加入申請"按鈕動態綁定事件

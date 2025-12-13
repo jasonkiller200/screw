@@ -50,6 +50,190 @@ class CurrentInventory(db.Model):
             'warehouse_name': self.warehouse.name if self.warehouse else None,
             'warehouse_code': self.warehouse.code if self.warehouse else None,
         }
+    
+    def get_consumption_analysis(self, days=30):
+        """
+        取得該儲位的消耗分析 (基於工作日)
+        
+        Args:
+            days: 分析天數，預設30天
+            
+        Returns:
+            dict: {
+                'period_days': 30,           # 分析期間(日曆天數)
+                'working_days': 18,          # 實際工作日數
+                'total_consumption': 180,    # 總出庫量
+                'avg_daily_consumption': 10.0,  # 平均工作日消耗量
+                'days_of_stock': 15.0,       # 庫存可支撐工作日數
+                'stock_status': 'warning',   # critical/warning/healthy
+                'trend_indicator': 'up',     # up/down/stable
+                'trend_percentage': 25       # 趨勢變化百分比
+            }
+        """
+        from datetime import date, timedelta
+        
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days)
+        
+        # 獲取消耗數據
+        consumption_data = InventoryTransaction.get_consumption_by_location(
+            self.part_id, 
+            self.warehouse_location_id, 
+            days
+        )
+        
+        # 計算工作日數 (全倉庫層級)
+        working_days = InventoryTransaction.get_working_days_count(
+            start_date, end_date, self.warehouse_id
+        )
+        
+        # 計算平均工作日消耗量
+        avg_daily = consumption_data['total_out'] / working_days if working_days > 0 else 0
+        
+        # 計算庫存可支撐工作日數
+        days_of_stock = self.quantity_on_hand / avg_daily if avg_daily > 0 else 999
+        
+        # 判斷庫存狀態
+        if days_of_stock < 7:
+            status = 'critical'
+        elif days_of_stock < 14:
+            status = 'warning'
+        else:
+            status = 'healthy'
+        
+        # 計算消耗趨勢
+        recent_7 = consumption_data['recent_7_out']
+        prev_7 = consumption_data['prev_7_out']
+        
+        if prev_7 > 0:
+            trend_percentage = round(((recent_7 - prev_7) / prev_7) * 100)
+            if trend_percentage > 10:
+                trend_indicator = 'up'
+            elif trend_percentage < -10:
+                trend_indicator = 'down'
+            else:
+                trend_indicator = 'stable'
+        else:
+            trend_percentage = 0
+            trend_indicator = 'stable' if recent_7 == 0 else 'up'
+        
+        return {
+            'period_days': days,
+            'working_days': working_days,
+            'total_consumption': consumption_data['total_out'],
+            'recent_7_consumption': recent_7,
+            'avg_daily_consumption': round(avg_daily, 2),
+            'days_of_stock': round(days_of_stock, 1),
+            'stock_status': status,
+            'trend_indicator': trend_indicator,
+            'trend_percentage': trend_percentage
+        }
+    
+    def get_order_suggestion(self):
+        """
+        計算訂購建議 (使用零件的實際採購前置期)
+        
+        Returns:
+            dict: {
+                'suggested_quantity': 165,              # 建議訂購量
+                'lead_time_days': 5,                    # 零件的採購前置期
+                'lead_time_working_days': 3.2,          # 交期內預估工作日數
+                'consumption_during_lead_time': 90,     # 交期內預估消耗量
+                'stock_after_order': 200,               # 訂購後預估庫存
+                'urgency_score': 85                     # 急迫度評分 (0-100)
+            }
+        """
+        from datetime import date, timedelta
+        
+        # 獲取零件的採購前置期
+        lead_time_days = self.part.lead_time if self.part else 5
+        
+        # 獲取消耗分析
+        analysis = self.get_consumption_analysis(days=30)
+        avg_daily_consumption = analysis['avg_daily_consumption']
+        working_days = analysis['working_days']
+        
+        # 計算平均每週工作天數
+        avg_working_days_per_week = working_days / 4.29 if working_days > 0 else 4.5  # 30天約4.29週
+        
+        # 計算交期內的工作日數
+        lead_time_working_days = lead_time_days * (avg_working_days_per_week / 7)
+        
+        # 計算交期內預估消耗量
+        consumption_during_lead_time = avg_daily_consumption * lead_time_working_days
+        
+        # 建議訂購量 = 交期消耗 + 安全庫存 - 現有庫存
+        suggested_quantity = consumption_during_lead_time + self.safety_stock - self.quantity_on_hand
+        suggested_quantity = max(0, round(suggested_quantity))
+        
+        # 訂購後預估庫存
+        stock_after_order = self.quantity_on_hand + suggested_quantity - consumption_during_lead_time
+        
+        # 計算急迫度評分 (0-100)
+        urgency_score = self._calculate_urgency_score(analysis, suggested_quantity)
+        
+        return {
+            'suggested_quantity': int(suggested_quantity),
+            'lead_time_days': lead_time_days,
+            'lead_time_working_days': round(lead_time_working_days, 1),
+            'consumption_during_lead_time': round(consumption_during_lead_time),
+            'stock_after_order': round(stock_after_order),
+            'urgency_score': urgency_score
+        }
+    
+    def _calculate_urgency_score(self, analysis, suggested_quantity):
+        """
+        計算急迫度評分 (0-100)
+        
+        權重分配:
+        - 庫存天數 (40%): 天數越少分數越高
+        - 是否低於補貨點 (30%): 低於補貨點得分高
+        - 消耗趨勢 (30%): 上升趨勢得分高
+        """
+        score = 0
+        
+        # 1. 庫存天數評分 (40分)
+        days_of_stock = analysis['days_of_stock']
+        if days_of_stock < 3:
+            days_score = 40
+        elif days_of_stock < 7:
+            days_score = 35
+        elif days_of_stock < 14:
+            days_score = 25
+        elif days_of_stock < 30:
+            days_score = 15
+        else:
+            days_score = 5
+        score += days_score
+        
+        # 2. 補貨點評分 (30分)
+        if self.quantity_on_hand < self.reorder_point:
+            shortage_ratio = (self.reorder_point - self.quantity_on_hand) / self.reorder_point if self.reorder_point > 0 else 1
+            reorder_score = min(30, round(shortage_ratio * 30))
+        else:
+            reorder_score = 0
+        score += reorder_score
+        
+        # 3. 消耗趨勢評分 (30分)
+        trend = analysis['trend_indicator']
+        trend_pct = abs(analysis['trend_percentage'])
+        
+        if trend == 'up':
+            if trend_pct > 50:
+                trend_score = 30
+            elif trend_pct > 25:
+                trend_score = 25
+            elif trend_pct > 10:
+                trend_score = 20
+            else:
+                trend_score = 15
+        elif trend == 'down':
+            trend_score = 5
+        else:  # stable
+            trend_score = 10
+        score += trend_score
+        
+        return min(100, score)
 
     @classmethod
     def get_current_stock(cls, part_id, warehouse_location_id=None):
@@ -253,6 +437,124 @@ class InventoryTransaction(db.Model):
     warehouse = relationship("Warehouse", backref="transactions")
     warehouse_location = relationship("WarehouseLocation", backref="transactions")
     user = relationship("User", foreign_keys=[user_id], backref="inventory_transactions")
+    
+    @classmethod
+    def get_working_days_count(cls, start_date, end_date, warehouse_id=None):
+        """
+        計算期間內有交易記錄的工作日數
+        判斷標準：當天有任何出入庫交易記錄 = 工作日
+        
+        Args:
+            start_date: 開始日期 (date object)
+            end_date: 結束日期 (date object)
+            warehouse_id: 可選，限定特定倉庫
+            
+        Returns:
+            int: 工作日數量
+        """
+        from sqlalchemy import func
+        
+        query = db.session.query(
+            func.count(func.distinct(func.date(cls.transaction_date)))
+        ).filter(
+            func.date(cls.transaction_date) >= start_date,
+            func.date(cls.transaction_date) <= end_date
+        )
+        
+        if warehouse_id:
+            query = query.filter(cls.warehouse_id == warehouse_id)
+        
+        return query.scalar() or 0
+    
+    @classmethod
+    def get_working_days_list(cls, start_date, end_date, warehouse_id=None):
+        """
+        取得期間內所有工作日的清單
+        
+        Args:
+            start_date: 開始日期 (date object)
+            end_date: 結束日期 (date object)
+            warehouse_id: 可選，限定特定倉庫
+            
+        Returns:
+            list: 工作日期清單 [date1, date2, ...]
+        """
+        from sqlalchemy import func
+        
+        query = db.session.query(
+            func.date(cls.transaction_date).label('work_date')
+        ).filter(
+            func.date(cls.transaction_date) >= start_date,
+            func.date(cls.transaction_date) <= end_date
+        )
+        
+        if warehouse_id:
+            query = query.filter(cls.warehouse_id == warehouse_id)
+        
+        working_dates = query.distinct().order_by('work_date').all()
+        
+        return [row.work_date for row in working_dates]
+    
+    @classmethod
+    def get_consumption_by_location(cls, part_id, location_id, days=30):
+        """
+        取得特定儲位的消耗統計
+        
+        Args:
+            part_id: 零件ID
+            location_id: 儲位ID
+            days: 統計天數
+            
+        Returns:
+            dict: 消耗統計資料
+        """
+        from sqlalchemy import func
+        from datetime import date, timedelta
+        
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days)
+        
+        # 總出庫量
+        total_out = db.session.query(
+            func.sum(func.abs(cls.quantity))
+        ).filter(
+            cls.part_id == part_id,
+            cls.warehouse_location_id == location_id,
+            cls.transaction_type.like('OUT_%'),
+            func.date(cls.transaction_date) >= start_date,
+            func.date(cls.transaction_date) <= end_date
+        ).scalar() or 0
+        
+        # 最近7天出庫量 (用於趨勢分析)
+        recent_7_days_start = end_date - timedelta(days=7)
+        recent_7_out = db.session.query(
+            func.sum(func.abs(cls.quantity))
+        ).filter(
+            cls.part_id == part_id,
+            cls.warehouse_location_id == location_id,
+            cls.transaction_type.like('OUT_%'),
+            func.date(cls.transaction_date) >= recent_7_days_start,
+            func.date(cls.transaction_date) <= end_date
+        ).scalar() or 0
+        
+        # 前7天出庫量 (用於趨勢比較)
+        prev_7_days_start = recent_7_days_start - timedelta(days=7)
+        prev_7_days_end = recent_7_days_start - timedelta(days=1)
+        prev_7_out = db.session.query(
+            func.sum(func.abs(cls.quantity))
+        ).filter(
+            cls.part_id == part_id,
+            cls.warehouse_location_id == location_id,
+            cls.transaction_type.like('OUT_%'),
+            func.date(cls.transaction_date) >= prev_7_days_start,
+            func.date(cls.transaction_date) <= prev_7_days_end
+        ).scalar() or 0
+        
+        return {
+            'total_out': int(total_out),
+            'recent_7_out': int(recent_7_out),
+            'prev_7_out': int(prev_7_out)
+        }
 
     def to_dict(self):
         return {

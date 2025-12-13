@@ -257,8 +257,8 @@ class PartService:
 
             order_history = OrderRegistration.query.options(
                 joinedload(OrderRegistration.warehouse_location).joinedload(WarehouseLocation.warehouse)
-            ).filter_by(part_number=part_number).order_by(OrderRegistration.created_at.desc()).all()
-            logging.info(f"Found {len(order_history)} order history records.")
+            ).filter_by(part_number=part_number).order_by(OrderRegistration.created_at.desc()).limit(10).all()
+            logging.info(f"Found {len(order_history)} order history records (limited to 10).")
 
             inventories = CurrentInventory.query.filter_by(part_id=part.id).all()
             logging.info(f"Found {len(inventories)} inventory records.")
@@ -277,15 +277,43 @@ class PartService:
                 raise
 
             try:
-                inventory_data = [inv.to_dict() for inv in inventories]
+                # 為每個庫存位置加入消耗分析和訂購建議
+                inventory_data = []
+                for inv in inventories:
+                    inv_dict = inv.to_dict()
+                    
+                    # 消耗分析 (基於30天工作日)
+                    try:
+                        inv_dict['consumption_analysis'] = inv.get_consumption_analysis(days=30)
+                    except Exception as e:
+                        logging.warning(f"Error calculating consumption analysis for inventory {inv.id}: {e}")
+                        inv_dict['consumption_analysis'] = None
+                    
+                    # 訂購建議 (自動使用零件的 lead_time)
+                    try:
+                        inv_dict['order_suggestion'] = inv.get_order_suggestion()
+                    except Exception as e:
+                        logging.warning(f"Error calculating order suggestion for inventory {inv.id}: {e}")
+                        inv_dict['order_suggestion'] = None
+                    
+                    inventory_data.append(inv_dict)
+                
             except Exception as e:
                 logging.error(f"Error serializing inventory_data for part {part.id}: {e}", exc_info=True)
                 raise
 
+            # 計算零件級別的整體摘要
+            try:
+                summary = PartService._calculate_part_summary(inventories)
+            except Exception as e:
+                logging.warning(f"Error calculating part summary: {e}")
+                summary = None
+
             result = {
                 'part_info': part_info,
                 'order_history': order_history_data,
-                'inventories': inventory_data
+                'inventories': inventory_data,
+                'summary': summary  # 新增總體摘要
             }
             
             logging.info(f"Successfully fetched all details for part {part.id}")
@@ -295,6 +323,67 @@ class PartService:
             logging.error(f"Unhandled exception in get_full_part_details for part_number {part_number}: {e}", exc_info=True)
             # Re-raise the exception to let Flask handle it and produce a 500 error
             raise
+    
+    @staticmethod
+    def _calculate_part_summary(inventories):
+        """
+        計算零件整體消耗摘要
+        
+        Args:
+            inventories: CurrentInventory 物件列表
+            
+        Returns:
+            dict: 整體摘要數據
+        """
+        if not inventories:
+            return {
+                'total_stock': 0,
+                'total_available': 0,
+                'overall_status': 'unknown',
+                'min_days_of_stock': 0,
+                'total_suggested_order': 0
+            }
+        
+        total_stock = sum(inv.quantity_on_hand for inv in inventories)
+        total_available = sum(inv.available_quantity for inv in inventories)
+        
+        # 收集所有儲位的狀態和庫存天數
+        statuses = []
+        days_of_stocks = []
+        total_suggested = 0
+        
+        for inv in inventories:
+            try:
+                analysis = inv.get_consumption_analysis(days=30)
+                suggestion = inv.get_order_suggestion()
+                
+                statuses.append(analysis['stock_status'])
+                days_of_stocks.append(analysis['days_of_stock'])
+                total_suggested += suggestion['suggested_quantity']
+            except:
+                continue
+        
+        # 整體狀態：只要有一個 critical 就是 critical
+        if 'critical' in statuses:
+            overall_status = 'critical'
+        elif 'warning' in statuses:
+            overall_status = 'warning'
+        elif statuses:
+            overall_status = 'healthy'
+        else:
+            overall_status = 'unknown'
+        
+        # 最少庫存天數
+        min_days = min(days_of_stocks) if days_of_stocks else 0
+        
+        return {
+            'total_stock': total_stock,
+            'total_available': total_available,
+            'overall_status': overall_status,
+            'min_days_of_stock': round(min_days, 1),
+            'total_suggested_order': int(total_suggested),
+            'location_count': len(inventories)
+        }
 
     @staticmethod
     def export_parts_excel(search='', sort_by='part_number', sort_order='asc'):

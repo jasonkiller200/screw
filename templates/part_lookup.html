@@ -3,6 +3,7 @@
 {% block title %}零件查詢 - 五金零件庫存管理系統{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/consumption_analysis.css') }}">
 <style>
     .part-info {
         background: #f8f9fa;
@@ -375,5 +376,6 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/vendor/zxing-browser.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/consumption_utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/part_lookup.js') }}"></script>
 {% endblock %}

@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>零件消耗狀態分析 - 範例展示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft JhengHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 25px;
+        }
+
+        .header h1 {
+            color: #2d3748;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .part-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .info-item {
+            background: #f7fafc;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .info-item label {
+            font-size: 12px;
+            color: #718096;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .info-item .value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .locations-container {
+            display: grid;
+            gap: 20px;
+        }
+
+        .location-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+
+        .location-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .location-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .location-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .location-subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+
+        .status-badge {
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-critical {
+            background: #fc8181;
+            color: #742a2a;
+        }
+
+        .status-warning {
+            background: #fbd38d;
+            color: #7c2d12;
+        }
+
+        .status-healthy {
+            background: #9ae6b4;
+            color: #22543d;
+        }
+
+        .location-body {
+            padding: 25px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .metric-card {
+            background: #f7fafc;
+            padding: 18px;
+            border-radius: 10px;
+            border-left: 4px solid #cbd5e0;
+        }
+
+        .metric-card.primary {
+            border-left-color: #667eea;
+        }
+
+        .metric-card.success {
+            border-left-color: #48bb78;
+        }
+
+        .metric-card.warning {
+            border-left-color: #ed8936;
+        }
+
+        .metric-card.danger {
+            border-left-color: #f56565;
+        }
+
+        .metric-label {
+            font-size: 13px;
+            color: #718096;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+        }
+
+        .metric-label .icon {
+            margin-right: 6px;
+        }
+
+        .metric-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #2d3748;
+        }
+
+        .metric-unit {
+            font-size: 14px;
+            color: #a0aec0;
+            margin-left: 5px;
+        }
+
+        .metric-subtext {
+            font-size: 12px;
+            color: #a0aec0;
+            margin-top: 5px;
+        }
+
+        .consumption-section {
+            background: #edf2f7;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .section-title .icon {
+            margin-right: 8px;
+            font-size: 20px;
+        }
+
+        .consumption-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+        }
+
+        .stat-item {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 5px;
+        }
+
+        .order-recommendation {
+            background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .order-recommendation h3 {
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+
+        .order-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+        }
+
+        .order-item {
+            background: rgba(255,255,255,0.2);
+            padding: 12px;
+            border-radius: 8px;
+        }
+
+        .order-item label {
+            font-size: 12px;
+            opacity: 0.9;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .order-item .value {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .urgency-bar {
+            margin-top: 15px;
+        }
+
+        .urgency-bar label {
+            font-size: 13px;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .progress-bar {
+            background: rgba(255,255,255,0.3);
+            height: 25px;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #48bb78 0%, #f56565 100%);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 13px;
+            transition: width 0.5s ease;
+        }
+
+        .trend-indicator {
+            display: inline-flex;
+            align-items: center;
+            font-size: 14px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            margin-left: 10px;
+        }
+
+        .trend-up {
+            background: #fed7d7;
+            color: #c53030;
+        }
+
+        .trend-down {
+            background: #c6f6d5;
+            color: #2f855a;
+        }
+
+        .trend-stable {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        @media (max-width: 768px) {
+            .metrics-grid,
+            .consumption-stats,
+            .order-details {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .alert-box {
+            background: #fff5f5;
+            border-left: 4px solid #fc8181;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .alert-box .icon {
+            color: #f56565;
+            margin-right: 10px;
+        }
+
+        .chart-placeholder {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: center;
+            color: #a0aec0;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 零件基本資訊 -->
+        <div class="header">
+            <h1>🔧 零件消耗狀態分析</h1>
+            <div class="part-info">
+                <div class="info-item">
+                    <label>零件編號</label>
+                    <div class="value">P-2024-001</div>
+                </div>
+                <div class="info-item">
+                    <label>零件名稱</label>
+                    <div class="value">M8 六角螺栓</div>
+                </div>
+                <div class="info-item">
+                    <label>規格</label>
+                    <div class="value">M8×30mm</div>
+                </div>
+                <div class="info-item">
+                    <label>單位</label>
+                    <div class="value">個</div>
+                </div>
+                <div class="info-item">
+                    <label>總庫存</label>
+                    <div class="value" style="color: #667eea;">450 個</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 儲位 1: 緊急狀態 -->
+        <div class="locations-container">
+            <div class="location-card">
+                <div class="location-header">
+                    <div>
+                        <div class="location-title">📍 儲位 A-01-05</div>
+                        <div class="location-subtitle">主倉庫 > A區 > 第1排 > 第5格</div>
+                    </div>
+                    <span class="status-badge status-critical">🔴 緊急</span>
+                </div>
+
+                <div class="location-body">
+                    <!-- 警示訊息 -->
+                    <div class="alert-box">
+                        <strong>⚠️ 庫存緊急警示</strong>
+                        <p style="margin-top: 8px; font-size: 14px;">預計 3.5 個工作日後缺貨，建議立即訂購！</p>
+                    </div>
+
+                    <!-- 基本庫存指標 -->
+                    <div class="metrics-grid">
+                        <div class="metric-card danger">
+                            <div class="metric-label">📦 現有庫存</div>
+                            <div class="metric-value">35<span class="metric-unit">個</span></div>
+                            <div class="metric-subtext">可用: 28 個</div>
+                        </div>
+                        <div class="metric-card warning">
+                            <div class="metric-label">⚡ 安全庫存</div>
+                            <div class="metric-value">50<span class="metric-unit">個</span></div>
+                            <div class="metric-subtext">補貨點: 80 個</div>
+                        </div>
+                        <div class="metric-card danger">
+                            <div class="metric-label">⏰ 庫存天數</div>
+                            <div class="metric-value">3.5<span class="metric-unit">天</span></div>
+                            <div class="metric-subtext">工作日計算</div>
+                        </div>
+                        <div class="metric-card primary">
+                            <div class="metric-label">📊 平均消耗</div>
+                            <div class="metric-value">10<span class="metric-unit">個/天</span></div>
+                            <div class="metric-subtext">基於工作日</div>
+                        </div>
+                    </div>
+
+                    <!-- 消耗分析區塊 -->
+                    <div class="consumption-section">
+                        <div class="section-title">
+                            <span class="icon">📈</span>
+                            近30天消耗分析
+                        </div>
+                        <div class="consumption-stats">
+                            <div class="stat-item">
+                                <div class="stat-value">30</div>
+                                <div class="stat-label">日曆天數</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">18</div>
+                                <div class="stat-label">實際工作日</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">180</div>
+                                <div class="stat-label">總出庫量 (個)</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">10.0</div>
+                                <div class="stat-label">平均工作日消耗</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">45</div>
+                                <div class="stat-label">7天出庫量 (個)</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">↑ 25%</div>
+                                <div class="stat-label">消耗趨勢</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 訂購建議 -->
+                    <div class="order-recommendation">
+                        <h3>📝 訂購建議</h3>
+                        <div class="order-details">
+                            <div class="order-item">
+                                <label>建議訂購量</label>
+                                <div class="value">165 個</div>
+                            </div>
+                            <div class="order-item">
+                                <label>預計交期</label>
+                                <div class="value">14 天</div>
+                            </div>
+                            <div class="order-item">
+                                <label>交期內消耗</label>
+                                <div class="value">90 個</div>
+                            </div>
+                            <div class="order-item">
+                                <label>訂購後庫存</label>
+                                <div class="value">200 個</div>
+                            </div>
+                        </div>
+                        <div class="urgency-bar">
+                            <label>急迫度評分</label>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 85%;">85 / 100</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 儲位 2: 警告狀態 -->
+            <div class="location-card">
+                <div class="location-header">
+                    <div>
+                        <div class="location-title">📍 儲位 B-02-12</div>
+                        <div class="location-subtitle">副倉庫 > B區 > 第2排 > 第12格</div>
+                    </div>
+                    <span class="status-badge status-warning">🟡 注意</span>
+                </div>
+
+                <div class="location-body">
+                    <div class="metrics-grid">
+                        <div class="metric-card warning">
+                            <div class="metric-label">📦 現有庫存</div>
+                            <div class="metric-value">85<span class="metric-unit">個</span></div>
+                            <div class="metric-subtext">可用: 75 個</div>
+                        </div>
+                        <div class="metric-card success">
+                            <div class="metric-label">⚡ 安全庫存</div>
+                            <div class="metric-value">50<span class="metric-unit">個</span></div>
+                            <div class="metric-subtext">補貨點: 80 個</div>
+                        </div>
+                        <div class="metric-card warning">
+                            <div class="metric-label">⏰ 庫存天數</div>
+                            <div class="metric-value">11.3<span class="metric-unit">天</span></div>
+                            <div class="metric-subtext">工作日計算</div>
+                        </div>
+                        <div class="metric-card primary">
+                            <div class="metric-label">📊 平均消耗</div>
+                            <div class="metric-value">7.5<span class="metric-unit">個/天</span></div>
+                            <div class="metric-subtext">基於工作日</div>
+                        </div>
+                    </div>
+
+                    <div class="consumption-section">
+                        <div class="section-title">
+                            <span class="icon">📈</span>
+                            近30天消耗分析
+                            <span class="trend-indicator trend-stable">
+                                → 穩定
+                            </span>
+                        </div>
+                        <div class="consumption-stats">
+                            <div class="stat-item">
+                                <div class="stat-value">30</div>
+                                <div class="stat-label">日曆天數</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">18</div>
+                                <div class="stat-label">實際工作日</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">135</div>
+                                <div class="stat-label">總出庫量 (個)</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">7.5</div>
+                                <div class="stat-label">平均工作日消耗</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">32</div>
+                                <div class="stat-label">7天出庫量 (個)</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">→ 0%</div>
+                                <div class="stat-label">消耗趨勢</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="order-recommendation" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);">
+                        <h3>📝 訂購建議</h3>
+                        <div class="order-details">
+                            <div class="order-item">
+                                <label>建議訂購量</label>
+                                <div class="value">70 個</div>
+                            </div>
+                            <div class="order-item">
+                                <label>預計交期</label>
+                                <div class="value">14 天</div>
+                            </div>
+                            <div class="order-item">
+                                <label>交期內消耗</label>
+                                <div class="value">68 個</div>
+                            </div>
+                            <div class="order-item">
+                                <label>訂購後庫存</label>
+                                <div class="value">155 個</div>
+                            </div>
+                        </div>
+                        <div class="urgency-bar">
+                            <label>急迫度評分</label>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 52%;">52 / 100</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 儲位 3: 健康狀態 -->
+            <div class="location-card">
+                <div class="location-header">
+                    <div>
+                        <div class="location-title">📍 儲位 C-03-08</div>
+                        <div class="location-subtitle">主倉庫 > C區 > 第3排 > 第8格</div>
+                    </div>
+                    <span class="status-badge status-healthy">🟢 健康</span>
+                </div>
+
+                <div class="location-body">
+                    <div class="metrics-grid">
+                        <div class="metric-card success">
+                            <div class="metric-label">📦 現有庫存</div>
+                            <div class="metric-value">330<span class="metric-unit">個</span></div>
+                            <div class="metric-subtext">可用: 320 個</div>
+                        </div>
+                        <div class="metric-card success">
+                            <div class="metric-label">⚡ 安全庫存</div>
+                            <div class="metric-value">100<span class="metric-unit">個</span></div>
+                            <div class="metric-subtext">補貨點: 150 個</div>
+                        </div>
+                        <div class="metric-card success">
+                            <div class="metric-label">⏰ 庫存天數</div>
+                            <div class="metric-value">66.0<span class="metric-unit">天</span></div>
+                            <div class="metric-subtext">工作日計算</div>
+                        </div>
+                        <div class="metric-card primary">
+                            <div class="metric-label">📊 平均消耗</div>
+                            <div class="metric-value">5.0<span class="metric-unit">個/天</span></div>
+                            <div class="metric-subtext">基於工作日</div>
+                        </div>
+                    </div>
+
+                    <div class="consumption-section">
+                        <div class="section-title">
+                            <span class="icon">📈</span>
+                            近30天消耗分析
+                            <span class="trend-indicator trend-down">
+                                ↓ 減少 15%
+                            </span>
+                        </div>
+                        <div class="consumption-stats">
+                            <div class="stat-item">
+                                <div class="stat-value">30</div>
+                                <div class="stat-label">日曆天數</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">18</div>
+                                <div class="stat-label">實際工作日</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">90</div>
+                                <div class="stat-label">總出庫量 (個)</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">5.0</div>
+                                <div class="stat-label">平均工作日消耗</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">18</div>
+                                <div class="stat-label">7天出庫量 (個)</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">↓ -15%</div>
+                                <div class="stat-label">消耗趨勢</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="order-recommendation" style="background: linear-gradient(135deg, #a8edea 0%, #6dd5ed 100%);">
+                        <h3>📝 訂購建議</h3>
+                        <div class="order-details">
+                            <div class="order-item">
+                                <label>建議訂購量</label>
+                                <div class="value">0 個</div>
+                            </div>
+                            <div class="order-item">
+                                <label>庫存充足</label>
+                                <div class="value">✓</div>
+                            </div>
+                            <div class="order-item">
+                                <label>預估缺貨日期</label>
+                                <div class="value">2026-03-15</div>
+                            </div>
+                            <div class="order-item">
+                                <label>下次檢查</label>
+                                <div class="value">2026-01-15</div>
+                            </div>
+                        </div>
+                        <div class="urgency-bar">
+                            <label>急迫度評分</label>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 8%;">8 / 100</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 圖表預留區 -->
+        <div class="chart-placeholder">
+            <div>
+                <h3 style="color: #4a5568; margin-bottom: 10px;">📊 消耗趨勢圖表區</h3>
+                <p>此處可整合 Chart.js 顯示：</p>
+                <ul style="text-align: left; display: inline-block; margin-top: 10px;">
+                    <li>每日消耗量折線圖</li>
+                    <li>工作日 vs 非工作日標記</li>
+                    <li>庫存變化趨勢</li>
+                    <li>預測缺貨時間點</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 模擬資料載入動畫
+        window.addEventListener('load', function() {
+            console.log('零件消耗分析頁面已載入');
+            console.log('範例數據：');
+            console.log({
+                part_number: 'P-2024-001',
+                locations: [
+                    {
+                        location: 'A-01-05',
+                        status: 'critical',
+                        stock: 35,
+                        days_of_stock: 3.5,
+                        avg_consumption: 10,
+                        urgency: 85
+                    },
+                    {
+                        location: 'B-02-12',
+                        status: 'warning',
+                        stock: 85,
+                        days_of_stock: 11.3,
+                        avg_consumption: 7.5,
+                        urgency: 52
+                    },
+                    {
+                        location: 'C-03-08',
+                        status: 'healthy',
+                        stock: 330,
+                        days_of_stock: 66.0,
+                        avg_consumption: 5.0,
+                        urgency: 8
+                    }
+                ]
+            });
+        });
+    </script>
+</body>
+</html>

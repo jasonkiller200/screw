@@ -1,0 +1,344 @@
+/* 零件消耗分析 - 增強樣式 */
+/* 加入到現有的 CSS 中，提升視覺效果 */
+
+/* 消耗分析指標卡片 */
+.consumption-metric-card {
+    background: #f8f9fa;
+    padding: 18px;
+    border-radius: 10px;
+    border-left: 4px solid #cbd5e0;
+    margin-bottom: 15px;
+    transition: all 0.3s ease;
+}
+
+.consumption-metric-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+
+.consumption-metric-card.primary {
+    border-left-color: #667eea;
+}
+
+.consumption-metric-card.success {
+    border-left-color: #48bb78;
+}
+
+.consumption-metric-card.warning {
+    border-left-color: #ed8936;
+}
+
+.consumption-metric-card.danger {
+    border-left-color: #f56565;
+}
+
+.metric-label {
+    font-size: 13px;
+    color: #718096;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+}
+
+.metric-label .icon {
+    margin-right: 6px;
+}
+
+.metric-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #2d3748;
+    line-height: 1;
+}
+
+.metric-unit {
+    font-size: 14px;
+    color: #a0aec0;
+    margin-left: 5px;
+    font-weight: 400;
+}
+
+.metric-subtext {
+    font-size: 12px;
+    color: #a0aec0;
+    margin-top: 5px;
+}
+
+/* 消耗分析區塊 */
+.consumption-analysis-section {
+    background: #edf2f7;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+.consumption-section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+}
+
+.consumption-section-title .icon {
+    margin-right: 8px;
+    font-size: 20px;
+}
+
+/* 消耗統計網格 */
+.consumption-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+}
+
+.stat-item {
+    background: white;
+    padding: 12px;
+    border-radius: 8px;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.stat-item:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.stat-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: #667eea;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #718096;
+    margin-top: 5px;
+}
+
+/* 訂購建議卡片 */
+.order-suggestion-card {
+    background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+    color: #2d3748;
+    padding: 20px;
+    border-radius: 10px;
+    margin-top: 20px;
+    box-shadow: 0 4px 12px rgba(253, 203, 110, 0.3);
+}
+
+.order-suggestion-card.urgent {
+    background: linear-gradient(135deg, #ff7675 0%, #d63031 100%);
+    color: white;
+}
+
+.order-suggestion-card.normal {
+    background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+}
+
+.order-suggestion-card h6 {
+    font-size: 18px;
+    margin-bottom: 15px;
+    font-weight: 600;
+}
+
+.order-details-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.order-detail-item {
+    background: rgba(255,255,255,0.3);
+    padding: 12px;
+    border-radius: 8px;
+}
+
+.order-detail-item label {
+    font-size: 12px;
+    opacity: 0.9;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.order-detail-item .value {
+    font-size: 20px;
+    font-weight: 700;
+}
+
+/* 急迫度進度條 */
+.urgency-progress {
+    margin-top: 15px;
+}
+
+.urgency-progress label {
+    font-size: 13px;
+    margin-bottom: 8px;
+    display: block;
+    font-weight: 500;
+}
+
+.urgency-bar {
+    background: rgba(255,255,255,0.3);
+    height: 30px;
+    border-radius: 15px;
+    overflow: hidden;
+    position: relative;
+}
+
+.urgency-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #48bb78 0%, #f56565 100%);
+    border-radius: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 13px;
+    color: white;
+    transition: width 0.5s ease;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* 趨勢指標 */
+.trend-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 14px;
+    padding: 6px 12px;
+    border-radius: 12px;
+    margin-left: 10px;
+    font-weight: 600;
+}
+
+.trend-badge.trend-up {
+    background: #fed7d7;
+    color: #c53030;
+}
+
+.trend-badge.trend-down {
+    background: #c6f6d5;
+    color: #2f855a;
+}
+
+.trend-badge.trend-stable {
+    background: #e2e8f0;
+    color: #4a5568;
+}
+
+/* 儲位卡片增強 */
+.location-detail-card {
+    border-radius: 12px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    margin-bottom: 20px;
+}
+
+.location-detail-card:hover {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    transform: translateY(-3px);
+}
+
+.location-detail-card.status-critical {
+    border-left: 4px solid #f56565;
+}
+
+.location-detail-card.status-warning {
+    border-left: 4px solid #ed8936;
+}
+
+.location-detail-card.status-healthy {
+    border-left: 4px solid #48bb78;
+}
+
+/* 警示框 */
+.consumption-alert {
+    background: #fff5f5;
+    border-left: 4px solid #fc8181;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.consumption-alert .icon {
+    color: #f56565;
+    margin-right: 10px;
+}
+
+.consumption-alert.warning {
+    background: #fffaf0;
+    border-left-color: #ed8936;
+}
+
+.consumption-alert.info {
+    background: #ebf8ff;
+    border-left-color: #4299e1;
+}
+
+.consumption-alert.success {
+    background: #f0fff4;
+    border-left-color: #48bb78;
+}
+
+/* 數據無效時的顯示 */
+.no-data-placeholder {
+    text-align: center;
+    padding: 40px 20px;
+    color: #a0aec0;
+}
+
+.no-data-placeholder .icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+/* 響應式設計 */
+@media (max-width: 768px) {
+    .consumption-stats-grid,
+    .order-details-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .metric-value {
+        font-size: 24px;
+    }
+    
+    .consumption-metric-card {
+        padding: 12px;
+    }
+}
+
+/* 動畫效果 */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.location-detail-card {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* 快速下單按鈕增強 */
+.quick-order-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.quick-order-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
