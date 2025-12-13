@@ -63,3 +63,12 @@ cert.key.bak
 cert.pem.bak
 #acli_rovodev_bulid
 start_ai_system.bat
+# SSH keys and agent files
+eval "$(ssh-agent -s)"
+eval "$(ssh-agent -s)".pub
+*.pub
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+
