@@ -354,25 +354,37 @@ class Part(db.Model):
         
         db.session.commit()
 
-        # After commit, ensure inventory records exist for all assigned locations
+        # After commit, ensure inventory records exist for all assigned locations and set parameters
         from models.inventory import CurrentInventory
-        for assoc in new_part.location_associations:
-            inventory_exists = CurrentInventory.query.filter_by(
-                part_id=new_part.id,
-                warehouse_location_id=assoc.warehouse_location_id
-            ).first()
+        for loc_data in locations_data: # Iterate through the original locations_data to get parameters
+            warehouse_id = loc_data.get('warehouse_id')
+            location_code = loc_data.get('location_code')
+            if warehouse_id and location_code:
+                wh_loc = WarehouseLocation.query.filter_by(
+                    warehouse_id=warehouse_id, location_code=location_code
+                ).first()
+                if wh_loc: # Should always exist here
+                    # Check if inventory record exists for this part-location combination
+                    inventory_exists = CurrentInventory.query.filter_by(
+                        part_id=new_part.id,
+                        warehouse_location_id=wh_loc.id
+                    ).first()
 
-            if not inventory_exists:
-                new_inventory_record = CurrentInventory(
-                    part_id=new_part.id,
-                    warehouse_id=assoc.warehouse_location.warehouse_id,
-                    warehouse_location_id=assoc.warehouse_location_id,
-                    quantity_on_hand=0,
-                    available_quantity=0,
-                    reserved_quantity=0
-                )
-                db.session.add(new_inventory_record)
-        db.session.commit() # Commit the new inventory records
+                    if not inventory_exists:
+                        new_inventory_record = CurrentInventory(
+                            part_id=new_part.id,
+                            warehouse_id=wh_loc.warehouse_id,
+                            warehouse_location_id=wh_loc.id,
+                            quantity_on_hand=0,
+                            available_quantity=0,
+                            reserved_quantity=0,
+                            safety_stock=loc_data.get('safety_stock', 0),
+                            reorder_point=loc_data.get('reorder_point', 0),
+                            desired_days_of_stock=loc_data.get('desired_days_of_stock', 30),
+                            moq=loc_data.get('moq', 1)
+                        )
+                        db.session.add(new_inventory_record)
+        db.session.commit() # Commit the new inventory records and their parameters
 
         return {'success': True}
 
@@ -510,24 +522,56 @@ class Part(db.Model):
         db.session.commit()
 
         # After commit, ensure inventory records exist for all assigned locations
+        # and update their procurement parameters
         from models.inventory import CurrentInventory
+        
+        # Create a map for quick lookup of location parameters from locations_data
+        location_params_map = {}
+        for loc_data in locations_data:
+            warehouse_id = loc_data.get('warehouse_id')
+            location_code = loc_data.get('location_code')
+            if warehouse_id and location_code:
+                wh_loc = WarehouseLocation.query.filter_by(
+                    warehouse_id=warehouse_id, location_code=location_code
+                ).first()
+                if wh_loc:
+                    location_params_map[wh_loc.id] = {
+                        'safety_stock': loc_data.get('safety_stock', 0),
+                        'reorder_point': loc_data.get('reorder_point', 0),
+                        'desired_days_of_stock': loc_data.get('desired_days_of_stock', 30),
+                        'moq': loc_data.get('moq', 1)
+                    }
+
         for assoc in part.location_associations:
-            inventory_exists = CurrentInventory.query.filter_by(
+            params = location_params_map.get(assoc.warehouse_location_id, {})
+            
+            inventory_record = CurrentInventory.query.filter_by(
                 part_id=part.id,
                 warehouse_location_id=assoc.warehouse_location_id
             ).first()
 
-            if not inventory_exists:
+            if inventory_record:
+                # Update existing inventory record parameters
+                inventory_record.safety_stock = params.get('safety_stock', inventory_record.safety_stock)
+                inventory_record.reorder_point = params.get('reorder_point', inventory_record.reorder_point)
+                inventory_record.desired_days_of_stock = params.get('desired_days_of_stock', inventory_record.desired_days_of_stock)
+                inventory_record.moq = params.get('moq', inventory_record.moq)
+            else:
+                # Create new inventory record with parameters
                 new_inventory_record = CurrentInventory(
                     part_id=part.id,
                     warehouse_id=assoc.warehouse_location.warehouse_id,
                     warehouse_location_id=assoc.warehouse_location_id,
                     quantity_on_hand=0,
                     available_quantity=0,
-                    reserved_quantity=0
+                    reserved_quantity=0,
+                    safety_stock=params.get('safety_stock', 0),
+                    reorder_point=params.get('reorder_point', 0),
+                    desired_days_of_stock=params.get('desired_days_of_stock', 30),
+                    moq=params.get('moq', 1)
                 )
                 db.session.add(new_inventory_record)
-        db.session.commit() # Commit the new inventory records
+        db.session.commit() # Commit the new/updated inventory records
 
         cls._cleanup_unused_locations_and_warehouses() # Call cleanup after commit
         return {'success': True}

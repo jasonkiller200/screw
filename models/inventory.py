@@ -22,6 +22,8 @@ class CurrentInventory(db.Model):
     available_quantity = db.Column(db.Integer, default=0)
     safety_stock = db.Column(db.Integer, default=0, nullable=False)
     reorder_point = db.Column(db.Integer, default=0, nullable=False)
+    desired_days_of_stock = db.Column(db.Integer, default=30, nullable=False, comment='預計存貨天數 (DDS)')
+    moq = db.Column(db.Integer, default=1, nullable=False, comment='最小訂購量 (MOQ)')
     last_updated = db.Column(db.DateTime, default=get_taipei_time, onupdate=get_taipei_time)
 
     # Relationships
@@ -47,6 +49,8 @@ class CurrentInventory(db.Model):
             'unit': self.part.unit if self.part else None,
             'safety_stock': self.safety_stock,
             'reorder_point': self.reorder_point,
+            'desired_days_of_stock': self.desired_days_of_stock,
+            'moq': self.moq,
             'warehouse_name': self.warehouse.name if self.warehouse else None,
             'warehouse_code': self.warehouse.code if self.warehouse else None,
         }

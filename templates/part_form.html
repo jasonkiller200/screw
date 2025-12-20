@@ -109,35 +109,109 @@
                         </div>
                     </div>
 
+                    {# Removed top-level desired_days_of_stock and moq inputs #}
+
                     <div class="row">
                         <div class="col-md-12">
                             <div class="mb-3">
-                                <label for="locations" class="form-label">儲存位置</label>
+                                <label for="locations" class="form-label">儲存位置與庫存策略</label>
                                 <div id="location-inputs">
-                                    {% if part and part.locations %} {# Use part.locations from controller #}
+                                    {% if part and part.locations %}
                                         {% for loc_data in part.locations %}
-                                            <div class="input-group mb-2 location-input-group">
-                                                <select class="form-select location-warehouse-select" name="location_warehouse_id[]">
-                                                    <option value="{{ loc_data.warehouse_id }}" selected>{{ loc_data.warehouse_name }}</option>
-                                                </select>
-                                                <input type="text" class="form-control location-code-input" name="location_code[]" value="{{ loc_data.location_code }}" placeholder="位置代碼">
-                                                <span class="input-group-text text-muted small">庫存: <span class="location-stock-quantity">{{ loc_data.stock_quantity }}</span></span>
-                                                <button type="button" class="btn btn-outline-danger remove-location-btn" data-stock-quantity="{{ loc_data.stock_quantity }}"><i class="fas fa-times"></i></button>
+                                            {% set current_inventory = loc_data.current_inventory %}
+                                            <div class="card mb-3 location-input-group" data-warehouse-location-id="{{ loc_data.id }}">
+                                                <div class="card-body">
+                                                    <div class="row g-2">
+                                                        <div class="col-md-4">
+                                                            <label class="form-label visually-hidden">倉庫</label>
+                                                            <select class="form-select location-warehouse-select" name="location_warehouse_id[]" disabled>
+                                                                <option value="{{ loc_data.warehouse_id }}" selected>{{ loc_data.warehouse_name }}</option>
+                                                            </select>
+                                                            <input type="hidden" name="location_warehouse_id[]" value="{{ loc_data.warehouse_id }}">
+                                                        </div>
+                                                        <div class="col-md-4">
+                                                            <label class="form-label visually-hidden">位置代碼</label>
+                                                            <input type="text" class="form-control location-code-input" name="location_code[]" value="{{ loc_data.location_code }}" placeholder="位置代碼" disabled>
+                                                            <input type="hidden" name="location_code[]" value="{{ loc_data.location_code }}">
+                                                        </div>
+                                                        <div class="col-md-3">
+                                                            <label class="form-label visually-hidden">庫存</label>
+                                                            <span class="input-group-text text-muted small w-100">目前庫存: {{ current_inventory.quantity_on_hand if current_inventory else 0 }}</span>
+                                                        </div>
+                                                        <div class="col-md-1 d-flex align-items-end">
+                                                            <button type="button" class="btn btn-outline-danger remove-location-btn w-100" data-stock-quantity="{{ current_inventory.quantity_on_hand if current_inventory else 0 }}"><i class="fas fa-times"></i></button>
+                                                        </div>
+                                                    </div>
+                                                    <hr class="my-2">
+                                                    <div class="row g-2">
+                                                        <div class="col-md-3">
+                                                            <label for="location_safety_stock_{{ loop.index0 }}" class="form-label small">安全庫存 <span class="text-danger">*</span></label>
+                                                            <input type="number" class="form-control form-control-sm" id="location_safety_stock_{{ loop.index0 }}" name="location_safety_stock[]" value="{{ current_inventory.safety_stock if current_inventory else 0 }}" min="0" required>
+                                                        </div>
+                                                        <div class="col-md-3">
+                                                            <label for="location_reorder_point_{{ loop.index0 }}" class="form-label small">補貨點 <span class="text-danger">*</span></label>
+                                                            <input type="number" class="form-control form-control-sm" id="location_reorder_point_{{ loop.index0 }}" name="location_reorder_point[]" value="{{ current_inventory.reorder_point if current_inventory else 0 }}" min="0" required>
+                                                        </div>
+                                                        <div class="col-md-3">
+                                                            <label for="location_desired_days_of_stock_{{ loop.index0 }}" class="form-label small">預計存貨天數 <span class="text-danger">*</span></label>
+                                                            <input type="number" class="form-control form-control-sm" id="location_desired_days_of_stock_{{ loop.index0 }}" name="location_desired_days_of_stock[]" value="{{ current_inventory.desired_days_of_stock if current_inventory else 30 }}" min="0" required>
+                                                        </div>
+                                                        <div class="col-md-3">
+                                                            <label for="location_moq_{{ loop.index0 }}" class="form-label small">最小訂購量 <span class="text-danger">*</span></label>
+                                                            <input type="number" class="form-control form-control-sm" id="location_moq_{{ loop.index0 }}" name="location_moq[]" value="{{ current_inventory.moq if current_inventory else 1 }}" min="1" required>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         {% endfor %}
                                     {% else %}
-                                        <div class="input-group mb-2 location-input-group">
-                                            <select class="form-select location-warehouse-select" name="location_warehouse_id[]">
-                                                <option value="">選擇倉庫</option>
-                                            </select>
-                                            <input type="text" class="form-control location-code-input" name="location_code[]" placeholder="位置代碼">
-                                            <span class="input-group-text text-muted small">庫存: <span class="location-stock-quantity">0</span></span>
-                                            <button type="button" class="btn btn-outline-danger remove-location-btn" style="display:none;" data-stock-quantity="0"><i class="fas fa-times"></i></button>
+                                        {# Default empty location for new part #}
+                                        <div class="card mb-3 location-input-group" data-warehouse-location-id="new">
+                                            <div class="card-body">
+                                                <div class="row g-2">
+                                                    <div class="col-md-4">
+                                                        <label class="form-label visually-hidden">倉庫</label>
+                                                        <select class="form-select location-warehouse-select" name="location_warehouse_id[]">
+                                                            <option value="">選擇倉庫</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <label class="form-label visually-hidden">位置代碼</label>
+                                                        <input type="text" class="form-control location-code-input" name="location_code[]" placeholder="位置代碼">
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <label class="form-label visually-hidden">庫存</label>
+                                                        <span class="input-group-text text-muted small w-100">目前庫存: 0</span>
+                                                    </div>
+                                                    <div class="col-md-1 d-flex align-items-end">
+                                                        <button type="button" class="btn btn-outline-danger remove-location-btn w-100" style="display:none;" data-stock-quantity="0"><i class="fas fa-times"></i></button>
+                                                    </div>
+                                                </div>
+                                                <hr class="my-2">
+                                                <div class="row g-2">
+                                                    <div class="col-md-3">
+                                                        <label for="location_safety_stock_new" class="form-label small">安全庫存 <span class="text-danger">*</span></label>
+                                                        <input type="number" class="form-control form-control-sm" id="location_safety_stock_new" name="location_safety_stock[]" value="0" min="0" required>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <label for="location_reorder_point_new" class="form-label small">補貨點 <span class="text-danger">*</span></label>
+                                                        <input type="number" class="form-control form-control-sm" id="location_reorder_point_new" name="location_reorder_point[]" value="0" min="0" required>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <label for="location_desired_days_of_stock_new" class="form-label small">預計存貨天數 <span class="text-danger">*</span></label>
+                                                        <input type="number" class="form-control form-control-sm" id="location_desired_days_of_stock_new" name="location_desired_days_of_stock[]" value="30" min="0" required>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <label for="location_moq_new" class="form-label small">最小訂購量 <span class="text-danger">*</span></label>
+                                                        <input type="number" class="form-control form-control-sm" id="location_moq_new" name="location_moq[]" value="1" min="1" required>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     {% endif %}
                                 </div>
                                 <button type="button" id="add-location-btn" class="btn btn-outline-secondary btn-sm"><i class="fas fa-plus me-1"></i>新增儲存位置</button>
-                                <div class="form-text">例如：主倉庫:A區-1層-3排 (可有多個)</div>
+                                <div class="form-text">為零件設定儲存位置及該位置的庫存策略</div>
                             </div>
                         </div>
                     </div>

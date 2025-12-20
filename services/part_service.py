@@ -28,6 +28,7 @@ class PartService:
             quantity_per_box = int(form_data.get('quantity_per_box') or 1)
             lead_time = int(form_data.get('lead_time') or 5)
             standard_cost = float(form_data.get('standard_cost') or 0)
+            # desired_days_of_stock and moq are now per location, not part of top-level Part creation
 
             # Basic validation
             if not part_number:
@@ -37,26 +38,49 @@ class PartService:
 
             # Parse locations submitted as parallel arrays
             locations_data = []
-            warehouse_ids = form_data.getlist('location_warehouse_id[]') if hasattr(form_data, 'getlist') else form_data.get('location_warehouse_id[]', [])
-            location_codes = form_data.getlist('location_code[]') if hasattr(form_data, 'getlist') else form_data.get('location_code[]', [])
+            warehouse_ids = form_data.getlist('location_warehouse_id[]')
+            location_codes = form_data.getlist('location_code[]')
+            safety_stocks = form_data.getlist('location_safety_stock[]')
+            reorder_points = form_data.getlist('location_reorder_point[]')
+            desired_days = form_data.getlist('location_desired_days_of_stock[]')
+            moqs = form_data.getlist('location_moq[]')
 
-            # Normalize types when getlist returns str
+
             try:
                 len_warehouses = len(warehouse_ids)
             except Exception:
                 warehouse_ids = []
                 location_codes = []
+                safety_stocks = []
+                reorder_points = []
+                desired_days = []
+                moqs = []
+
 
             for i in range(min(len(warehouse_ids), len(location_codes))):
                 wid = warehouse_ids[i]
                 code = location_codes[i].strip()
+                # Extract and parse new inventory-specific parameters
+                ss = int(safety_stocks[i]) if i < len(safety_stocks) and safety_stocks[i].isdigit() else 0
+                rop = int(reorder_points[i]) if i < len(reorder_points) and reorder_points[i].isdigit() else 0
+                dds = int(desired_days[i]) if i < len(desired_days) and desired_days[i].isdigit() else 30
+                _moq = int(moqs[i]) if i < len(moqs) and moqs[i].isdigit() else 1
+
+
                 if not wid or not code:
                     continue
                 try:
                     wid_int = int(wid)
                 except Exception:
                     continue
-                locations_data.append({'warehouse_id': wid_int, 'location_code': code})
+                locations_data.append({
+                    'warehouse_id': wid_int,
+                    'location_code': code,
+                    'safety_stock': ss,
+                    'reorder_point': rop,
+                    'desired_days_of_stock': dds,
+                    'moq': _moq
+                })
 
             # Use Part.create to perform creation and location conflict checks
             result = Part.create(
@@ -66,9 +90,10 @@ class PartService:
                 description=description,
                 unit=unit,
                 quantity_per_box=quantity_per_box,
-                locations_data=locations_data,
+                locations_data=locations_data, # This now contains detailed inventory info
                 lead_time=lead_time,
                 standard_cost=standard_cost,
+                # desired_days_of_stock and moq are no longer passed here
                 is_active=True
             )
 
@@ -96,6 +121,7 @@ class PartService:
             quantity_per_box = int(form_data.get('quantity_per_box') or 1)
             lead_time = int(form_data.get('lead_time') or 0)
             standard_cost = float(form_data.get('standard_cost') or 0)
+            # desired_days_of_stock and moq are now per location, not part of top-level Part creation
 
             # Basic validation
             if not part_number:
@@ -107,17 +133,35 @@ class PartService:
             locations_data = []
             warehouse_ids = form_data.getlist('location_warehouse_id[]')
             location_codes = form_data.getlist('location_code[]')
+            safety_stocks = form_data.getlist('location_safety_stock[]')
+            reorder_points = form_data.getlist('location_reorder_point[]')
+            desired_days = form_data.getlist('location_desired_days_of_stock[]')
+            moqs = form_data.getlist('location_moq[]')
+
 
             for i in range(len(warehouse_ids)):
                 wid = warehouse_ids[i]
                 code = location_codes[i].strip()
+                # Extract and parse new inventory-specific parameters
+                ss = int(safety_stocks[i]) if i < len(safety_stocks) and safety_stocks[i].isdigit() else 0
+                rop = int(reorder_points[i]) if i < len(reorder_points) and reorder_points[i].isdigit() else 0
+                dds = int(desired_days[i]) if i < len(desired_days) and desired_days[i].isdigit() else 30
+                _moq = int(moqs[i]) if i < len(moqs) and moqs[i].isdigit() else 1
+
                 if not wid or not code:
                     continue
                 try:
                     wid_int = int(wid)
                 except (ValueError, TypeError):
                     continue
-                locations_data.append({'warehouse_id': wid_int, 'location_code': code})
+                locations_data.append({
+                    'warehouse_id': wid_int,
+                    'location_code': code,
+                    'safety_stock': ss,
+                    'reorder_point': rop,
+                    'desired_days_of_stock': dds,
+                    'moq': _moq
+                })
 
             # Delegate to Part.update for all logic, including conflict checks
             result = Part.update(
@@ -128,9 +172,10 @@ class PartService:
                 description=description,
                 unit=unit,
                 quantity_per_box=quantity_per_box,
-                locations_data=locations_data,
+                locations_data=locations_data, # This now contains detailed inventory info
                 lead_time=lead_time,
                 standard_cost=standard_cost,
+                # desired_days_of_stock and moq are no longer passed here
                 is_active=True
             )
 
