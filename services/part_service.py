@@ -296,6 +296,17 @@ class PartService:
                         logging.warning(f"Error calculating order suggestion for inventory {inv.id}: {e}")
                         inv_dict['order_suggestion'] = None
                     
+                    # 儲位專屬訂單歷史 (最近 5 筆)
+                    try:
+                        location_orders = OrderRegistration.query.filter_by(
+                            part_number=part_number,
+                            warehouse_location_id=inv.warehouse_location_id
+                        ).order_by(OrderRegistration.created_at.desc()).limit(5).all()
+                        inv_dict['recent_orders'] = [order.to_dict() for order in location_orders]
+                    except Exception as e:
+                        logging.warning(f"Error fetching location orders for inventory {inv.id}: {e}")
+                        inv_dict['recent_orders'] = []
+                    
                     inventory_data.append(inv_dict)
                 
             except Exception as e:

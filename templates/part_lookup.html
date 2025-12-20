@@ -9,15 +9,17 @@
         background: #f8f9fa;
         border-left: 4px solid #007bff;
     }
+
     .order-history {
         max-height: 300px;
         overflow-y: auto;
     }
+
     #scanner-container {
         display: none;
         margin-top: 15px;
     }
-    
+
     #scanner-video-wrapper {
         position: relative;
         width: 100%;
@@ -26,15 +28,15 @@
         background: #000;
         border-radius: 8px;
         overflow: hidden;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
     }
-    
+
     #scanner-video {
         width: 100%;
         height: auto;
         display: block;
     }
-    
+
     #scanner-canvas {
         position: absolute;
         top: 0;
@@ -43,7 +45,7 @@
         height: 100%;
         pointer-events: none;
     }
-    
+
     /* 掃描瞄準框 */
     .scanner-overlay {
         position: absolute;
@@ -54,7 +56,7 @@
         pointer-events: none;
         z-index: 10;
     }
-    
+
     .scanner-frame {
         position: absolute;
         top: 50%;
@@ -67,18 +69,21 @@
         box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
         animation: pulse 2s infinite;
     }
-    
+
     @keyframes pulse {
-        0%, 100% {
+
+        0%,
+        100% {
             border-color: #00ff00;
             box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5), 0 0 20px #00ff00;
         }
+
         50% {
             border-color: #00cc00;
             box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5), 0 0 30px #00cc00;
         }
     }
-    
+
     /* 掃描線動畫 */
     .scanner-line {
         position: absolute;
@@ -89,16 +94,17 @@
         box-shadow: 0 0 10px #00ff00;
         animation: scan 2s linear infinite;
     }
-    
+
     @keyframes scan {
         0% {
             top: 25%;
         }
+
         100% {
             top: 75%;
         }
     }
-    
+
     /* 角落標記 */
     .corner {
         position: absolute;
@@ -106,35 +112,35 @@
         height: 40px;
         border: 4px solid #00ff00;
     }
-    
+
     .corner.top-left {
         top: 25%;
         left: 15%;
         border-right: none;
         border-bottom: none;
     }
-    
+
     .corner.top-right {
         top: 25%;
         right: 15%;
         border-left: none;
         border-bottom: none;
     }
-    
+
     .corner.bottom-left {
         bottom: 25%;
         left: 15%;
         border-right: none;
         border-top: none;
     }
-    
+
     .corner.bottom-right {
         bottom: 25%;
         right: 15%;
         border-left: none;
         border-top: none;
     }
-    
+
     /* 提示文字 */
     .scanner-hint {
         position: absolute;
@@ -147,19 +153,22 @@
         border-radius: 20px;
         font-size: 14px;
         white-space: nowrap;
-        text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
     }
-    
+
     /* 偵測到條碼時的視覺回饋 */
     .scanner-frame.detected {
         border-color: #ff0000;
         animation: flash 0.5s ease-in-out;
     }
-    
+
     @keyframes flash {
-        0%, 100% {
+
+        0%,
+        100% {
             border-color: #00ff00;
         }
+
         50% {
             border-color: #ffff00;
             box-shadow: 0 0 0 9999px rgba(255, 255, 0, 0.2), 0 0 40px #ffff00;
@@ -185,44 +194,46 @@
             <div class="card-body">
                 <form id="searchForm">
                     <div class="input-group mb-3">
-                        <input type="text" class="form-control" id="partNumber" placeholder="輸入零件編號或名稱" autocomplete="off">
+                        <input type="text" class="form-control" id="partNumber" placeholder="輸入零件編號或名稱"
+                            autocomplete="off">
                         <button class="btn btn-primary" type="submit">
                             <i class="fas fa-search"></i> 查詢
                         </button>
                     </div>
                 </form>
-                <div id="autocomplete-results" class="list-group" style="position: absolute; z-index: 1000; width: calc(100% - 3rem);"></div>
+                <div id="autocomplete-results" class="list-group"
+                    style="position: absolute; z-index: 1000; width: calc(100% - 3rem);"></div>
 
-                
+
                 <button class="btn btn-secondary mb-3" id="toggleScanner">
                     <i class="fas fa-camera me-1"></i>開啟條碼掃描
                 </button>
-                
+
                 <div id="scanner-container">
                     <div id="scanner-video-wrapper">
                         <video id="scanner-video" autoplay playsinline></video>
                         <canvas id="scanner-canvas"></canvas>
-                        
+
                         <!-- 掃描瞄準框覆蓋層 -->
                         <div class="scanner-overlay">
                             <div class="scanner-frame" id="scannerFrame">
                                 <!-- 掃描線 -->
                                 <div class="scanner-line"></div>
                             </div>
-                            
+
                             <!-- 四個角落標記 -->
                             <div class="corner top-left"></div>
                             <div class="corner top-right"></div>
                             <div class="corner bottom-left"></div>
                             <div class="corner bottom-right"></div>
-                            
+
                             <!-- 提示文字 -->
                             <div class="scanner-hint" id="scannerHint">
                                 📷 請將條碼對準方框內
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="mt-3 text-center">
                         <button class="btn btn-danger" id="stopScanner">
                             <i class="fas fa-times me-1"></i>關閉掃描器
@@ -231,7 +242,7 @@
                             <i class="fas fa-sync-alt me-1"></i>切換相機
                         </button>
                     </div>
-                    
+
                     <div id="scanner-status" class="alert alert-info mt-2" style="display: none;">
                         正在準備相機...
                     </div>
@@ -246,7 +257,7 @@
         <div id="results" style="display: none;">
             <!-- 搜尋結果將顯示在這裡 -->
         </div>
-        
+
         <div id="loading" style="display: none;">
             <div class="text-center">
                 <div class="spinner-border text-primary" role="status">
@@ -255,7 +266,7 @@
                 <p class="mt-2">正在查詢零件資訊...</p>
             </div>
         </div>
-        
+
         <div id="error" style="display: none;">
             <div class="alert alert-danger" role="alert">
                 <i class="fas fa-exclamation-triangle me-2"></i>
@@ -265,46 +276,13 @@
     </div>
 </div>
 
-<!-- 下單模態框 -->
-<div class="modal fade" id="orderModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">建立訂單</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="orderForm">
-                    <input type="hidden" id="orderPartNumber">
-                    <div class="mb-3">
-                        <label for="orderQuantity" class="form-label">訂購數量</label>
-                        <input type="number" class="form-control" id="orderQuantity" min="1" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="orderLocation" class="form-label">目標儲位</label>
-                        <select class="form-select" id="orderLocation" required>
-                            <option value="">請選擇儲位</option>
-                        </select>
-                        <small class="text-muted">選擇零件應補貨的儲位</small>
-                    </div>
-                    <div class="mb-3">
-                        <small class="text-muted">
-                            零件：<span id="orderPartName"></span><br>
-                            單位：<span id="orderPartUnit"></span>
-                        </small>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-primary" id="submitOrder">確認訂購</button>
-            </div>
-        </div>
-    </div>
+</div>
+</div>
 </div>
 
 <!-- 週期訂單申請模態框 -->
 <div class="modal fade" id="weeklyOrderModal" tabindex="-1">
+    <!-- ... existing weeklyOrderModal content ... -->
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
@@ -324,11 +302,14 @@
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="weeklyOrderQuantity" class="form-label">申請數量 <span class="text-danger">*</span></label>
+                            <label for="weeklyOrderQuantity" class="form-label">申請數量 <span
+                                    class="text-danger">*</span></label>
                             <input type="number" class="form-control" id="weeklyOrderQuantity" min="1" required>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="weeklyOrderLocation" class="form-label">目標儲位 <span id="modal-location-required-star" class="text-danger" style="display: none;">*</span></label>
+                            <label for="weeklyOrderLocation" class="form-label">目標儲位 <span
+                                    id="modal-location-required-star" class="text-danger"
+                                    style="display: none;">*</span></label>
                             <select class="form-select" id="weeklyOrderLocation">
                                 <option value="" selected>正在載入儲位...</option>
                             </select>
@@ -336,29 +317,35 @@
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="weeklyOrderApplicant" class="form-label">申請人 <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="weeklyOrderApplicant" value="{{ current_user.full_name }}" required readonly>
+                            <label for="weeklyOrderApplicant" class="form-label">申請人 <span
+                                    class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="weeklyOrderApplicant"
+                                value="{{ current_user.full_name }}" required readonly>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="weeklyOrderDepartment" class="form-label">申請人單位</label>
-                            <input type="text" class="form-control" id="weeklyOrderDepartment" value="{{ current_user.department or '未設定' }}" readonly>
+                            <input type="text" class="form-control" id="weeklyOrderDepartment"
+                                value="{{ current_user.department or '未設定' }}" readonly>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="weeklyOrderPriority" class="form-label">緊急程度 <span class="text-danger">*</span></label>
+                            <label for="weeklyOrderPriority" class="form-label">緊急程度 <span
+                                    class="text-danger">*</span></label>
                             <select class="form-select" id="weeklyOrderPriority" required>
                                 <option value="normal" selected>一般申請</option>
                                 <option value="urgent">緊急申請</option>
                             </select>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="weeklyOrderRequiredDate" class="form-label">需用日期 <span class="text-danger">*</span></label>
+                            <label for="weeklyOrderRequiredDate" class="form-label">需用日期 <span
+                                    class="text-danger">*</span></label>
                             <input type="date" class="form-control" id="weeklyOrderRequiredDate" required>
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label for="weeklyOrderNotes" class="form-label">用途/備註 <span id="notes-required-star" class="text-danger" style="display: none;">*</span></label>
+                        <label for="weeklyOrderNotes" class="form-label">用途/備註 <span id="notes-required-star"
+                                class="text-danger" style="display: none;">*</span></label>
                         <textarea class="form-control" id="weeklyOrderNotes" rows="2"></textarea>
                     </div>
                     <div id="weeklyOrderError" class="alert alert-danger" style="display: none;"></div>
@@ -367,6 +354,24 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
                 <button type="button" class="btn btn-primary" id="submitWeeklyOrder">確認申請</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 詳細分析與建議模態框 (NEW) -->
+<div class="modal fade" id="consumptionDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title" id="consumptionDetailModalLabel">🛠️ 消耗分析與採購建議</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4" id="consumptionDetailContent">
+                <!-- 內容由 JavaScript 動態渲染 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
             </div>
         </div>
     </div>

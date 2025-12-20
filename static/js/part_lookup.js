@@ -2,7 +2,7 @@
 
 document.addEventListener('DOMContentLoaded', function () {
     console.log('🚀 零件查詢頁面已載入');
-    
+
     const searchForm = document.getElementById('searchForm');
     const partNumberInput = document.getElementById('partNumber');
     const autocompleteResults = document.getElementById('autocomplete-results');
@@ -13,9 +13,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // 當使用者在輸入框中輸入時觸發
-    partNumberInput.addEventListener('input', function() {
+    partNumberInput.addEventListener('input', function () {
         const query = partNumberInput.value.trim();
-        
+
         // 清除舊的詳細結果
         document.getElementById('results').style.display = 'none';
         document.getElementById('error').style.display = 'none';
@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         item.href = '#';
                         item.classList.add('list-group-item', 'list-group-item-action');
                         item.innerHTML = `${part.part_number} <small class="text-muted">(${part.name})</small>`;
-                        item.addEventListener('click', function(e) {
+                        item.addEventListener('click', function (e) {
                             e.preventDefault();
                             partNumberInput.value = part.part_number;
                             autocompleteResults.innerHTML = '';
@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // 點擊頁面其他地方時隱藏建議列表
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', function (e) {
         if (!partNumberInput.contains(e.target) && !autocompleteResults.contains(e.target)) {
             autocompleteResults.innerHTML = '';
             autocompleteResults.style.display = 'none';
@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // 保留原有的表單提交功能作為備用 (例如使用者按 Enter)
-    searchForm.addEventListener('submit', function(e) {
+    searchForm.addEventListener('submit', function (e) {
         e.preventDefault();
         const partNumber = partNumberInput.value.trim();
         autocompleteResults.innerHTML = '';
@@ -78,22 +78,24 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // 條碼掃描功能
+    // 條碼掃描與搜尋資料
     let codeReader = null;
     let controls = null;
     let currentCameraIndex = 0; // 追蹤當前使用的相機索引
     let videoInputDevices = []; // 存儲所有可用的相機設備
+    let currentPartLocations = [];
+    let currentSearchData = null; // 保存當前搜尋到的完整資料
 
-    document.getElementById('toggleScanner').addEventListener('click', function() {
+    document.getElementById('toggleScanner').addEventListener('click', function () {
         startScanner();
     });
 
-    document.getElementById('stopScanner').addEventListener('click', function() {
+    document.getElementById('stopScanner').addEventListener('click', function () {
         stopScanner();
     });
 
     // 切換相機功能
-    document.getElementById('switchCamera').addEventListener('click', function() {
+    document.getElementById('switchCamera').addEventListener('click', function () {
         switchCamera();
     });
 
@@ -105,7 +107,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // 切換到下一個相機
         currentCameraIndex = (currentCameraIndex + 1) % videoInputDevices.length;
-        
+
         // 停止當前掃描
         if (controls) {
             controls.stop();
@@ -115,7 +117,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // 使用新的相機重新開始掃描
         const selectedDeviceId = videoInputDevices[currentCameraIndex].deviceId;
         const selectedDeviceLabel = videoInputDevices[currentCameraIndex].label || `相機 ${currentCameraIndex + 1}`;
-        
+
         const status = document.getElementById('scanner-status');
         status.textContent = `正在切換到: ${selectedDeviceLabel}`;
         status.className = 'alert alert-info mt-2';
@@ -132,7 +134,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (navigator.vibrate) {
                         navigator.vibrate([200, 100, 200]);
                     }
-                    
+
                     // 停止掃描並搜尋
                     stopScanner();
                     searchPart(result.text);
@@ -151,11 +153,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
             status.textContent = `✅ 已切換到: ${selectedDeviceLabel}`;
             status.className = 'alert alert-success mt-2';
-            
+
             // 更新按鈕狀態
             const switchButton = document.getElementById('switchCamera');
             switchButton.innerHTML = `<i class="fas fa-sync-alt me-1"></i>切換相機 (${currentCameraIndex + 1}/${videoInputDevices.length})`;
-            
+
         } catch (err) {
             console.error('切換相機失敗:', err);
             status.textContent = `❌ 切換失敗: ${err.message}`;
@@ -192,28 +194,28 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // 優先選擇後置相機（環境相機）
             let selectedDeviceIndex = 0;
-            
+
             // 首先嘗試使用 facingMode 信息（如果可用）
             const backCameraByFacing = videoInputDevices.findIndex(device => {
                 // 某些瀏覽器可能在 capabilities 中提供 facingMode 信息
-                return device.getCapabilities && 
-                       device.getCapabilities().facingMode && 
-                       device.getCapabilities().facingMode.includes('environment');
+                return device.getCapabilities &&
+                    device.getCapabilities().facingMode &&
+                    device.getCapabilities().facingMode.includes('environment');
             });
-            
+
             // 其次通過標籤名稱搜索後置相機
             const backCameraByLabel = videoInputDevices.findIndex(device => {
                 const label = device.label.toLowerCase();
-                return label.includes('back') || 
-                       label.includes('rear') || 
-                       label.includes('environment') ||
-                       label.includes('後') ||
-                       label.includes('环境') ||
-                       label.includes('facing back') ||
-                       label.includes('camera 1') || // 某些設備後置相機標為camera 1
-                       (label.includes('camera') && label.includes('0')); // 某些設備後置相機為camera 0
+                return label.includes('back') ||
+                    label.includes('rear') ||
+                    label.includes('environment') ||
+                    label.includes('後') ||
+                    label.includes('环境') ||
+                    label.includes('facing back') ||
+                    label.includes('camera 1') || // 某些設備後置相機標為camera 1
+                    (label.includes('camera') && label.includes('0')); // 某些設備後置相機為camera 0
             });
-            
+
             if (backCameraByFacing !== -1) {
                 selectedDeviceIndex = backCameraByFacing;
                 currentCameraIndex = backCameraByFacing;
@@ -235,12 +237,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const selectedDeviceId = videoInputDevices[selectedDeviceIndex].deviceId;
             const selectedDeviceLabel = videoInputDevices[selectedDeviceIndex].label || `相機 ${selectedDeviceIndex + 1}`;
-            
+
             // 更新狀態顯示可用相機數量
-            const cameraInfo = videoInputDevices.length > 1 ? 
-                ` (${videoInputDevices.length} 個相機可用)` : 
+            const cameraInfo = videoInputDevices.length > 1 ?
+                ` (${videoInputDevices.length} 個相機可用)` :
                 ' (僅1個相機)';
-                
+
             // 更新切換按鈕狀態
             const switchButton = document.getElementById('switchCamera');
             if (videoInputDevices.length > 1) {
@@ -250,7 +252,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 switchButton.disabled = true;
                 switchButton.innerHTML = `<i class="fas fa-sync-alt me-1"></i>僅1個相機`;
             }
-                
+
             status.textContent = `✅ 相機已就緒：${selectedDeviceLabel}${cameraInfo}`;
             status.className = 'alert alert-success mt-2';
             console.log(`Started continuous decode from camera with id ${selectedDeviceId}`);
@@ -266,7 +268,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (navigator.vibrate) {
                         navigator.vibrate([200, 100, 200]);
                     }
-                    
+
                     // 停止掃描並搜尋
                     stopScanner();
                     searchPart(result.text);
@@ -301,7 +303,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (container) {
             container.style.display = 'none';
         }
-        
+
         // 重置按鈕狀態
         const switchButton = document.getElementById('switchCamera');
         switchButton.innerHTML = `<i class="fas fa-sync-alt me-1"></i>切換相機`;
@@ -314,14 +316,14 @@ document.addEventListener('DOMContentLoaded', function () {
         const loading = document.getElementById('loading');
         const results = document.getElementById('results');
         const error = document.getElementById('error');
-        
+
         results.style.display = 'none';
         error.style.display = 'none';
         loading.style.display = 'block';
-        
+
         const apiUrl = `/api/part/${encodeURIComponent(partNumber)}`;
         console.log('📡 API 請求 URL:', apiUrl);
-        
+
         fetch(apiUrl)
             .then(response => {
                 console.log('📥 收到回應，狀態碼:', response.status);
@@ -343,179 +345,277 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     }
 
+    // 顯示搜尋結果
     function showResults(data) {
         const results = document.getElementById('results');
         const part = data.part_info;
         const history = data.order_history;
         const inventories = data.inventories || [];
-        const summary = data.summary || null;  // 新增：整體摘要
-        
+        const summary = data.summary || null;
+
         console.log('🔍 showResults 接收到的資料:', data);
 
-        // 保存當前零件的儲位資訊
+        // 保存資料供模態視窗使用
+        currentSearchData = data;
         currentPartLocations = part?.locations || [];
-        
-        // 輔助函數：訂單狀態 Badge
-        function getOrderStatusBadge(status) {
-            const statusMap = {
-                'registered': 'bg-secondary',
-                'approved': 'bg-primary',
-                'partially_received': 'bg-info',
-                'completed': 'bg-success',
-                'rejected': 'bg-danger'
-            };
-            return statusMap[status] || 'bg-light';
+
+        if (!part) {
+            results.innerHTML = '<div class="alert alert-warning">找不到零件資訊</div>';
+            results.style.display = 'block';
+            return;
         }
-        
-        // 輔助函數：訂單狀態文字
-        function getOrderStatusText(status) {
-            const statusMap = {
-                'registered': '已登記',
-                'approved': '已核准',
-                'partially_received': '部分到貨',
-                'completed': '已完成',
-                'rejected': '已拒絕'
-            };
-            return statusMap[status] || status;
-        }
-        
+
         let html = `
-            <div class="card mb-3">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">零件資訊</h5>
-                </div>
-                <div class="card-body part-info">
-                    <div class="row">
-                        <div class="col-md-3">
-                            <strong>零件編號:</strong> ${part.part_number}
+            <!-- 簡易零件資訊 (表頭風格) -->
+            <div class="card mb-3 border-0 shadow-sm">
+                <div class="card-body p-3 bg-light rounded shadow-sm">
+                    <div class="row align-items-center">
+                        <div class="col-md-5">
+                            <div class="d-flex align-items-center mb-1">
+                                <span class="badge bg-secondary me-2">PN</span>
+                                <h4 class="mb-0 fw-bold text-dark text-break">${part.part_number}</h4>
+                            </div>
+                            <h5 class="text-muted mb-0 fw-normal">${part.name}</h5>
                         </div>
-                        <div class="col-md-3">
-                            <strong>零件名稱:</strong> ${part.name}
-                        </div>
-                        <div class="col-md-2">
-                            <strong>類型:</strong> ${part.type || '未分類'}
-                        </div>
-                        <div class="col-md-2">
-                            <strong>單位:</strong> ${part.unit}
-                        </div>
-                        <div class="col-md-2">
-                            <strong>前置期:</strong> ${part.lead_time} 天
+                        <div class="col-md-7 text-md-end mt-2 mt-md-0">
+                            <div class="d-inline-block align-middle me-2">
+                                <span class="badge bg-outline-secondary text-secondary border border-secondary p-1">
+                                    單位: ${part.unit} | 類型: ${part.type || 'N/A'}
+                                </span>
+                            </div>
+                            <button class="btn btn-success btn-sm px-3 shadow-sm align-middle js-add-to-weekly-order" 
+                                    data-part-number="${part.part_number}"
+                                    data-part-name="${part.name}"
+                                    data-unit="${part.unit}"
+                                    data-part-type="${part.type || ''}"
+                                    data-locations='${JSON.stringify(part.locations || [])}'>
+                                <i class="fas fa-plus-circle me-1"></i> 加入週期申請
+                            </button>
                         </div>
                     </div>
-                    ${part.description ? `
-                        <div class="row mt-2">
-                            <div class="col-12">
-                                <strong>備註:</strong> ${part.description}
+                </div>
+            </div>
+
+            ${summary ? window.ConsumptionUtils.renderOverallSummary(summary) : ''}
+
+            <div class="row">
+                <div class="col-lg-12 mb-3">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center border-bottom-0 pt-3 px-3">
+                            <h5 class="mb-0 fw-bold"><i class="fas fa-warehouse me-2 text-primary"></i>各儲位摘要</h5>
+                            <button class="btn btn-sm btn-primary js-show-all-details">
+                                <i class="fas fa-eye me-1"></i> 查看所有詳情
+                            </button>
+                        </div>
+                        <div class="card-body p-3">
+                            <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
+                                ${inventories.length > 0 ?
+                inventories.map(inv => window.ConsumptionUtils.renderLocationSummaryRow(inv)).join('') :
+                '<div class="col-12 p-3 text-muted text-center">無庫存資訊</div>'
+            }
                             </div>
                         </div>
-                    ` : ''}
-                </div>
-                <div class="card-footer">
-                    <button class="btn btn-success" id="showWeeklyOrderModalBtn" 
-                            data-part-number="${part.part_number}" 
-                            data-part-name="${part.name}" 
-                            data-part-unit="${part.unit}"
-                            data-part-type="${part.type || ''}"
-                            data-part-locations='${JSON.stringify(part.locations || [])}'>
-                        <i class="fas fa-calendar-plus me-1"></i>加入週期申請
-                    </button>
-                </div>
-            </div>
-            
-            <!-- 訂單歷史 (移到這裡) -->
-            <div class="card mb-3">
-                <div class="card-header">
-                    <h5 class="mb-0">📋 最近訂單歷史 <small class="text-muted">(最多顯示10筆)</small></h5>
-                </div>
-                <div class="card-body">
-                    ${history.length > 0 ? `
-                        <div class="table-responsive">
-                            <table class="table table-sm table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>申請日期</th>
-                                        <th>申請人</th>
-                                        <th>數量</th>
-                                        <th>儲位</th>
-                                        <th>狀態</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${history.map(order => {
-                                        const date = new Date(order.created_at);
-                                        const formattedDate = date.getFullYear() + '-' +
-                                                              String(date.getMonth() + 1).padStart(2, '0') + '-' +
-                                                              String(date.getDate()).padStart(2, '0');
-                                        
-                                        return `
-                                            <tr>
-                                                <td>${formattedDate}</td>
-                                                <td>${order.applicant_name || '未知'}</td>
-                                                <td>${order.quantity || order.quantity_ordered || 0} ${part.unit}</td>
-                                                <td>${order.location_display || order.location_code || '未指定'}</td>
-                                                <td>
-                                                    <span class="badge ${getOrderStatusBadge(order.status)}">
-                                                        ${getOrderStatusText(order.status)}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        `;
-                                    }).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    ` : '<p class="text-muted mb-0">暫無訂單記錄</p>'}
-                </div>
-            </div>
-            
-            <!-- 新增：整體消耗摘要卡片 -->
-            ${summary ? `
-                <div class="card mb-3">
-                    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">📊 整體消耗狀態</h5>
-                        <small>基於近30天工作日數據</small>
-                    </div>
-                    <div class="card-body">
-                        ${window.ConsumptionUtils ? window.ConsumptionUtils.renderOverallSummary(summary) : '<p>載入中...</p>'}
                     </div>
                 </div>
-            ` : ''}
-            
-            <div class="card mb-3">
-                <div class="card-header">
-                    <h5 class="mb-0">📦 各儲位詳細分析</h5>
+            </div>
+
+            <!-- 最近 10 筆訂單歷史 (全儲位) -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white pt-3 px-3">
+                    <h5 class="mb-0 fw-bold"><i class="fas fa-history me-2 text-info"></i>最近 10 筆訂單歷史 (全儲位)</h5>
                 </div>
-                <div class="card-body">
-                    ${inventories.length > 0 ? 
-                        inventories.map(inv => window.ConsumptionUtils ? window.ConsumptionUtils.renderLocationDetailCard(inv) : `
-                            <div class="card mb-3">
-                                <div class="card-body">
-                                    <p>儲位: ${inv.location_code}</p>
-                                    <p>現有庫存: ${inv.quantity_on_hand} ${inv.unit}</p>
-                                </div>
-                            </div>
-                        `).join('') : 
-                        '<p class="text-muted">無庫存資訊</p>'
-                    }
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light text-muted" style="font-size: 0.85rem;">
+                                <tr>
+                                    <th>日期</th>
+                                    <th>儲位</th>
+                                    <th>數量</th>
+                                    <th class="d-none d-md-table-cell">申請人</th>
+                                    <th>狀態</th>
+                                </tr>
+                            </thead>
+                            <tbody style="font-size: 0.9rem;">
+                                ${history.length > 0 ?
+                history.map(h => `
+                                        <tr>
+                                            <td>${new Date(h.created_at).toLocaleDateString()}</td>
+                                            <td>${h.location_display || 'N/A'}</td>
+                                            <td>${h.quantity} ${h.unit}</td>
+                                            <td class="d-none d-md-table-cell">${h.applicant_name}</td>
+                                            <td><span class="badge ${getOrderStatusBadge(h.status)}">${getOrderStatusText(h.status)}</span></td>
+                                        </tr>
+                                    `).join('') :
+                '<tr><td colspan="5" class="text-center py-4 text-muted">暫無訂單紀錄</td></tr>'
+            }
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
+
+            <div class="mb-5"></div>
         `;
-        
+
         results.innerHTML = html;
         results.style.display = 'block';
+    }
 
-        // 為新的"加入申請"按鈕動態綁定事件
-        const weeklyOrderBtn = document.getElementById('showWeeklyOrderModalBtn');
-        if (weeklyOrderBtn) {
-            weeklyOrderBtn.addEventListener('click', function() {
-                const partNumber = this.dataset.partNumber;
-                const partName = this.dataset.partName;
-                const unit = this.dataset.partUnit;
-                const type = this.dataset.partType;
-                const locations = this.dataset.partLocations;
-                addToWeeklyOrder(partNumber, partName, unit, type, locations);
-            });
+    // Delegated event listener for dynamically generated buttons
+    document.getElementById('results').addEventListener('click', function(event) {
+        const target = event.target.closest('.js-add-to-weekly-order');
+        if (target) {
+            const {
+                partNumber,
+                partName,
+                unit,
+                partType,
+                locations
+            } = target.dataset;
+            // The locations are stored as a JSON string, so we pass it directly
+            addToWeeklyOrder(partNumber, partName, unit, partType, locations);
+            return;
         }
+
+        const showDetailTarget = event.target.closest('.js-show-location-detail');
+        if (showDetailTarget) {
+            const { locationId } = showDetailTarget.dataset;
+            showLocationDetail(locationId);
+            return;
+        }
+        
+        const showAllDetailsTarget = event.target.closest('.js-show-all-details');
+        if (showAllDetailsTarget) {
+            showAllDetails();
+            return;
+        }
+
+        const openModalFromDetail = event.target.closest('.js-add-to-weekly-order-detail');
+        if (openModalFromDetail) {
+             const {
+                 partNumber,
+                 partName,
+                 unit,
+                 partType,
+                 locations,
+                 locationId,
+                 suggestedQuantity
+             } = openModalFromDetail.dataset;
+             addToWeeklyOrder(partNumber, partName, unit, partType, locations, locationId, suggestedQuantity);
+             return;
+        }
+    });
+
+    // Delegated event listener for buttons inside the consumption detail modal
+    document.getElementById('consumptionDetailModal').addEventListener('click', function(event) {
+        const openModalFromDetail = event.target.closest('.js-add-to-weekly-order-detail');
+        if (openModalFromDetail) {
+            // Hide the current modal before opening a new one
+            const detailModal = bootstrap.Modal.getInstance(document.getElementById('consumptionDetailModal'));
+            if (detailModal) {
+                detailModal.hide();
+            }
+
+            const {
+                partNumber,
+                partName,
+                unit,
+                partType,
+                locations,
+                locationId,
+                suggestedQuantity
+            } = openModalFromDetail.dataset;
+            addToWeeklyOrder(partNumber, partName, unit, partType, locations, locationId, suggestedQuantity);
+            return;
+        }
+    });
+
+    /**
+     * 顯示單一儲位詳情
+     * @param {string} locationId - 儲位 ID 
+     */
+    function showLocationDetail(locationId) {
+        if (!currentSearchData || !currentSearchData.inventories) return;
+
+        const inv = currentSearchData.inventories.find(i => i.warehouse_location_id == locationId);
+        if (!inv) return;
+
+        const content = document.getElementById('consumptionDetailContent');
+        const label = document.getElementById('consumptionDetailModalLabel');
+
+        const summaryRow = `
+            <div class="row mb-4 g-3">
+                <div class="col-md-5">
+                    ${window.ConsumptionUtils.renderPartBasicInfoCard(currentSearchData.part_info)}
+                </div>
+                <div class="col-md-7">
+                    ${window.ConsumptionUtils.renderInventorySummaryTable(currentSearchData.inventories)}
+                </div>
+            </div>
+            <hr class="my-4 border-2 opacity-25">
+        `;
+
+        label.innerHTML = `<i class="fas fa-map-marker-alt me-2 text-danger"></i>儲位詳情: ${inv.location_code}`;
+        content.innerHTML = summaryRow + window.ConsumptionUtils.renderLocationDetailCard(inv, currentSearchData.part_info.locations);
+
+        const modal = new bootstrap.Modal(document.getElementById('consumptionDetailModal'));
+        modal.show();
+    }
+
+    /**
+     * 顯示所有儲位詳情
+     */
+    function showAllDetails() {
+        if (!currentSearchData || !currentSearchData.inventories || currentSearchData.inventories.length === 0) return;
+
+        const content = document.getElementById('consumptionDetailContent');
+        const label = document.getElementById('consumptionDetailModalLabel');
+
+        const summaryRow = `
+            <div class="row mb-4 g-3">
+                <div class="col-md-5">
+                    ${window.ConsumptionUtils.renderPartBasicInfoCard(currentSearchData.part_info)}
+                </div>
+                <div class="col-md-7">
+                    ${window.ConsumptionUtils.renderInventorySummaryTable(currentSearchData.inventories)}
+                </div>
+            </div>
+            <hr class="my-4 border-2 opacity-25">
+            <h5 class="fw-bold mb-4"><i class="fas fa-list me-2"></i> 詳細分析清單</h5>
+        `;
+
+        label.innerHTML = `<i class="fas fa-chart-pie me-2 text-primary"></i>所有儲位詳細分析 (${currentSearchData.part_info.part_number})`;
+        content.innerHTML = summaryRow + currentSearchData.inventories.map(inv => window.ConsumptionUtils.renderLocationDetailCard(inv, currentSearchData.part_info.locations)).join('<hr class="my-5 border-2 opacity-50">');
+
+        const modal = new bootstrap.Modal(document.getElementById('consumptionDetailModal'));
+        modal.show();
+    }
+
+    // 獲取訂單狀態文字
+    function getOrderStatusText(status) {
+        const statuses = {
+            'registered': '已登記',
+            'approved': '核準中',
+            'partially_received': '部份入庫',
+            'completed': '已完成',
+            'rejected': '已拒絕',
+            'ordered': '已下單'
+        };
+        return statuses[status] || status;
+    }
+
+    // 獲取訂單狀態 Badge Class
+    function getOrderStatusBadge(status) {
+        const classes = {
+            'registered': 'bg-info',
+            'approved': 'bg-warning',
+            'partially_received': 'bg-primary',
+            'completed': 'bg-success',
+            'rejected': 'bg-danger',
+            'ordered': 'bg-info'
+        };
+        return classes[status] || 'bg-secondary';
     }
 
     function showError(message) {
@@ -524,50 +624,10 @@ document.addEventListener('DOMContentLoaded', function () {
         error.style.display = 'block';
     }
 
-    // 訂單模態框功能 - submitOrder 按鈕事件
-    document.getElementById('submitOrder').addEventListener('click', function() {
-        const partNumber = document.getElementById('orderPartNumber').value;
-        const quantity = document.getElementById('orderQuantity').value;
-        const locationCode = document.getElementById('orderLocation').value;
-        
-        if (!quantity || quantity < 1) {
-            alert('請輸入有效的數量');
-            return;
-        }
-        
-        if (!locationCode) {
-            alert('請選擇目標儲位');
-            return;
-        }
-        
-        fetch('/api/order', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                part_number: partNumber,
-                quantity_ordered: parseInt(quantity),
-                location_code: locationCode
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('訂單建立成功！');
-                bootstrap.Modal.getInstance(document.getElementById('orderModal')).hide();
-                searchPart(partNumber);
-            } else {
-                alert('訂單建立失敗：' + data.error);
-            }
-        })
-        .catch(err => {
-            alert('網路錯誤：' + err.message);
-        });
-    });
+
 
     // 加入週期申請 (新版：使用獨立模態視窗)
-    function addToWeeklyOrder(partNumber, partName, unit, partType, locationsString) {
+    function addToWeeklyOrder(partNumber, partName, unit, partType, locationsString, preSelectedLocationId = null, suggestedQuantity = null) {
         // 填充模態視窗中的零件資訊
         document.getElementById('weeklyOrderPartNumber').value = partNumber;
         document.getElementById('weeklyOrderPartName').value = partName;
@@ -578,13 +638,18 @@ document.addEventListener('DOMContentLoaded', function () {
         // 清除舊的錯誤訊息並重設表單
         document.getElementById('weeklyOrderError').style.display = 'none';
         document.getElementById('weeklyOrderForm').reset();
-        
-        // 重新設定預設值（因為 reset() 會清除所有值）
+
+        // 重新設定零件資訊（reset() 會清除所有值）
         document.getElementById('weeklyOrderPartNumber').value = partNumber;
         document.getElementById('weeklyOrderPartName').value = partName;
-        document.getElementById('weeklyOrderUnit').value = unit;
-        document.getElementById('weeklyOrderPartType').value = partType;
+        document.getElementById('weeklyOrderUnit').value = unit || 'pcs';
+        document.getElementById('weeklyOrderPartType').value = partType || 'N/A';
         document.getElementById('weeklyOrderPartDisplay').textContent = `${partNumber} (${partName})`;
+
+        // 如果有建議訂購量，自動填入
+        if (suggestedQuantity && suggestedQuantity > 0) {
+            document.getElementById('weeklyOrderQuantity').value = suggestedQuantity;
+        }
 
         // 動態填充並處理儲位下拉選單
         const locationDropdown = document.getElementById('weeklyOrderLocation');
@@ -609,24 +674,35 @@ document.addEventListener('DOMContentLoaded', function () {
 
         try {
             const locations = JSON.parse(locationsString);
-            
+
             if (locations && locations.length > 0) {
                 // Part has locations
                 locationDropdown.disabled = false;
                 locationDropdown.required = true;
                 locationStar.style.display = 'inline';
-                
+
                 locationDropdown.add(new Option('請選擇儲位...', ''));
                 locations.forEach(loc => {
                     const optionText = `${loc.warehouse_name} - ${loc.location_code}`;
-                    locationDropdown.add(new Option(optionText, loc.id));
+                    const option = new Option(optionText, loc.id);
+                    locationDropdown.add(option);
+
+                    // 如果有預選儲位，在此處標記
+                    if (preSelectedLocationId && String(loc.id) === String(preSelectedLocationId)) {
+                        option.selected = true;
+                    }
                 });
+
+                // 如果已自動選擇儲位，觸發變更邏輯
+                if (locationDropdown.value) {
+                    handleLocationChange();
+                }
 
                 // 如果只有一個儲位，自動選取
                 if (locations.length === 1) {
                     locationDropdown.value = locations[0].id;
                 }
-                
+
                 // 備註非必填
                 notesField.required = false;
                 notesStar.style.display = 'none';
@@ -635,16 +711,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 locationDropdown.disabled = true;
                 locationDropdown.required = false;
                 locationStar.style.display = 'none';
-                
+
                 const option = new Option('無指定儲位', '');
                 locationDropdown.add(option);
                 locationDropdown.value = '';
-                
+
                 // 備註變為必填
                 notesField.required = true;
                 notesStar.style.display = 'inline';
             }
-            
+
             // 綁定儲位變更事件
             locationDropdown.addEventListener('change', handleLocationChange);
 
@@ -661,7 +737,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // 提交週期訂單申請
-    document.getElementById('submitWeeklyOrder').addEventListener('click', function() {
+    document.getElementById('submitWeeklyOrder').addEventListener('click', function () {
         const errorDiv = document.getElementById('weeklyOrderError');
         const submitButton = this;
 
@@ -683,21 +759,21 @@ document.addEventListener('DOMContentLoaded', function () {
         // 前端驗證
         const locationDropdown = document.getElementById('weeklyOrderLocation');
         const notesField = document.getElementById('weeklyOrderNotes');
-        
+
         // 基本必填欄位驗證
         if (!data.quantity || !data.applicant_name || !data.required_date) {
             errorDiv.textContent = '標有 * 的欄位為必填項目。';
             errorDiv.style.display = 'block';
             return;
         }
-        
+
         // 儲位必填驗證
         if (locationDropdown.required && !data.warehouse_location_id) {
             errorDiv.textContent = '請選擇目標儲位。';
             errorDiv.style.display = 'block';
             return;
         }
-        
+
         // 備註必填驗證（當無指定儲位時）
         if (notesField.required && !data.purpose_notes.trim()) {
             errorDiv.textContent = '無指定儲位時，用途/備註為必填項目。';
@@ -716,26 +792,32 @@ document.addEventListener('DOMContentLoaded', function () {
             },
             body: JSON.stringify(data)
         })
-        .then(response => response.json())
-        .then(result => {
-            if (result.success) {
-                alert(result.message || '申請成功！');
-                const weeklyOrderModal = bootstrap.Modal.getInstance(document.getElementById('weeklyOrderModal'));
-                if (weeklyOrderModal) {
-                    weeklyOrderModal.hide();
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    alert(result.message || '申請成功！');
+                    const weeklyOrderModal = bootstrap.Modal.getInstance(document.getElementById('weeklyOrderModal'));
+                    if (weeklyOrderModal) {
+                        weeklyOrderModal.hide();
+                    }
+                } else {
+                    errorDiv.textContent = result.message || '發生未知錯誤';
+                    errorDiv.style.display = 'block';
                 }
-            } else {
-                errorDiv.textContent = result.message || '發生未知錯誤';
+            })
+            .catch(err => {
+                errorDiv.textContent = '網路錯誤，請稍後再試。 ' + err.message;
                 errorDiv.style.display = 'block';
-            }
-        })
-        .catch(err => {
-            errorDiv.textContent = '網路錯誤，請稍後再試。 ' + err.message;
-            errorDiv.style.display = 'block';
-        })
-        .finally(() => {
-            submitButton.disabled = false;
-            submitButton.innerHTML = '確認申請';
-        });
+            })
+            .finally(() => {
+                submitButton.disabled = false;
+                submitButton.innerHTML = '確認申請';
+            });
     });
+
+
+    // No longer need to expose to global scope
+    // window.openWeeklyOrderModal = addToWeeklyOrder;
+    // window.showLocationDetail = showLocationDetail;
+    // window.showAllDetails = showAllDetails;
 });
