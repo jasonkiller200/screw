@@ -188,7 +188,7 @@
                                     </td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
-                                            <button class="btn btn-outline-secondary btn-sm" onclick="showPartDetails('{{ registration.part_number }}')">
+                                            <button class="btn btn-outline-secondary btn-sm" onclick="showPartDetails('{{ registration.part_number }}', {{ registration.warehouse_location_id if registration.warehouse_location_id else 'null' }})">
                                                 <i class="fas fa-info-circle"></i> 零件詳情
                                             </button>
                                             <button class="btn btn-outline-primary btn-sm" onclick="viewDetails({{ registration.id }})">
@@ -336,6 +336,21 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/consumption_analysis.css') }}">
+<style>
+    .location-row {
+        transition: background-color 0.2s ease, transform 0.1s ease;
+    }
+    .location-row:hover {
+        background-color: rgba(13, 110, 253, 0.1) !important;
+        transform: translateX(3px);
+    }
+    .location-row:active {
+        transform: translateX(1px);
+    }
+    .table-warning {
+        background-color: rgba(255, 193, 7, 0.2) !important;
+    }
+</style>
 {% endblock %}
 
 {% block extra_js %}
