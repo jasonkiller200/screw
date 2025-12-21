@@ -1,5 +1,6 @@
 let currentRegistrationId = null;
 let currentRegistrationData = null;
+let currentPartData = null; // 用於儲存零件詳情資料供耗損分析使用
 
 // 篩選功能
 document.querySelectorAll('input[name="statusFilter"]').forEach(radio => {
@@ -185,6 +186,7 @@ function showPartDetails(partNumber) {
     const modalLabel = document.getElementById('detailModalLabel');
     const detailContent = document.getElementById('detailContent');
     const modalElement = document.getElementById('detailModal');
+    const showConsumptionBtn = document.getElementById('showConsumptionAnalysisBtn');
     
     console.log('Modal elements found:', {
         modalLabel: !!modalLabel,
@@ -207,6 +209,11 @@ function showPartDetails(partNumber) {
             <p class="mt-2">正在載入零件資訊...</p>
         </div>
     `;
+    
+    // 隱藏耗損分析按鈕
+    if (showConsumptionBtn) {
+        showConsumptionBtn.style.display = 'none';
+    }
     
     // 使用更相容的方式顯示模態視窗
     let modal;
@@ -254,6 +261,9 @@ function showPartDetails(partNumber) {
     fetch(`/api/part/${encodeURIComponent(partNumber)}?include_locations=true`)
         .then(response => response.json())
         .then(data => {
+            // 儲存當前零件資料供耗損分析使用
+            currentPartData = data;
+            
             if (data.error) {
                 detailContent.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
                 return;
@@ -380,6 +390,11 @@ function showPartDetails(partNumber) {
                     </div>
                 </div>
             `;
+            
+            // 如果有庫存資料，顯示耗損分析按鈕
+            if (showConsumptionBtn && inventories && inventories.length > 0) {
+                showConsumptionBtn.style.display = 'inline-block';
+            }
         })
         .catch(error => {
             console.error('Error fetching part details:', error);
@@ -438,3 +453,65 @@ function confirmModify() {
     // 隱藏模態框
     bootstrap.Modal.getInstance(document.getElementById('modifyModal')).hide();
 }
+
+// 顯示耗損分析
+function showConsumptionAnalysis() {
+    if (!currentPartData || !currentPartData.inventories || currentPartData.inventories.length === 0) {
+        alert('無庫存資料可分析');
+        return;
+    }
+    
+    const content = document.getElementById('consumptionDetailContent');
+    const label = document.getElementById('consumptionDetailModalLabel');
+    
+    if (!content || !label) {
+        alert('耗損分析模態視窗元素未找到');
+        return;
+    }
+    
+    // 先隱藏零件詳情模態視窗
+    const partDetailModal = bootstrap.Modal.getInstance(document.getElementById('detailModal'));
+    if (partDetailModal) {
+        partDetailModal.hide();
+    }
+    
+    const summaryRow = `
+        <div class="row mb-4 g-3">
+            <div class="col-md-5">
+                ${window.ConsumptionUtils ? window.ConsumptionUtils.renderPartBasicInfoCard(currentPartData.part_info) : '<div class="alert alert-warning">消耗分析工具未載入</div>'}
+            </div>
+            <div class="col-md-7">
+                ${window.ConsumptionUtils ? window.ConsumptionUtils.renderInventorySummaryTable(currentPartData.inventories) : '<div class="alert alert-warning">消耗分析工具未載入</div>'}
+            </div>
+        </div>
+        <hr class="my-4 border-2 opacity-25">
+        <h5 class="fw-bold mb-4"><i class="fas fa-list me-2"></i> 詳細分析清單</h5>
+    `;
+    
+    label.innerHTML = `<i class="fas fa-chart-pie me-2 text-primary"></i>零件耗損詳細分析 (${currentPartData.part_info.part_number})`;
+    
+    if (window.ConsumptionUtils) {
+        content.innerHTML = summaryRow + currentPartData.inventories.map(inv => 
+            window.ConsumptionUtils.renderLocationDetailCard(inv, currentPartData.part_info.locations)
+        ).join('<hr class="my-5 border-2 opacity-50">');
+    } else {
+        content.innerHTML = `
+            <div class="alert alert-danger">
+                <h6><i class="fas fa-exclamation-triangle me-2"></i>消耗分析工具未載入</h6>
+                <p>請確保 consumption_utils.js 檔案已正確載入。</p>
+            </div>
+        `;
+    }
+    
+    const consumptionModal = new bootstrap.Modal(document.getElementById('consumptionDetailModal'));
+    consumptionModal.show();
+}
+
+// 初始化事件監聽器
+document.addEventListener('DOMContentLoaded', function() {
+    // 耗損分析按鈕事件
+    const showConsumptionBtn = document.getElementById('showConsumptionAnalysisBtn');
+    if (showConsumptionBtn) {
+        showConsumptionBtn.addEventListener('click', showConsumptionAnalysis);
+    }
+});

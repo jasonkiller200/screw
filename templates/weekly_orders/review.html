@@ -246,6 +246,27 @@
                 <!-- 動態載入內容 -->
             </div>
             <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="showConsumptionAnalysisBtn" style="display: none;">
+                    <i class="fas fa-chart-line me-1"></i>查看耗損詳情
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 耗損分析模態框 -->
+<div class="modal fade" id="consumptionDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title" id="consumptionDetailModalLabel">🛠️ 消耗分析與採購建議</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4" id="consumptionDetailContent">
+                <!-- 內容由 JavaScript 動態渲染 -->
+            </div>
+            <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
             </div>
         </div>
@@ -313,6 +334,11 @@
 
 {% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/consumption_analysis.css') }}">
+{% endblock %}
+
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/consumption_utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/weekly_orders/review.js') }}"></script>
 {% endblock %}

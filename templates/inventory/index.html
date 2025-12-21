@@ -299,7 +299,7 @@
                                 </td>
                                 <td>
                                     <strong style="cursor: pointer; color: #0d6efd; text-decoration: underline;"
-                                        onclick="showPartDetails('{{ inventory.part_number }}')" title="點擊查看零件詳情">
+                                        onclick="showPartDetails('{{ inventory.part_number }}', {{ inventory.location_id }})" title="點擊查看零件詳情">
                                         {{ inventory.part_number }}
                                     </strong>
                                 </td>
@@ -332,12 +332,13 @@
                                 </td>
                                 <td>{{ inventory.unit }}</td>
                                 <td>
-                                    {% if inventory.available_quantity <= 0 %} <span class="badge bg-danger">缺貨</span>
-                                        {% elif inventory.available_quantity <= inventory.reorder_point %} <span
-                                            class="badge bg-warning">低庫存</span>
-                                            {% else %}
-                                            <span class="badge bg-success">正常</span>
-                                            {% endif %}
+                                    {% if inventory.available_quantity <= 0 %}
+                                        <span class="badge bg-danger" title="可用庫存為零">🔴 缺貨</span>
+                                    {% elif inventory.available_quantity <= inventory.reorder_point %}
+                                        <span class="badge bg-warning" title="低於補貨點">🟡 低庫存</span>
+                                    {% else %}
+                                        <span class="badge bg-success" title="庫存充足">🟢 正常</span>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm" role="group">
@@ -447,6 +448,84 @@
     </div>
 </div>
 
+<!-- 週期訂單申請模態框 -->
+<div class="modal fade" id="weeklyOrderModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">加入週期申請</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="weeklyOrderForm">
+                    <input type="hidden" id="weeklyOrderPartNumber">
+                    <input type="hidden" id="weeklyOrderPartName">
+                    <input type="hidden" id="weeklyOrderUnit">
+                    <input type="hidden" id="weeklyOrderPartType">
+
+                    <div class="alert alert-info">
+                        <p class="mb-1"><strong>零件:</strong> <span id="weeklyOrderPartDisplay"></span></p>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="weeklyOrderQuantity" class="form-label">申請數量 <span
+                                    class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="weeklyOrderQuantity" min="1" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="weeklyOrderLocation" class="form-label">目標儲位 <span
+                                    id="modal-location-required-star" class="text-danger"
+                                    style="display: none;">*</span></label>
+                            <select class="form-select" id="weeklyOrderLocation">
+                                <option value="" selected>正在載入儲位...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="weeklyOrderApplicant" class="form-label">申請人 <span
+                                    class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="weeklyOrderApplicant"
+                                value="{{ current_user.full_name }}" required readonly>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="weeklyOrderDepartment" class="form-label">申請人單位</label>
+                            <input type="text" class="form-control" id="weeklyOrderDepartment"
+                                value="{{ current_user.department or '未設定' }}" readonly>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="weeklyOrderPriority" class="form-label">緊急程度 <span
+                                    class="text-danger">*</span></label>
+                            <select class="form-select" id="weeklyOrderPriority" required>
+                                <option value="normal" selected>一般申請</option>
+                                <option value="urgent">緊急申請</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="weeklyOrderRequiredDate" class="form-label">需用日期 <span
+                                    class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="weeklyOrderRequiredDate" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="weeklyOrderNotes" class="form-label">用途/備註 <span id="notes-required-star"
+                                class="text-danger" style="display: none;">*</span></label>
+                        <textarea class="form-control" id="weeklyOrderNotes" rows="2"></textarea>
+                    </div>
+                    <div id="weeklyOrderError" class="alert alert-danger" style="display: none;"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="submitWeeklyOrder">確認申請</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 零件詳情模態框 -->
 <div class="modal fade" id="partDetailModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -459,7 +538,32 @@
                 <!-- 動態載入內容 -->
             </div>
             <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="showConsumptionAnalysisBtn" style="display: none;">
+                    <i class="fas fa-chart-line me-1"></i>查看耗損詳情
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 耗損分析模態框 -->
+<div class="modal fade" id="consumptionDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content" style="height: calc(100vh - 20px);">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title" id="consumptionDetailModalLabel">🛠️ 消耗分析與採購建議</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0" style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+                <!-- 固定在頂部的基本資料與庫存分佈 -->
+                <div id="consumptionSummarySection" class="p-4 border-bottom bg-light" style="flex-shrink: 0;">
+                    <!-- 基本資料與庫存分佈內容 -->
+                </div>
+                <!-- 可滾動的詳細分析清單 -->
+                <div id="consumptionDetailList" class="p-4" style="flex: 1; overflow-y: auto; position: relative;">
+                    <!-- 詳細分析清單內容 -->
+                </div>
             </div>
         </div>
     </div>
@@ -467,6 +571,7 @@
 {% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/consumption_analysis.css') }}">
 <style>
     /* 安全庫存與補貨點驗證樣式 */
     .safety-stock-input.is-invalid,
@@ -561,7 +666,8 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/inventory/index.js') }}"></script>
+<script src="{{ url_for('static', filename='js/consumption_utils.js') }}?v={{ range(1, 10000) | random }}"></script>
+<script src="{{ url_for('static', filename='js/inventory/index.js') }}?v={{ range(1, 10000) | random }}"></script>
 <script>
     // 批量週期訂單功能
     function toggleSelectAll(checkbox) {

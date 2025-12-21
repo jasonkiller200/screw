@@ -62,6 +62,39 @@ def get_part_details(part_number):
     else:
         return jsonify({'error': result['error']}), 404
 
+@api_bp.route('/part/<string:part_number>/weekly-orders', methods=['GET'])
+def get_part_weekly_orders(part_number):
+    """
+    獲取指定零件的週期訂單相關數據
+    """
+    try:
+        from models.weekly_order import OrderRegistration, WeeklyOrderCycle
+        
+        # 查詢該零件的週期訂單申請記錄
+        registrations = db.session.query(OrderRegistration).join(WeeklyOrderCycle)\
+            .filter(OrderRegistration.part_number == part_number)\
+            .order_by(WeeklyOrderCycle.created_at.desc())\
+            .limit(20).all()
+        
+        if not registrations:
+            return jsonify({'registrations': [], 'message': '無週期訂單資料'})
+        
+        # 轉換為字典格式並添加週期名稱
+        registration_data = []
+        for reg in registrations:
+            reg_dict = reg.to_dict()
+            if reg.cycle:
+                reg_dict['cycle_name'] = reg.cycle.cycle_name
+            registration_data.append(reg_dict)
+        
+        return jsonify({
+            'registrations': registration_data,
+            'total_count': len(registration_data)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'獲取週期訂單資料失敗: {str(e)}'}), 500
+
 @api_bp.route('/part/<string:part_number>/locations', methods=['GET'])
 def get_part_locations(part_number):
     """

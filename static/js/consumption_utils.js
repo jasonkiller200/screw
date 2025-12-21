@@ -8,7 +8,7 @@
  * @param {string} status - 狀態 (critical/warning/healthy)
  * @returns {string} Bootstrap badge class
  */
-function getStatusBadgeClass(status) {
+function getInventoryStatusBadgeClass(status) {
     const statusMap = {
         'critical': 'bg-danger',
         'warning': 'bg-warning',
@@ -23,7 +23,7 @@ function getStatusBadgeClass(status) {
  * @param {string} status - 狀態
  * @returns {string} 狀態文字含圖示
  */
-function getStatusText(status) {
+function getInventoryStatusText(status) {
     const statusMap = {
         'critical': '🔴 緊急',
         'warning': '🟡 注意',
@@ -128,8 +128,8 @@ function renderOverallSummary(summary) {
                     <div class="card-body text-center">
                         <small class="text-muted">整體狀態</small>
                         <h3 class="mb-0">
-                            <span class="${getStatusBadgeClass(summary.overall_status)}">
-                                ${getStatusText(summary.overall_status)}
+                            <span class="${getInventoryStatusBadgeClass(summary.overall_status)}">
+                                ${getInventoryStatusText(summary.overall_status)}
                             </span>
                         </h3>
                     </div>
@@ -185,12 +185,12 @@ function renderLocationDetailCard(inventory, allLocations = []) {
     const historyHtml = renderLocationHistoryTable(inventory.recent_orders || []);
 
     return `
-        <div class="card location-detail-card ${statusClass} mb-4">
+        <div id="location-detail-${inventory.warehouse_location_id}" class="card location-detail-card ${statusClass} mb-4">
             <div class="card-header d-flex justify-content-between align-items-center bg-light">
                 <h6 class="mb-0">📍 ${inventory.location_code} - ${inventory.warehouse_name || ''}</h6>
                 <div class="d-flex align-items-center">
-                    <span class="${getStatusBadgeClass(analysis.stock_status)} me-2">
-                        ${getStatusText(analysis.stock_status)}
+                    <span class="${getInventoryStatusBadgeClass(analysis.stock_status)} me-2">
+                        ${getInventoryStatusText(analysis.stock_status)}
                     </span>
                     <button class="btn btn-sm btn-success shadow-sm js-add-to-weekly-order-detail"
                             data-part-number="${inventory.part_number}"
@@ -398,7 +398,7 @@ function renderLocationSummaryRow(inv) {
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <div>
-                            <span class="badge ${getStatusBadgeClass(status)} mb-1">${getStatusText(status)}</span>
+                            <span class="badge ${getInventoryStatusBadgeClass(status)} mb-1">${getInventoryStatusText(status)}</span>
                             <h6 class="mb-0 fw-bold ${status === 'critical' ? 'text-danger' : ''}">${inv.location_code}</h6>
                             <small class="text-muted">${inv.warehouse_name || '未指定倉庫'}</small>
                         </div>
@@ -531,7 +531,7 @@ function renderConsumptionSummaryWidget(summary, inventories) {
             <div class="col-6 col-md-3">
                 <div class="p-2 bg-light rounded text-center">
                     <small class="text-muted d-block">整體狀態</small>
-                    <span class="${getStatusBadgeClass(summary.overall_status)}">${getStatusText(summary.overall_status)}</span>
+                    <span class="${getInventoryStatusBadgeClass(summary.overall_status)}">${getInventoryStatusText(summary.overall_status)}</span>
                 </div>
             </div>
             <div class="col-6 col-md-3">
@@ -608,23 +608,33 @@ function renderInventorySummaryTable(inventories) {
             <h6 class="fw-bold mb-3 border-bottom pb-2 text-primary">
                 <i class="fas fa-boxes me-1"></i> 全區庫存分佈
             </h6>
-            <div class="table-responsive flex-grow-1">
+            <div class="table-responsive flex-grow-1" style="max-height: 200px; overflow-y: auto;">
                 <table class="table table-sm table-hover border mb-0" style="font-size: 0.85rem;">
-                    <thead class="bg-light">
+                    <thead class="bg-light" style="position: sticky; top: 0; z-index: 1;">
                         <tr>
                             <th>倉庫</th>
                             <th>儲位</th>
-                            <th class="text-end">在庫數量</th>
+                            <th class="text-end">可用庫存</th>
+                            <th class="text-center">狀態</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${inventories.map(inv => `
-                            <tr>
-                                <td>${inv.warehouse_name || 'N/A'}</td>
-                                <td><code>${inv.location_code}</code></td>
-                                <td class="text-end fw-bold">${inv.quantity_on_hand} ${inv.unit}</td>
-                            </tr>
-                        `).join('')}
+                        ${inventories.map(inv => {
+                            const available = inv.available_quantity !== undefined ? inv.available_quantity : (inv.quantity_on_hand - (inv.reserved_quantity || 0));
+                            const health = calculateInventoryHealth(available);
+                            return `
+                                <tr>
+                                    <td>${inv.warehouse_name || 'N/A'}</td>
+                                    <td><code>${inv.location_code}</code></td>
+                                    <td class="text-end fw-bold">${available} ${inv.unit}</td>
+                                    <td class="text-center">
+                                        <span class="badge ${health.badgeClass}" title="${health.tooltip}">
+                                            ${health.icon} ${health.text}
+                                        </span>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
                     </tbody>
                 </table>
             </div>
@@ -632,10 +642,25 @@ function renderInventorySummaryTable(inventories) {
     `;
 }
 
+/**
+ * 計算庫存健康度 (內部使用)
+ */
+function calculateInventoryHealth(available) {
+    if (available <= 0) {
+        return { badgeClass: 'bg-danger', icon: '🔴', text: '缺貨', tooltip: '可用庫存為零' };
+    } else if (available <= 5) {
+        return { badgeClass: 'bg-warning', icon: '🟡', text: '偏低', tooltip: '庫存量偏低' };
+    } else if (available <= 15) {
+        return { badgeClass: 'bg-info', icon: '🔵', text: '正常', tooltip: '庫存狀況正常' };
+    } else {
+        return { badgeClass: 'bg-success', icon: '🟢', text: '充足', tooltip: '庫存充足' };
+    }
+}
+
 // 暴露給全域使用
 window.ConsumptionUtils = {
-    getStatusBadgeClass,
-    getStatusText,
+    getInventoryStatusBadgeClass,
+    getInventoryStatusText,
     getTrendBadgeClass,
     getTrendText,
     getUrgencyClass,
