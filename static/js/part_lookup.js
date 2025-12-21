@@ -553,6 +553,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const content = document.getElementById('consumptionDetailContent');
         const label = document.getElementById('consumptionDetailModalLabel');
+        const modalElement = document.getElementById('consumptionDetailModal');
 
         const summaryRow = `
             <div class="row mb-4 g-3">
@@ -569,7 +570,11 @@ document.addEventListener('DOMContentLoaded', function () {
         label.innerHTML = `<i class="fas fa-map-marker-alt me-2 text-danger"></i>儲位詳情: ${inv.location_code}`;
         content.innerHTML = summaryRow + window.ConsumptionUtils.renderLocationDetailCard(inv, currentSearchData.part_info.locations);
 
-        const modal = new bootstrap.Modal(document.getElementById('consumptionDetailModal'));
+        // 重用或創建 modal 實例
+        let modal = bootstrap.Modal.getInstance(modalElement);
+        if (!modal) {
+            modal = new bootstrap.Modal(modalElement);
+        }
         modal.show();
     }
 
@@ -581,6 +586,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const content = document.getElementById('consumptionDetailContent');
         const label = document.getElementById('consumptionDetailModalLabel');
+        const modalElement = document.getElementById('consumptionDetailModal');
 
         const summaryRow = `
             <div class="row mb-4 g-3">
@@ -598,7 +604,11 @@ document.addEventListener('DOMContentLoaded', function () {
         label.innerHTML = `<i class="fas fa-chart-pie me-2 text-primary"></i>所有儲位詳細分析 (${currentSearchData.part_info.part_number})`;
         content.innerHTML = summaryRow + currentSearchData.inventories.map(inv => window.ConsumptionUtils.renderLocationDetailCard(inv, currentSearchData.part_info.locations)).join('<hr class="my-5 border-2 opacity-50">');
 
-        const modal = new bootstrap.Modal(document.getElementById('consumptionDetailModal'));
+        // 重用或創建 modal 實例
+        let modal = bootstrap.Modal.getInstance(modalElement);
+        if (!modal) {
+            modal = new bootstrap.Modal(modalElement);
+        }
         modal.show();
     }
 
@@ -824,6 +834,39 @@ document.addEventListener('DOMContentLoaded', function () {
                 submitButton.innerHTML = '確認申請';
             });
     });
+
+
+    // 模態視窗清理函數
+    function cleanupModalBackdrops() {
+        // 移除所有殘留的模態視窗背景
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        backdrops.forEach(backdrop => {
+            backdrop.remove();
+        });
+        
+        // 確保 body 元素恢復正常狀態
+        const body = document.body;
+        body.classList.remove('modal-open');
+        body.style.overflow = '';
+        body.style.paddingRight = '';
+    }
+
+    // 為消耗分析模態視窗添加關閉事件監聽器
+    const consumptionModal = document.getElementById('consumptionDetailModal');
+    if (consumptionModal) {
+        consumptionModal.addEventListener('hidden.bs.modal', function () {
+            console.log('🧹 Cleaning up modal backdrops');
+            cleanupModalBackdrops();
+        });
+    }
+
+    // 為週期訂單模態視窗添加關閉事件監聽器
+    const weeklyOrderModal = document.getElementById('weeklyOrderModal');
+    if (weeklyOrderModal) {
+        weeklyOrderModal.addEventListener('hidden.bs.modal', function () {
+            cleanupModalBackdrops();
+        });
+    }
 
 
     // No longer need to expose to global scope

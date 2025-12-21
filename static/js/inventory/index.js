@@ -581,17 +581,21 @@ function showPartDetails(partNumber, warehouseLocationId = null) {
         showConsumptionBtn.style.display = 'none';
     }
     
-    const modal = new bootstrap.Modal(modalElement, {
-        backdrop: true,
-        keyboard: true,
-        focus: true
-    });
+    // 重用或創建 modal 實例
+    let modal = bootstrap.Modal.getInstance(modalElement);
+    if (!modal) {
+        modal = new bootstrap.Modal(modalElement, {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
+        
+        // 只在第一次創建時添加清理事件
+        modalElement.addEventListener('hidden.bs.modal', function() {
+            cleanupModalBackdrops();
+        }, { once: true });
+    }
     modal.show();
-    
-    // 確保模態視窗關閉時清理背景
-    modalElement.addEventListener('hidden.bs.modal', function() {
-        cleanupModalBackdrops();
-    }, { once: true });
 
     fetch(`/api/part/${encodeURIComponent(partNumber)}?include_locations=true`)
         .then(response => response.json())
@@ -1128,86 +1132,103 @@ function showConsumptionAnalysis() {
         return;
     }
     
-    // 先隱藏零件詳情模態視窗
-    const partDetailModal = bootstrap.Modal.getInstance(document.getElementById('partDetailModal'));
-    if (partDetailModal) {
-        partDetailModal.hide();
-        // 不要手動清理背景，Bootstrap 會處理。手動清理會導致下一個模態框背景不顯示反灰。
-    }
+    // 先隱藏零件詳情模態視窗，等待完全關閉後再打開耗損分析模態視窗
+    const partDetailModalElement = document.getElementById('partDetailModal');
+    const partDetailModal = bootstrap.Modal.getInstance(partDetailModalElement);
     
-    label.innerHTML = `<i class="fas fa-chart-pie me-2 text-primary"></i>零件耗損詳細分析 (${currentPartData.part_info.part_number})`;
-    
-    if (window.ConsumptionUtils) {
-        // 確保 switchLocationDetail 全域可用
-        window.switchLocationDetail = switchLocationDetail;
-
-        // 1. 決定初始顯示的儲位
-        // 優先順序：使用者在前一個視窗點擊的儲位 > 第一個有庫存的儲位 > 第一個儲位
-        let initialLocationId = null;
+    // 準備內容的函數
+    function prepareAndShowModal() {
+        label.innerHTML = `<i class="fas fa-chart-pie me-2 text-primary"></i>零件耗損詳細分析 (${currentPartData.part_info.part_number})`;
         
-        if (currentClickedLocationId) {
-            // 確認該儲位是否存在於目前的庫存列表中
-            const exists = currentPartData.inventories.some(inv => inv.warehouse_location_id === currentClickedLocationId);
-            if (exists) {
-                initialLocationId = currentClickedLocationId;
+        if (window.ConsumptionUtils) {
+            // 確保 switchLocationDetail 全域可用
+            window.switchLocationDetail = switchLocationDetail;
+
+            // 1. 決定初始顯示的儲位
+            let initialLocationId = null;
+            
+            if (currentClickedLocationId) {
+                const exists = currentPartData.inventories.some(inv => inv.warehouse_location_id === currentClickedLocationId);
+                if (exists) {
+                    initialLocationId = currentClickedLocationId;
+                }
             }
-        }
-        
-        if (!initialLocationId && currentPartData.inventories.length > 0) {
-            initialLocationId = currentPartData.inventories[0].warehouse_location_id;
-        }
+            
+            if (!initialLocationId && currentPartData.inventories.length > 0) {
+                initialLocationId = currentPartData.inventories[0].warehouse_location_id;
+            }
 
-        // 2. 準備基本資料與庫存分佈內容
-        const partNumber = currentPartData.part_info.part_number;
-        const originalSummaryTable = window.ConsumptionUtils.renderInventorySummaryTable(currentPartData.inventories);
-        const enhancedSummaryTable = enhanceInventorySummaryTableWithClicks(originalSummaryTable, partNumber, currentPartData.inventories);
-        
-        const summaryHtml = `
-            <div class="row g-3">
-                <div class="col-md-5">
-                    ${window.ConsumptionUtils.renderPartBasicInfoCard(currentPartData.part_info)}
-                </div>
-                <div class="col-md-7">
-                    <div style="position: relative;">
-                        ${enhancedSummaryTable}
-                        <div style="position: absolute; top: 10px; right: 15px; background: rgba(255,255,255,0.9); padding: 5px 10px; border-radius: 15px; font-size: 0.8rem;" class="text-muted">
-                            <i class="fas fa-mouse-pointer me-1"></i>點擊儲位切換詳情
+            // 2. 準備基本資料與庫存分佈內容
+            const partNumber = currentPartData.part_info.part_number;
+            const originalSummaryTable = window.ConsumptionUtils.renderInventorySummaryTable(currentPartData.inventories);
+            const enhancedSummaryTable = enhanceInventorySummaryTableWithClicks(originalSummaryTable, partNumber, currentPartData.inventories);
+            
+            const summaryHtml = `
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        ${window.ConsumptionUtils.renderPartBasicInfoCard(currentPartData.part_info)}
+                    </div>
+                    <div class="col-md-7">
+                        <div style="position: relative;">
+                            ${enhancedSummaryTable}
+                            <div style="position: absolute; top: 10px; right: 15px; background: rgba(255,255,255,0.9); padding: 5px 10px; border-radius: 15px; font-size: 0.8rem;" class="text-muted">
+                                <i class="fas fa-mouse-pointer me-1"></i>點擊儲位切換詳情
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        `;
-        
-        // 填入上方摘要區域
-        if (summarySection) {
-            summarySection.innerHTML = summaryHtml;
-        } else if (legacyContent) {
-            legacyContent.innerHTML = `<div class="sticky-top bg-white border-bottom p-3 mb-3">${summaryHtml}</div><div id="legacy-detail-container"></div>`;
-        }
+            `;
+            
+            // 填入上方摘要區域
+            if (summarySection) {
+                summarySection.innerHTML = summaryHtml;
+            } else if (legacyContent) {
+                legacyContent.innerHTML = `<div class="sticky-top bg-white border-bottom p-3 mb-3">${summaryHtml}</div><div id="legacy-detail-container"></div>`;
+            }
 
-        // 3. 渲染初始儲位的詳細分析卡片
-        if (initialLocationId) {
-            switchLocationDetail(partNumber, initialLocationId);
+            // 3. 渲染初始儲位的詳細分析卡片
+            if (initialLocationId) {
+                switchLocationDetail(partNumber, initialLocationId);
+            }
+        } else {
+            const errorHtml = `
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-exclamation-triangle me-2"></i>消耗分析工具未載入</h6>
+                    <p>請確保 consumption_utils.js 檔案已正確載入。</p>
+                </div>
+            `;
+            
+            if (summarySection && detailList) {
+                summarySection.innerHTML = '';
+                detailList.innerHTML = errorHtml;
+            } else if (legacyContent) {
+                legacyContent.innerHTML = errorHtml;
+            }
         }
-
-    } else {
-        const errorHtml = `
-            <div class="alert alert-danger">
-                <h6><i class="fas fa-exclamation-triangle me-2"></i>消耗分析工具未載入</h6>
-                <p>請確保 consumption_utils.js 檔案已正確載入。</p>
-            </div>
-        `;
         
-        if (summarySection && detailList) {
-            summarySection.innerHTML = '';
-            detailList.innerHTML = errorHtml;
-        } else if (legacyContent) {
-            legacyContent.innerHTML = errorHtml;
+        // 打開耗損分析模態視窗
+        const modalElement = document.getElementById('consumptionDetailModal');
+        let consumptionModal = bootstrap.Modal.getInstance(modalElement);
+        if (!consumptionModal) {
+            consumptionModal = new bootstrap.Modal(modalElement, {
+                backdrop: true,
+                keyboard: true,
+                focus: true
+            });
         }
+        consumptionModal.show();
     }
     
-    const consumptionModal = new bootstrap.Modal(document.getElementById('consumptionDetailModal'));
-    consumptionModal.show();
+    // 如果零件詳情模態視窗是打開的，先關閉它
+    if (partDetailModal) {
+        partDetailModalElement.addEventListener('hidden.bs.modal', function() {
+            prepareAndShowModal();
+        }, { once: true });
+        partDetailModal.hide();
+    } else {
+        // 沒有需要關閉的模態視窗，直接打開
+        prepareAndShowModal();
+    }
 }
 
 // 增強庫存分布表格，加入 ID 和樣式
@@ -1339,29 +1360,6 @@ window.switchLocationDetail = switchLocationDetail;
 // 保留舊函數名以防有其他地方呼叫 (雖然主要都已替換)
 const jumpToLocationDetail = switchLocationDetail;
 
-// 清理模態視窗背景
-function cleanupModalBackdrops() {
-    // 移除所有殘留的模態視窗背景
-    const backdrops = document.querySelectorAll('.modal-backdrop');
-    backdrops.forEach(backdrop => {
-        backdrop.remove();
-    });
-    
-    // 確保 body 元素恢復正常狀態
-    const body = document.body;
-    body.classList.remove('modal-open');
-    body.style.overflow = '';
-    body.style.paddingRight = '';
-    
-    // 清除任何殘留的 style 屬性
-    const bodyStyle = body.getAttribute('style');
-    if (bodyStyle) {
-        body.setAttribute('style', bodyStyle.replace(/overflow[^;]*;?/g, '').replace(/padding-right[^;]*;?/g, ''));
-    }
-    
-    console.log('Modal backdrops cleaned up');
-}
-
 // 確保模態視窗正確關閉的通用函數
 function safeCloseModal(modalElement) {
     if (!modalElement) return;
@@ -1385,13 +1383,23 @@ document.addEventListener('DOMContentLoaded', function() {
         showConsumptionBtn.addEventListener('click', showConsumptionAnalysis);
     }
     
-    // 為所有模態視窗添加清理事件
-    const modals = document.querySelectorAll('.modal');
-    modals.forEach(modal => {
-        modal.addEventListener('hidden.bs.modal', function() {
+    // 為消耗分析模態視窗添加關閉清理事件
+    const consumptionDetailModal = document.getElementById('consumptionDetailModal');
+    if (consumptionDetailModal) {
+        consumptionDetailModal.addEventListener('hidden.bs.modal', function() {
+            console.log('🧹 Consumption modal closed, cleaning up');
             setTimeout(cleanupModalBackdrops, 100);
         });
-    });
+    }
+
+    // 為週期訂單模態視窗添加關閉清理事件
+    const weeklyOrderModalElement = document.getElementById('weeklyOrderModal');
+    if (weeklyOrderModalElement) {
+        weeklyOrderModalElement.addEventListener('hidden.bs.modal', function() {
+            console.log('🧹 Weekly order modal closed, cleaning up');
+            setTimeout(cleanupModalBackdrops, 100);
+        });
+    }
 
     // 處理動態產生的「加入週期申請」按鈕點擊事件 和 庫存分佈表格行點擊事件
     document.body.addEventListener('click', function(e) {
@@ -1550,7 +1558,16 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // 顯示模態視窗
-        const weeklyOrderModal = new bootstrap.Modal(document.getElementById('weeklyOrderModal'));
+        const modalElement = document.getElementById('weeklyOrderModal');
+        // 重用或創建 modal 實例，並確保 backdrop 設置正確
+        let weeklyOrderModal = bootstrap.Modal.getInstance(modalElement);
+        if (!weeklyOrderModal) {
+            weeklyOrderModal = new bootstrap.Modal(modalElement, {
+                backdrop: true,
+                keyboard: true,
+                focus: true
+            });
+        }
         weeklyOrderModal.show();
     }
 
