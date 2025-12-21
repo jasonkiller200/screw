@@ -296,19 +296,20 @@ function renderLocationDetailCard(inventory, allLocations = []) {
                                 <div class="mt-3">
                                     <div class="d-flex justify-content-between mb-2">
                                         <span>建議訂購量:</span>
-                                        <span class="fw-bold text-primary">${suggestion.suggested_quantity} ${inventory.unit}</span>
+                                        <span class="fw-bold fs-4 text-primary">${suggestion.suggested_quantity} ${inventory.unit}</span>
+                                    </div>
+                                    <hr class="my-2">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="small">目標庫存水平:</span>
+                                        <span class="small">${suggestion.target_stock_level}</span>
                                     </div>
                                     <div class="d-flex justify-content-between mb-2">
-                                        <span>採購前置期:</span>
-                                        <span>${suggestion.lead_time_days} 天</span>
-                                    </div>
-                                    <div class="d-flex justify-content-between mb-2">
-                                        <span>交期內消耗:</span>
-                                        <span>${suggestion.consumption_during_lead_time} ${inventory.unit}</span>
+                                        <span class="small">當前可用庫存:</span>
+                                        <span class="small">${suggestion.current_available_stock}</span>
                                     </div>
                                     <div class="d-flex justify-content-between mb-3 border-top pt-2">
-                                        <span>預計到貨後庫存:</span>
-                                        <span>${suggestion.stock_after_order} ${inventory.unit}</span>
+                                        <span class="small">供應商 MOQ:</span>
+                                        <span class="small">${suggestion.moq}</span>
                                     </div>
                                 </div>
                                 
@@ -324,14 +325,14 @@ function renderLocationDetailCard(inventory, allLocations = []) {
 
                                 <div class="alert alert-light mt-4 border-0 bg-opacity-10 bg-dark small">
                                     <i class="fas fa-info-circle me-1"></i>
-                                    根據前置期內的預計消耗與當前安全庫存水位計算得出。
+                                    建議量根據您設定的 <strong>${suggestion.desired_days_of_stock} 天</strong> 預計存貨天數計算，並已滿足供應商 MOQ。
                                 </div>
                             </div>
                         ` : `
                             <div class="consumption-alert success h-100 d-flex flex-column justify-content-center align-items-center text-center">
                                 <i class="fas fa-check-circle fa-3x mb-3"></i>
                                 <strong>庫存水位健康</strong>
-                                <p class="small mt-2">目前庫存足以支撐運作，暫無需建立新訂單。</p>
+                                <p class="small mt-2">目前庫存高於補貨點，暫無需建立新訂單。</p>
                             </div>
                         `}
                     </div>

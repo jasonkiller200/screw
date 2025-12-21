@@ -135,54 +135,66 @@ class CurrentInventory(db.Model):
     
     def get_order_suggestion(self):
         """
-        計算訂購建議 (使用零件的實際採購前置期)
+        計算訂購建議 (基於預計存貨天數 DDS 和 MOQ)
         
         Returns:
             dict: {
-                'suggested_quantity': 165,              # 建議訂購量
-                'lead_time_days': 5,                    # 零件的採購前置期
-                'lead_time_working_days': 3.2,          # 交期內預估工作日數
-                'consumption_during_lead_time': 90,     # 交期內預估消耗量
-                'stock_after_order': 200,               # 訂購後預估庫存
-                'urgency_score': 85                     # 急迫度評分 (0-100)
+                'suggested_quantity': 建議訂購量,
+                'calculation_logic': 'Desired Days of Stock',
+                'target_stock_level': 目標最大庫存水平,
+                'current_available_stock': 當前可用庫存,
+                'desired_days_of_stock': 預計存貨天數 (DDS),
+                'moq': 最小訂購量 (MOQ)
             }
         """
-        from datetime import date, timedelta
-        
-        # 獲取零件的採購前置期
-        lead_time_days = self.part.lead_time if self.part else 5
-        
-        # 獲取消耗分析
+        # 1. 獲取參數 (從 CurrentInventory 實例本身獲取)
+        desired_days = self.desired_days_of_stock
+        moq = self.moq
+
+        # 2. 獲取消耗分析
         analysis = self.get_consumption_analysis(days=30)
-        avg_daily_consumption = analysis['avg_daily_consumption']
-        working_days = analysis['working_days']
+        avg_daily_consumption = analysis.get('avg_daily_consumption', 0)
+
+        # 如果沒有消耗，則無需訂購，目標庫存為安全庫存
+        if avg_daily_consumption <= 0:
+            return {
+                'suggested_quantity': 0,
+                'calculation_logic': 'Desired Days of Stock',
+                'target_stock_level': self.safety_stock,
+                'current_available_stock': self.available_quantity,
+                'desired_days_of_stock': self.desired_days_of_stock,
+                'moq': self.moq,
+                'urgency_score': self._calculate_urgency_score(analysis, 0)
+            }
+
+        # 3. 計算目標最大庫存水平 (M)
+        # M = (日均消耗 * 期望天數) + 安全庫存
+        target_stock_level = (avg_daily_consumption * desired_days) + self.safety_stock
         
-        # 計算平均每週工作天數
-        avg_working_days_per_week = working_days / 4.29 if working_days > 0 else 4.5  # 30天約4.29週
+        # 確保目標庫存不為負
+        target_stock_level = max(0, target_stock_level)
+
+        # 4. 計算建議訂購量 (Q)
+        # Q = M - 當前可用庫存
+        suggested_quantity_raw = target_stock_level - self.available_quantity
+
+        triggered_quantity = 0
+        if suggested_quantity_raw > 0:
+            # 必須滿足最小訂購量
+            if suggested_quantity_raw < moq:
+                triggered_quantity = moq
+            else:
+                triggered_quantity = suggested_quantity_raw
         
-        # 計算交期內的工作日數
-        lead_time_working_days = lead_time_days * (avg_working_days_per_week / 7)
-        
-        # 計算交期內預估消耗量
-        consumption_during_lead_time = avg_daily_consumption * lead_time_working_days
-        
-        # 建議訂購量 = 交期消耗 + 安全庫存 - 現有庫存
-        suggested_quantity = consumption_during_lead_time + self.safety_stock - self.quantity_on_hand
-        suggested_quantity = max(0, round(suggested_quantity))
-        
-        # 訂購後預估庫存
-        stock_after_order = self.quantity_on_hand + suggested_quantity - consumption_during_lead_time
-        
-        # 計算急迫度評分 (0-100)
-        urgency_score = self._calculate_urgency_score(analysis, suggested_quantity)
-        
+        # 5. 返回豐富的建議資訊
         return {
-            'suggested_quantity': int(suggested_quantity),
-            'lead_time_days': lead_time_days,
-            'lead_time_working_days': round(lead_time_working_days, 1),
-            'consumption_during_lead_time': round(consumption_during_lead_time),
-            'stock_after_order': round(stock_after_order),
-            'urgency_score': urgency_score
+            'suggested_quantity': int(round(triggered_quantity)),
+            'calculation_logic': 'Desired Days of Stock',
+            'target_stock_level': int(round(target_stock_level)),
+            'current_available_stock': self.available_quantity,
+            'desired_days_of_stock': desired_days,
+            'moq': int(moq),
+            'urgency_score': self._calculate_urgency_score(analysis, triggered_quantity)
         }
     
     def _calculate_urgency_score(self, analysis, suggested_quantity):
