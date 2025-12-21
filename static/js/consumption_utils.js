@@ -623,7 +623,7 @@ function renderInventorySummaryTable(inventories) {
                             const available = inv.available_quantity !== undefined ? inv.available_quantity : (inv.quantity_on_hand - (inv.reserved_quantity || 0));
                             const health = calculateInventoryHealth(available);
                             return `
-                                <tr>
+                                <tr class="js-location-row-click" data-location-id="${inv.warehouse_location_id}" style="cursor: pointer;">
                                     <td>${inv.warehouse_name || 'N/A'}</td>
                                     <td><code>${inv.location_code}</code></td>
                                     <td class="text-end fw-bold">${available} ${inv.unit}</td>

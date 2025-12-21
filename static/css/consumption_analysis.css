@@ -342,3 +342,18 @@
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
+
+/* 可點擊的儲位列表行 */
+.js-location-row-click {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.js-location-row-click:hover {
+    background-color: #f0f7ff !important;
+    transform: translateX(3px);
+}
+
+.js-location-row-click:active {
+    background-color: #e0f0ff !important;
+}

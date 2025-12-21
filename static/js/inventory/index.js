@@ -1210,7 +1210,7 @@ function showConsumptionAnalysis() {
     consumptionModal.show();
 }
 
-// 增強庫存分布表格，加入點擊事件與 ID
+// 增強庫存分布表格，加入 ID 和樣式
 function enhanceInventorySummaryTableWithClicks(originalTableHtml, partNumber, inventories) {
     if (!originalTableHtml || !inventories) {
         return originalTableHtml;
@@ -1222,23 +1222,15 @@ function enhanceInventorySummaryTableWithClicks(originalTableHtml, partNumber, i
         '<table class="table table-hover'
     );
     
-    // 為每一行加入點擊事件和樣式
+    // 為每一行加入 ID 以便後續高亮（不再使用 onclick，改用事件委派）
     inventories.forEach((inv, index) => {
         const warehouseLocationId = inv.warehouse_location_id;
         if (warehouseLocationId) {
-            const rowPattern = new RegExp(`(<tr[^>]*>(?:(?!<\/tr>).)*)(<\/tr>)`, 'g');
-            let rowIndex = 0;
+            const rowPattern = new RegExp(`(<tr[^>]*class="js-location-row-click"[^>]*data-location-id="${warehouseLocationId}"[^>]*>)`, 'g');
             
-            enhancedHtml = enhancedHtml.replace(rowPattern, (match, rowContent, endTag) => {
-                if (rowContent.includes('<th')) return match; // 跳過表頭
-                
-                if (rowIndex === index) {
-                    // 加入 id 以便後續高亮，並更改 onclick 事件
-                    const safePartNumber = partNumber.replace(/'/g, "\\'");
-                    return `<tr id="summary-row-${warehouseLocationId}" style="cursor: pointer; transition: all 0.2s ease;" onclick="window.switchLocationDetail('${safePartNumber}', ${warehouseLocationId})" title="點擊切換顯示此儲位詳情">${rowContent.replace('<tr>', '').replace('<tr ', '')}${endTag}`;
-                }
-                rowIndex++;
-                return match;
+            enhancedHtml = enhancedHtml.replace(rowPattern, (match) => {
+                // 只添加 id 屬性，不添加 onclick
+                return match.replace('<tr', `<tr id="summary-row-${warehouseLocationId}"`);
             });
         }
     });
@@ -1287,7 +1279,14 @@ function switchLocationDetail(partNumber, warehouseLocationId) {
     const legacyContainer = document.getElementById('legacy-detail-container');
     const container = detailList || legacyContainer;
     
+    console.log('🔍 Container search:', {
+        detailList: detailList ? 'Found' : 'Not found',
+        legacyContainer: legacyContainer ? 'Found' : 'Not found',
+        container: container ? 'Using container' : 'No container'
+    });
+    
     if (container) {
+        console.log('✅ Updating container with new detail HTML');
         // 強制清空並重繪
         container.innerHTML = '';
         
@@ -1295,6 +1294,7 @@ function switchLocationDetail(partNumber, warehouseLocationId) {
         requestAnimationFrame(() => {
             container.innerHTML = detailHtml;
             container.scrollTop = 0; // 重置滾動條
+            console.log('✅ Container updated successfully');
             
             // 視覺回饋：閃爍效果
             container.animate([
@@ -1393,8 +1393,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // 處理動態產生的「加入週期申請」按鈕點擊事件
+    // 處理動態產生的「加入週期申請」按鈕點擊事件 和 庫存分佈表格行點擊事件
     document.body.addEventListener('click', function(e) {
+        // 處理庫存分佈表格行點擊
+        const locationRow = e.target.closest('.js-location-row-click');
+        if (locationRow) {
+            e.preventDefault();
+            e.stopPropagation();
+            const locationId = locationRow.getAttribute('data-location-id');
+            if (locationId && currentPartData && currentPartData.part_info) {
+                console.log('📍 Location row clicked:', locationId);
+                window.switchLocationDetail(currentPartData.part_info.part_number, locationId);
+            }
+            return;
+        }
+
+        // 處理「加入週期申請」按鈕
         if (e.target.matches('.js-add-to-weekly-order-detail') || e.target.closest('.js-add-to-weekly-order-detail')) {
             const btn = e.target.matches('.js-add-to-weekly-order-detail') ? e.target : e.target.closest('.js-add-to-weekly-order-detail');
             

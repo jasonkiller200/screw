@@ -529,6 +529,16 @@ document.addEventListener('DOMContentLoaded', function () {
             addToWeeklyOrder(partNumber, partName, unit, partType, locations, locationId, suggestedQuantity);
             return;
         }
+
+        // Handle location row clicks in the inventory distribution table
+        const locationRow = event.target.closest('.js-location-row-click');
+        if (locationRow) {
+            const { locationId } = locationRow.dataset;
+            if (locationId) {
+                showLocationDetail(locationId);
+            }
+            return;
+        }
     });
 
     /**
