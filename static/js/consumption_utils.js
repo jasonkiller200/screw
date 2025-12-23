@@ -78,8 +78,18 @@ function getUrgencyClass(score) {
  * @param {number} days - 天數
  * @returns {string} 格式化後的文字
  */
-function formatDaysOfStock(days) {
+function formatDaysOfStock(days, avgDailyConsumption = null) {
+    // avgDailyConsumption 可選：用於「無耗用」情境的顯示
+    // 規則：avgDailyConsumption<=0 時
+    // - days>=999：代表有庫存但無耗用 => 顯示充足（無耗用）
+    // - 否則：代表庫存也為 0 => 顯示 0 天（無耗用）
+    if (avgDailyConsumption !== null && Number(avgDailyConsumption) <= 0) {
+        return days >= 999 ? '充足 (無耗用)' : '0 天 (無耗用)';
+    }
+
+    // 向後相容：舊版後端可能回 999 代表無限
     if (days >= 999) return '充足';
+
     if (days >= 90) return `${Math.round(days)} 天 (充足)`;
     if (days >= 30) return `${Math.round(days)} 天`;
     if (days >= 14) return `${days.toFixed(1)} 天`;
@@ -139,8 +149,8 @@ function renderOverallSummary(summary) {
                 <div class="card border-warning">
                     <div class="card-body text-center">
                         <small class="text-muted">最少庫存天數</small>
-                        <h3 class="mb-0 text-${summary.min_days_of_stock < 7 ? 'danger' : summary.min_days_of_stock < 14 ? 'warning' : 'success'}">
-                            ${formatDaysOfStock(summary.min_days_of_stock)}
+                        <h3 class="mb-0 text-${summary.min_days_of_stock <= 0 ? 'secondary' : summary.min_days_of_stock < 7 ? 'danger' : summary.min_days_of_stock < 14 ? 'warning' : 'success'}">
+                            ${formatDaysOfStock(summary.min_days_of_stock, null)}
                         </h3>
                     </div>
                 </div>
@@ -184,6 +194,48 @@ function renderLocationDetailCard(inventory, allLocations = []) {
     // 渲染儲位歷史表格
     const historyHtml = renderLocationHistoryTable(inventory.recent_orders || []);
 
+    // 警示訊息（避免在 template literal 內巢狀使用 backtick 造成語法錯誤）
+    let alertHtml = '';
+
+    // 若庫存為 0，優先顯示缺料警示（即使 avg_daily=0）
+    if ((inventory.quantity_on_hand || 0) <= 0) {
+        alertHtml = `
+            <div class="consumption-alert mb-3">
+                <strong>⚠️ 庫存緊急警示</strong>
+                <p style="margin-top: 8px; margin-bottom: 0; font-size: 14px;">
+                    目前庫存為 0，請確認是否需要補貨。
+                </p>
+            </div>
+        `;
+    } else if (analysis.avg_daily_consumption <= 0) {
+        alertHtml = `
+            <div class="alert alert-secondary mb-3">
+                <strong>ℹ️ 無耗用</strong>
+                <p style="margin-top: 8px; margin-bottom: 0; font-size: 14px;">
+                    近 30 天內無工單/售服/報廢出庫紀錄，且目前仍有庫存，本頁庫存天數將顯示為 999。
+                </p>
+            </div>
+        `;
+    } else if (analysis.stock_status === 'critical' && analysis.days_of_stock < 5) {
+        alertHtml = `
+            <div class="consumption-alert mb-3">
+                <strong>⚠️ 庫存緊急警示</strong>
+                <p style="margin-top: 8px; margin-bottom: 0; font-size: 14px;">
+                    預計 ${analysis.days_of_stock.toFixed(1)} 個工作日後缺貨，建議立即訂購！
+                </p>
+            </div>
+        `;
+    } else if (analysis.stock_status === 'warning') {
+        alertHtml = `
+            <div class="consumption-alert warning mb-3">
+                <strong>⚠️ 庫存偏低提醒</strong>
+                <p style="margin-top: 8px; margin-bottom: 0; font-size: 14px;">
+                    庫存即將低於安全水位，請留意補貨時機。
+                </p>
+            </div>
+        `;
+    }
+
     return `
         <div id="location-detail-${inventory.warehouse_location_id}" class="card location-detail-card ${statusClass} mb-4">
             <div class="card-header d-flex justify-content-between align-items-center bg-light">
@@ -206,21 +258,7 @@ function renderLocationDetailCard(inventory, allLocations = []) {
             </div>
             <div class="card-body">
                 <!-- 警示訊息 -->
-                ${analysis.stock_status === 'critical' && analysis.days_of_stock < 5 ? `
-                    <div class="consumption-alert mb-3">
-                        <strong>⚠️ 庫存緊急警示</strong>
-                        <p style="margin-top: 8px; margin-bottom: 0; font-size: 14px;">
-                            預計 ${analysis.days_of_stock.toFixed(1)} 個工作日後缺貨，建議立即訂購！
-                        </p>
-                    </div>
-                ` : analysis.stock_status === 'warning' ? `
-                    <div class="consumption-alert warning mb-3">
-                        <strong>⚠️ 庫存偏低提醒</strong>
-                        <p style="margin-top: 8px; margin-bottom: 0; font-size: 14px;">
-                            庫存即將低於安全水位，請留意補貨時機。
-                        </p>
-                    </div>
-                ` : ''}
+                ${alertHtml}
                 
                 <div class="row">
                     <!-- 左側：分析指標 -->
@@ -234,10 +272,10 @@ function renderLocationDetailCard(inventory, allLocations = []) {
                                 </div>
                             </div>
                             <div class="col-md-4">
-                                <div class="consumption-metric-card ${analysis.days_of_stock < 7 ? 'danger' : analysis.days_of_stock < 14 ? 'warning' : 'success'}">
+                                <div class="consumption-metric-card ${(inventory.quantity_on_hand || 0) <= 0 ? 'danger' : (analysis.avg_daily_consumption <= 0 ? 'secondary' : (analysis.days_of_stock < 7 ? 'danger' : analysis.days_of_stock < 14 ? 'warning' : 'success'))}">
                                     <div class="metric-label">⏰ 庫存天數</div>
                                     <div class="metric-value">${analysis.days_of_stock.toFixed(1)}<span class="metric-unit">天</span></div>
-                                    <div class="metric-subtext">工作日計算</div>
+                                    <div class="metric-subtext">${(inventory.quantity_on_hand || 0) <= 0 ? '無庫存' : (analysis.avg_daily_consumption <= 0 ? '無耗用' : '工作日計算')}</div>
                                 </div>
                             </div>
                             <div class="col-md-4">
@@ -537,7 +575,7 @@ function renderConsumptionSummaryWidget(summary, inventories) {
             <div class="col-6 col-md-3">
                 <div class="p-2 bg-light rounded text-center">
                     <small class="text-muted d-block">最少天數</small>
-                    <strong class="text-${summary.min_days_of_stock < 7 ? 'danger' : summary.min_days_of_stock < 14 ? 'warning' : 'success'}">
+                    <strong class="text-${summary.min_days_of_stock <= 0 ? 'secondary' : summary.min_days_of_stock < 7 ? 'danger' : summary.min_days_of_stock < 14 ? 'warning' : 'success'}">
                         ${summary.min_days_of_stock.toFixed(1)} 天
                     </strong>
                 </div>

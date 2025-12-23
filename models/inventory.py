@@ -95,10 +95,23 @@ class CurrentInventory(db.Model):
         avg_daily = consumption_data['total_out'] / working_days if working_days > 0 else 0
         
         # 計算庫存可支撐工作日數
-        days_of_stock = self.quantity_on_hand / avg_daily if avg_daily > 0 else 999
+        # 規則：
+        # - avg_daily > 0：正常以 (庫存 / 平均日用量) 計算
+        # - avg_daily = 0：
+        #     - 若仍有庫存：代表「無耗用」而非「無庫存」，庫存天數顯示 999
+        #     - 若庫存也為 0：庫存天數顯示 0
+        if avg_daily > 0:
+            days_of_stock = self.quantity_on_hand / avg_daily
+        else:
+            days_of_stock = 999 if (self.quantity_on_hand or 0) > 0 else 0
         
         # 判斷庫存狀態
-        if days_of_stock < 7:
+        # 當 avg_daily=0：以「是否有庫存」判斷
+        # - 庫存>0：無耗用且有庫存 => healthy
+        # - 庫存=0：無耗用且無庫存 => critical
+        if avg_daily <= 0:
+            status = 'healthy' if (self.quantity_on_hand or 0) > 0 else 'critical'
+        elif days_of_stock < 7:
             status = 'critical'
         elif days_of_stock < 14:
             status = 'warning'
@@ -157,6 +170,7 @@ class CurrentInventory(db.Model):
 
         # 如果沒有消耗，則無需訂購，目標庫存為安全庫存
         if avg_daily_consumption <= 0:
+            # 無耗用時不建議訂購；同時避免因 days_of_stock=0 而造成緊急度誤判
             return {
                 'suggested_quantity': 0,
                 'calculation_logic': 'Desired Days of Stock',
@@ -164,7 +178,7 @@ class CurrentInventory(db.Model):
                 'current_available_stock': self.available_quantity,
                 'desired_days_of_stock': self.desired_days_of_stock,
                 'moq': self.moq,
-                'urgency_score': self._calculate_urgency_score(analysis, 0)
+                'urgency_score': 0
             }
 
         # 3. 計算目標最大庫存水平 (M)
@@ -530,13 +544,19 @@ class InventoryTransaction(db.Model):
         end_date = date.today()
         start_date = end_date - timedelta(days=days)
         
+        # 只計入「真正耗用」的出庫類型（排除轉倉/調撥）
+        # - OUT_WORK_ORDER: 工單領用
+        # - OUT_AFTER_SALES: 售服領用
+        # - OUT_SCRAP: 報廢
+        consumption_out_types = ['OUT_WORK_ORDER', 'OUT_AFTER_SALES', 'OUT_SCRAP']
+
         # 總出庫量
         total_out = db.session.query(
             func.sum(func.abs(cls.quantity))
         ).filter(
             cls.part_id == part_id,
             cls.warehouse_location_id == location_id,
-            cls.transaction_type.like('OUT_%'),
+            cls.transaction_type.in_(consumption_out_types),
             func.date(cls.transaction_date) >= start_date,
             func.date(cls.transaction_date) <= end_date
         ).scalar() or 0
@@ -548,7 +568,7 @@ class InventoryTransaction(db.Model):
         ).filter(
             cls.part_id == part_id,
             cls.warehouse_location_id == location_id,
-            cls.transaction_type.like('OUT_%'),
+            cls.transaction_type.in_(consumption_out_types),
             func.date(cls.transaction_date) >= recent_7_days_start,
             func.date(cls.transaction_date) <= end_date
         ).scalar() or 0
@@ -561,7 +581,7 @@ class InventoryTransaction(db.Model):
         ).filter(
             cls.part_id == part_id,
             cls.warehouse_location_id == location_id,
-            cls.transaction_type.like('OUT_%'),
+            cls.transaction_type.in_(consumption_out_types),
             func.date(cls.transaction_date) >= prev_7_days_start,
             func.date(cls.transaction_date) <= prev_7_days_end
         ).scalar() or 0

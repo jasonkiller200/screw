@@ -404,6 +404,9 @@ class PartService:
         total_available = sum(inv.available_quantity for inv in inventories)
         
         # 收集所有儲位的狀態和庫存天數
+        # 注意：當平均耗用為 0 時 days_of_stock 會是 0，這不代表缺料。
+        # 因此 summary 的 min_days_of_stock/overall_status 只以「有耗用」的儲位為基準；
+        # 若全部皆無耗用，則 min_days_of_stock=0 且 overall_status=healthy。
         statuses = []
         days_of_stocks = []
         total_suggested = 0
@@ -412,11 +415,16 @@ class PartService:
             try:
                 analysis = inv.get_consumption_analysis(days=30)
                 suggestion = inv.get_order_suggestion()
-                
-                statuses.append(analysis['stock_status'])
-                days_of_stocks.append(analysis['days_of_stock'])
-                total_suggested += suggestion['suggested_quantity']
-            except:
+
+                total_suggested += suggestion.get('suggested_quantity', 0) or 0
+
+                # 納入 summary 的規則：
+                # - 有耗用 (avg_daily_consumption > 0)：用耗用風險判斷
+                # - 或者庫存為 0：即使無耗用也應視為缺料風險
+                if analysis.get('avg_daily_consumption', 0) > 0 or (inv.quantity_on_hand or 0) <= 0:
+                    statuses.append(analysis.get('stock_status'))
+                    days_of_stocks.append(analysis.get('days_of_stock', 0))
+            except Exception:
                 continue
         
         # 整體狀態：只要有一個 critical 就是 critical
@@ -427,9 +435,9 @@ class PartService:
         elif statuses:
             overall_status = 'healthy'
         else:
-            overall_status = 'unknown'
+            overall_status = 'healthy'
         
-        # 最少庫存天數
+        # 最少庫存天數（只計入有耗用的儲位）
         min_days = min(days_of_stocks) if days_of_stocks else 0
         
         return {
