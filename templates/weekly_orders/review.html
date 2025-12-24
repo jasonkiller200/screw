@@ -188,7 +188,7 @@
                                     </td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
-                                            <button class="btn btn-outline-secondary btn-sm" onclick="showPartDetails('{{ registration.part_number }}', {{ registration.warehouse_location_id if registration.warehouse_location_id else 'null' }})">
+                                            <button class="btn btn-outline-secondary btn-sm" onclick="openConsumptionAnalysisDirect('{{ registration.part_number }}', {{ registration.warehouse_location_id if registration.warehouse_location_id else 'null' }})">
                                                 <i class="fas fa-info-circle"></i> 零件詳情
                                             </button>
                                             <button class="btn btn-outline-primary btn-sm" onclick="viewDetails({{ registration.id }})">
@@ -257,17 +257,21 @@
 
 <!-- 耗損分析模態框 -->
 <div class="modal fade" id="consumptionDetailModal" tabindex="-1">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content" style="height: calc(100vh - 20px);">
             <div class="modal-header bg-light">
                 <h5 class="modal-title" id="consumptionDetailModalLabel">🛠️ 消耗分析與採購建議</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body p-4" id="consumptionDetailContent">
-                <!-- 內容由 JavaScript 動態渲染 -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+            <div class="modal-body p-0" style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+                <!-- 固定在頂部的基本資料與庫存分佈 -->
+                <div id="consumptionSummarySection" class="p-4 border-bottom bg-light" style="flex-shrink: 0;">
+                    <!-- 基本資料與庫存分佈內容 -->
+                </div>
+                <!-- 可滾動的詳細分析清單 -->
+                <div id="consumptionDetailList" class="p-4" style="flex: 1; overflow-y: auto; position: relative;">
+                    <!-- 詳細分析清單內容 -->
+                </div>
             </div>
         </div>
     </div>

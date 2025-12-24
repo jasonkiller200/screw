@@ -176,6 +176,63 @@ function batchApprove() {
     });
 }
 
+// 直接開啟「耗損分析與採購建議」模態視窗（跳過第一層零件詳情 modal）
+function openConsumptionAnalysisDirect(partNumber, warehouseLocationId = null) {
+    if (!partNumber) return;
+
+    // 記錄使用者點擊的儲位（用於決定耗損視窗預設顯示哪個儲位）
+    currentClickedLocationId = warehouseLocationId;
+
+    // 先把耗損 modal 打開並顯示 loading，讓使用者有即時回饋
+    const modalElement = document.getElementById('consumptionDetailModal');
+    const label = document.getElementById('consumptionDetailModalLabel');
+    const summarySection = document.getElementById('consumptionSummarySection');
+    const detailList = document.getElementById('consumptionDetailList');
+
+    if (label) {
+        label.textContent = `🛠️ 消耗分析與採購建議 (${partNumber})`;
+    }
+    if (summarySection) {
+        summarySection.innerHTML = `
+            <div class="text-center py-3">
+                <div class="spinner-border text-primary" role="status"></div>
+                <div class="mt-2 text-muted">正在載入零件與庫存分佈...</div>
+            </div>
+        `;
+    }
+    if (detailList) {
+        detailList.innerHTML = `
+            <div class="text-center py-3">
+                <div class="spinner-border text-secondary" role="status"></div>
+                <div class="mt-2 text-muted">正在載入耗損詳情...</div>
+            </div>
+        `;
+    }
+
+    let modal = bootstrap.Modal.getInstance(modalElement);
+    if (!modal) {
+        modal = new bootstrap.Modal(modalElement, { backdrop: true, keyboard: true, focus: true });
+    }
+    modal.show();
+
+    // 載入資料後，直接呼叫既有的 showConsumptionAnalysis() 產生完整畫面
+    fetch(`/api/part/${encodeURIComponent(partNumber)}?include_locations=true`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            currentPartData = data;
+            showConsumptionAnalysis(warehouseLocationId);
+        })
+        .catch(err => {
+            console.error('openConsumptionAnalysisDirect error:', err);
+            if (detailList) {
+                detailList.innerHTML = `<div class="alert alert-danger m-3">載入失敗：${err.message}</div>`;
+            }
+        });
+}
+
 // 顯示零件詳情
 function showPartDetails(partNumber, warehouseLocationId = null) {
     console.log('showPartDetails called with:', partNumber, warehouseLocationId);
@@ -574,11 +631,13 @@ function showConsumptionAnalysis(selectedLocationId = null) {
         return;
     }
     
-    const content = document.getElementById('consumptionDetailContent');
+    const summarySection = document.getElementById('consumptionSummarySection');
+    const detailList = document.getElementById('consumptionDetailList');
     const label = document.getElementById('consumptionDetailModalLabel');
     
-    if (!content || !label) {
+    if (!summarySection || !detailList || !label) {
         alert('耗損分析模態視窗元素未找到');
+        console.error('Missing elements:', { summarySection, detailList, label });
         return;
     }
     
@@ -635,7 +694,8 @@ function showConsumptionAnalysis(selectedLocationId = null) {
             <h5 class="fw-bold mb-4"><i class="fas fa-list me-2"></i> 詳細分析清單</h5>
         `;
         
-        content.innerHTML = summaryRow + allInventoriesDisplay.map(inv => 
+        summarySection.innerHTML = summaryRow;
+        detailList.innerHTML = allInventoriesDisplay.map(inv => 
             window.ConsumptionUtils.renderLocationDetailCard(inv, currentPartData.part_info.locations)
         ).join('<hr class="my-5 border-2 opacity-50">');
         
@@ -680,16 +740,18 @@ function showConsumptionAnalysis(selectedLocationId = null) {
     label.innerHTML = `<i class="fas fa-chart-pie me-2 text-primary"></i>零件耗損詳細分析 (${currentPartData.part_info.part_number})`;
     
     if (window.ConsumptionUtils) {
-        content.innerHTML = summaryRow + displayInventories.map(inv => 
+        summarySection.innerHTML = summaryRow;
+        detailList.innerHTML = displayInventories.map(inv => 
             window.ConsumptionUtils.renderLocationDetailCard(inv, currentPartData.part_info.locations)
         ).join('<hr class="my-5 border-2 opacity-50">');
     } else {
-        content.innerHTML = `
+        summarySection.innerHTML = `
             <div class="alert alert-danger">
                 <h6><i class="fas fa-exclamation-triangle me-2"></i>消耗分析工具未載入</h6>
                 <p>請確保 consumption_utils.js 檔案已正確載入。</p>
             </div>
         `;
+        detailList.innerHTML = '';
     }
     
     // 確保模態視窗正確顯示，避免backdrop問題
