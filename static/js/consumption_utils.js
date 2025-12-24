@@ -653,6 +653,8 @@ function renderInventorySummaryTable(inventories) {
                             <th>倉庫</th>
                             <th>儲位</th>
                             <th class="text-end">可用庫存</th>
+                            <th class="text-end">日平均用量</th>
+                            <th class="text-end">庫存天數</th>
                             <th class="text-center">狀態</th>
                         </tr>
                     </thead>
@@ -660,11 +662,39 @@ function renderInventorySummaryTable(inventories) {
                         ${inventories.map(inv => {
                             const available = inv.available_quantity !== undefined ? inv.available_quantity : (inv.quantity_on_hand - (inv.reserved_quantity || 0));
                             const health = calculateInventoryHealth(available);
+                            
+                            // 取得耗損分析資料
+                            const analysis = inv.consumption_analysis || {};
+                            const avgDaily = analysis.avg_daily_consumption || 0;
+                            const daysOfStock = analysis.days_of_stock || 0;
+                            
+                            // 格式化日平均用量
+                            const avgDailyText = avgDaily > 0 ? avgDaily.toFixed(1) : '-';
+                            
+                            // 格式化庫存天數，並根據天數設定顏色
+                            let daysText = '-';
+                            let daysClass = '';
+                            if (avgDaily > 0 && available > 0) {
+                                daysText = daysOfStock.toFixed(1);
+                                if (daysOfStock < 7) {
+                                    daysClass = 'text-danger fw-bold';
+                                } else if (daysOfStock < 14) {
+                                    daysClass = 'text-warning fw-bold';
+                                } else {
+                                    daysClass = 'text-success';
+                                }
+                            } else if (available <= 0) {
+                                daysText = '0.0';
+                                daysClass = 'text-danger fw-bold';
+                            }
+                            
                             return `
                                 <tr class="js-location-row-click" data-location-id="${inv.warehouse_location_id}" style="cursor: pointer;">
                                     <td>${inv.warehouse_name || 'N/A'}</td>
                                     <td><code>${inv.location_code}</code></td>
                                     <td class="text-end fw-bold">${available} ${inv.unit}</td>
+                                    <td class="text-end text-muted">${avgDailyText}</td>
+                                    <td class="text-end ${daysClass}">${daysText}</td>
                                     <td class="text-center">
                                         <span class="badge ${health.badgeClass}" title="${health.tooltip}">
                                             ${health.icon} ${health.text}
