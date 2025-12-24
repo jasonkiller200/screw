@@ -626,8 +626,14 @@ function calculateLocationHealth(available, total) {
 
 // 顯示耗損分析
 function showConsumptionAnalysis(selectedLocationId = null) {
-    if (!currentPartData || !currentPartData.inventories || currentPartData.inventories.length === 0) {
-        alert('無庫存資料可分析');
+    if (!currentPartData) {
+        alert('無零件資料');
+        return;
+    }
+    
+    // 如果沒有庫存資料，顯示週期採購資訊
+    if (!currentPartData.inventories || currentPartData.inventories.length === 0) {
+        showWeeklyOrderInfoForPartWithoutLocation(currentPartData.part_info);
         return;
     }
     
@@ -778,6 +784,7 @@ function renderClickableInventorySummaryTable(inventories, currentLocationId) {
     }
     
     const tableRows = inventories.map(inv => {
+        const available = inv.available_quantity || 0;
         const statusClass = inv.consumption_analysis?.stock_status === 'critical' ? 'text-danger fw-bold' :
                            inv.consumption_analysis?.stock_status === 'warning' ? 'text-warning fw-bold' : 
                            'text-success';
@@ -788,11 +795,38 @@ function renderClickableInventorySummaryTable(inventories, currentLocationId) {
         const rowClass = isCurrentLocation ? 'table-warning' : '';
         const currentLabel = isCurrentLocation ? '<i class="fas fa-arrow-right me-1 text-primary"></i>' : '';
         
+        // 取得耗損分析資料
+        const analysis = inv.consumption_analysis || {};
+        const avgDaily = analysis.avg_daily_consumption || 0;
+        const daysOfStock = analysis.days_of_stock || 0;
+        
+        // 格式化日平均用量
+        const avgDailyText = avgDaily > 0 ? avgDaily.toFixed(1) : '-';
+        
+        // 格式化庫存天數，並根據天數設定顏色
+        let daysText = '-';
+        let daysClass = '';
+        if (avgDaily > 0 && available > 0) {
+            daysText = daysOfStock.toFixed(1);
+            if (daysOfStock < 7) {
+                daysClass = 'text-danger fw-bold';
+            } else if (daysOfStock < 14) {
+                daysClass = 'text-warning fw-bold';
+            } else {
+                daysClass = 'text-success';
+            }
+        } else if (available <= 0) {
+            daysText = '0.0';
+            daysClass = 'text-danger fw-bold';
+        }
+        
         return `
             <tr class="${rowClass} location-row" style="cursor: pointer;" onclick="showConsumptionAnalysis(${inv.warehouse_location_id})" title="點擊查看此儲位詳細分析">
                 <td>${currentLabel}${inv.warehouse_name || 'N/A'}</td>
                 <td>${inv.location_code || 'N/A'}</td>
-                <td class="text-end">${inv.available_quantity || 0}</td>
+                <td class="text-end">${available}</td>
+                <td class="text-end text-muted">${avgDailyText}</td>
+                <td class="text-end ${daysClass}">${daysText}</td>
                 <td class="text-center ${statusClass}">${statusIcon}</td>
             </tr>
         `;
@@ -811,6 +845,8 @@ function renderClickableInventorySummaryTable(inventories, currentLocationId) {
                                 <th>倉庫</th>
                                 <th>儲位</th>
                                 <th class="text-end">可用庫存</th>
+                                <th class="text-end">日平均用量</th>
+                                <th class="text-end">庫存天數</th>
                                 <th class="text-center">狀態</th>
                             </tr>
                         </thead>
@@ -822,6 +858,171 @@ function renderClickableInventorySummaryTable(inventories, currentLocationId) {
             </div>
         </div>
     `;
+}
+
+// 顯示沒有儲位的零件的週期採購資訊
+function showWeeklyOrderInfoForPartWithoutLocation(partInfo) {
+    const summarySection = document.getElementById('consumptionSummarySection');
+    const detailList = document.getElementById('consumptionDetailList');
+    const label = document.getElementById('consumptionDetailModalLabel');
+    
+    if (!summarySection || !detailList || !label) {
+        alert('模態視窗元素未找到');
+        return;
+    }
+    
+    label.innerHTML = `<i class="fas fa-info-circle me-2 text-primary"></i>零件資訊 (${partInfo.part_number})`;
+    
+    // 載入週期採購資訊
+    fetch(`/api/part/${encodeURIComponent(partInfo.part_number)}/weekly-orders`)
+        .then(r => r.json())
+        .then(weeklyOrderData => {
+            const summaryHtml = `
+                <div class="alert alert-info mb-3">
+                    <i class="fas fa-info-circle me-2"></i>此零件尚未設定儲位，僅顯示基本資訊與近期週期採購記錄
+                </div>
+                <div class="row mb-4 g-3">
+                    <div class="col-md-12">
+                        ${window.ConsumptionUtils ? window.ConsumptionUtils.renderPartBasicInfoCard(partInfo) : '<div class="alert alert-warning">消耗分析工具未載入</div>'}
+                    </div>
+                </div>
+            `;
+            
+            let detailHtml = '<h5 class="fw-bold mb-4"><i class="fas fa-calendar-week me-2"></i>近期週期採購記錄</h5>';
+            
+            if (weeklyOrderData && weeklyOrderData.registrations && weeklyOrderData.registrations.length > 0) {
+                // 只顯示最近的記錄
+                const recentOrders = weeklyOrderData.registrations.slice(0, 10);
+                
+                detailHtml += `
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>週期</th>
+                                    <th>申請日期</th>
+                                    <th>申請人</th>
+                                    <th class="text-end">申請數量</th>
+                                    <th class="text-end">已入庫</th>
+                                    <th>狀態</th>
+                                    <th>備註</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${recentOrders.map(order => {
+                                    const statusBadge = getWeeklyOrderStatusBadge(order.status);
+                                    const createdDate = order.created_at ? new Date(order.created_at).toLocaleDateString('zh-TW') : '-';
+                                    const quantityReceived = order.quantity_received || 0;
+                                    const quantityOrdered = order.quantity || 0;
+                                    const progressPercent = quantityOrdered > 0 ? Math.round((quantityReceived / quantityOrdered) * 100) : 0;
+                                    
+                                    return `
+                                        <tr>
+                                            <td><strong>${order.cycle_name || '-'}</strong></td>
+                                            <td>${createdDate}</td>
+                                            <td>${order.applicant_name || '-'}</td>
+                                            <td class="text-end">${quantityOrdered}</td>
+                                            <td class="text-end">
+                                                ${quantityReceived}
+                                                ${quantityOrdered > 0 ? `<small class="text-muted">(${progressPercent}%)</small>` : ''}
+                                            </td>
+                                            <td>${statusBadge}</td>
+                                            <td><small class="text-muted">${order.purpose_notes || '-'}</small></td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                
+                // 統計資訊
+                const totalOrdered = recentOrders.reduce((sum, o) => sum + (o.quantity || 0), 0);
+                const totalReceived = recentOrders.reduce((sum, o) => sum + (o.quantity_received || 0), 0);
+                const pendingCount = recentOrders.filter(o => o.status === 'registered' || o.status === 'approved').length;
+                
+                detailHtml += `
+                    <div class="row mt-4">
+                        <div class="col-md-4">
+                            <div class="card border-primary">
+                                <div class="card-body text-center">
+                                    <h3 class="text-primary mb-0">${totalOrdered}</h3>
+                                    <small class="text-muted">總申請數量</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card border-success">
+                                <div class="card-body text-center">
+                                    <h3 class="text-success mb-0">${totalReceived}</h3>
+                                    <small class="text-muted">已入庫數量</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card border-warning">
+                                <div class="card-body text-center">
+                                    <h3 class="text-warning mb-0">${pendingCount}</h3>
+                                    <small class="text-muted">待處理申請</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                detailHtml += `
+                    <div class="alert alert-secondary">
+                        <i class="fas fa-inbox me-2"></i>此零件暫無週期採購記錄
+                    </div>
+                `;
+            }
+            
+            summarySection.innerHTML = summaryHtml;
+            detailList.innerHTML = detailHtml;
+            
+            // 顯示模態視窗
+            const modalElement = document.getElementById('consumptionDetailModal');
+            let modal = bootstrap.Modal.getInstance(modalElement);
+            if (!modal) {
+                modal = new bootstrap.Modal(modalElement);
+            }
+            modal.show();
+        })
+        .catch(err => {
+            console.error('載入週期採購資訊失敗:', err);
+            summarySection.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>此零件尚未設定儲位
+                </div>
+            `;
+            detailList.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-times-circle me-2"></i>載入週期採購資訊失敗：${err.message}
+                </div>
+            `;
+            
+            // 顯示模態視窗
+            const modalElement = document.getElementById('consumptionDetailModal');
+            let modal = bootstrap.Modal.getInstance(modalElement);
+            if (!modal) {
+                modal = new bootstrap.Modal(modalElement);
+            }
+            modal.show();
+        });
+}
+
+// 取得週期訂單狀態徽章
+function getWeeklyOrderStatusBadge(status) {
+    const statusMap = {
+        'registered': { text: '已登記', class: 'secondary' },
+        'approved': { text: '已核准', class: 'primary' },
+        'partially_received': { text: '部分到貨', class: 'info' },
+        'completed': { text: '已完成', class: 'success' },
+        'rejected': { text: '已拒絕', class: 'danger' }
+    };
+    
+    const statusInfo = statusMap[status] || { text: status || '未知', class: 'secondary' };
+    return `<span class="badge bg-${statusInfo.class}">${statusInfo.text}</span>`;
 }
 
 // 切換儲位 - 不關閉模態視窗，直接更新內容
