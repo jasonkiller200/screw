@@ -547,6 +547,63 @@ document.addEventListener('DOMContentLoaded', () => {
 let currentPartData = null;
 let currentClickedLocationId = null;
 
+// 直接開啟「耗損分析與採購建議」模態視窗（跳過第一層零件詳情 modal）
+function openConsumptionAnalysisDirect(partNumber, warehouseLocationId = null) {
+    if (!partNumber) return;
+
+    // 記錄使用者點擊的儲位（用於決定耗損視窗預設顯示哪個儲位）
+    currentClickedLocationId = warehouseLocationId;
+
+    // 先把耗損 modal 打開並顯示 loading，讓使用者有即時回饋
+    const modalElement = document.getElementById('consumptionDetailModal');
+    const label = document.getElementById('consumptionDetailModalLabel');
+    const summarySection = document.getElementById('consumptionSummarySection');
+    const detailList = document.getElementById('consumptionDetailList');
+
+    if (label) {
+        label.textContent = `🛠️ 消耗分析與採購建議 (${partNumber})`;
+    }
+    if (summarySection) {
+        summarySection.innerHTML = `
+            <div class="text-center py-3">
+                <div class="spinner-border text-primary" role="status"></div>
+                <div class="mt-2 text-muted">正在載入零件與庫存分佈...</div>
+            </div>
+        `;
+    }
+    if (detailList) {
+        detailList.innerHTML = `
+            <div class="text-center py-3">
+                <div class="spinner-border text-secondary" role="status"></div>
+                <div class="mt-2 text-muted">正在載入耗損詳情...</div>
+            </div>
+        `;
+    }
+
+    let modal = bootstrap.Modal.getInstance(modalElement);
+    if (!modal) {
+        modal = new bootstrap.Modal(modalElement, { backdrop: true, keyboard: true, focus: true });
+    }
+    modal.show();
+
+    // 載入資料後，直接呼叫既有的 showConsumptionAnalysis() 產生完整畫面
+    fetch(`/api/part/${encodeURIComponent(partNumber)}?include_locations=true`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            currentPartData = data;
+            showConsumptionAnalysis();
+        })
+        .catch(err => {
+            console.error('openConsumptionAnalysisDirect error:', err);
+            if (detailList) {
+                detailList.innerHTML = `<div class="alert alert-danger m-3">載入失敗：${err.message}</div>`;
+            }
+        });
+}
+
 // 顯示零件詳情（支援儲位參數）
 function showPartDetails(partNumber, warehouseLocationId = null) {
     if (!partNumber) {
@@ -702,7 +759,7 @@ function renderSingleLocationDetail(part, inventory, allInventories, weeklyOrder
             const currentLabel = isCurrentLocation ? '<i class="fas fa-arrow-right me-1 text-primary"></i>' : '';
 
             return `
-                <tr class="${rowClass}" style="cursor: pointer;" onclick="showPartDetails('${part.part_number}', ${loc.id})">
+                <tr class="${rowClass}" style="cursor: pointer;" onclick="openConsumptionAnalysisDirect('${part.part_number}', ${loc.id})">
                     <td>${currentLabel}${loc.warehouse_name} (${loc.warehouse_code})</td>
                     <td>${loc.location_code}</td>
                     <td class="text-end">${quantity_on_hand}</td>
