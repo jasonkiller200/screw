@@ -275,6 +275,274 @@ function importFromTemplate() {
     alert('模板匯入功能將在未來版本中提供');
 }
 
+// 顯示零件耗損詳情（根據該行的儲位設定顯示對應儲位的詳情）
+function showPartDetailsWithLocation(partNumberInput) {
+    const partNumber = partNumberInput.value.trim();
+    console.log('showPartDetailsWithLocation called with:', partNumber);
+    if (!partNumber) {
+        console.log('No part number provided');
+        return;
+    }
+    
+    // 獲取該行的儲位ID
+    const row = partNumberInput.closest('tr');
+    const locationSelect = row.querySelector('select[name*="[warehouse_location_id]"]');
+    const warehouseLocationId = locationSelect && locationSelect.value ? parseInt(locationSelect.value) : null;
+    
+    console.log('Selected warehouse_location_id:', warehouseLocationId);
+    
+    // 直接呼叫 openConsumptionAnalysisDirect 函數，傳入儲位ID
+    openConsumptionAnalysisDirect(partNumber, warehouseLocationId);
+}
+
+// 顯示零件耗損詳情（直接開啟耗損分析模態視窗）- 保留給其他地方使用
+function showPartDetails(partNumber) {
+    console.log('showPartDetails called with:', partNumber);
+    if (!partNumber) {
+        console.log('No part number provided');
+        return;
+    }
+    
+    // 直接呼叫 openConsumptionAnalysisDirect 函數
+    openConsumptionAnalysisDirect(partNumber, null);
+}
+
+// 直接開啟「耗損分析與採購建議」模態視窗
+function openConsumptionAnalysisDirect(partNumber, warehouseLocationId = null) {
+    if (!partNumber) return;
+
+    // 記錄使用者點擊的儲位（用於決定耗損視窗預設顯示哪個儲位）
+    const currentClickedLocationId = warehouseLocationId;
+
+    // 先把耗損 modal 打開並顯示 loading，讓使用者有即時回饋
+    const modalElement = document.getElementById('consumptionDetailModal');
+    const label = document.getElementById('consumptionDetailModalLabel');
+    const summarySection = document.getElementById('consumptionSummarySection');
+    const detailList = document.getElementById('consumptionDetailList');
+
+    if (label) {
+        label.textContent = `🛠️ 消耗分析與採購建議 (${partNumber})`;
+    }
+    if (summarySection) {
+        summarySection.innerHTML = `
+            <div class="text-center py-3">
+                <div class="spinner-border text-primary" role="status"></div>
+                <div class="mt-2 text-muted">正在載入零件與庫存分佈...</div>
+            </div>
+        `;
+    }
+    if (detailList) {
+        detailList.innerHTML = `
+            <div class="text-center py-3">
+                <div class="spinner-border text-secondary" role="status"></div>
+                <div class="mt-2 text-muted">正在載入耗損詳情...</div>
+            </div>
+        `;
+    }
+
+    let modal = bootstrap.Modal.getInstance(modalElement);
+    if (!modal) {
+        modal = new bootstrap.Modal(modalElement, { backdrop: true, keyboard: true, focus: true });
+    }
+    modal.show();
+
+    // 載入資料後，直接呼叫既有的 showConsumptionAnalysis() 產生完整畫面
+    fetch(`/api/part/${encodeURIComponent(partNumber)}?include_locations=true`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            displayConsumptionAnalysis(data, warehouseLocationId);
+        })
+        .catch(err => {
+            console.error('openConsumptionAnalysisDirect error:', err);
+            if (detailList) {
+                detailList.innerHTML = `<div class="alert alert-danger m-3">載入失敗：${err.message}</div>`;
+            }
+        });
+}
+
+// 顯示耗損分析
+function displayConsumptionAnalysis(partData, selectedLocationId = null) {
+    const summarySection = document.getElementById('consumptionSummarySection');
+    const detailList = document.getElementById('consumptionDetailList');
+    const label = document.getElementById('consumptionDetailModalLabel');
+    
+    if (!summarySection || !detailList || !label) {
+        alert('耗損分析模態視窗元素未找到');
+        return;
+    }
+    
+    // 如果沒有庫存資料，顯示週期採購資訊
+    if (!partData.inventories || partData.inventories.length === 0) {
+        showPartInfoWithoutInventory(partData.part_info);
+        return;
+    }
+    
+    // 篩選要顯示的庫存資料
+    const displayInventories = selectedLocationId !== null
+        ? partData.inventories.filter(inv => inv.warehouse_location_id === selectedLocationId)
+        : partData.inventories;
+    
+    if (displayInventories.length === 0 && selectedLocationId !== null) {
+        // 如果找不到該儲位的庫存，顯示全部儲位資料
+        console.warn('指定儲位無庫存資料，顯示全部儲位');
+    }
+    
+    // 建立可點擊的全區庫存分佈表格
+    const allLocations = partData.part_info.locations || [];
+    let inventorySummaryHtml = '';
+    
+    if (window.ConsumptionUtils) {
+        if (allLocations.length > 1) {
+            inventorySummaryHtml = renderClickableInventorySummaryTable(partData.inventories, selectedLocationId);
+        } else {
+            inventorySummaryHtml = window.ConsumptionUtils.renderInventorySummaryTable(displayInventories);
+        }
+    }
+    
+    const summaryRow = `
+        <div class="row mb-4 g-3">
+            <div class="col-md-5">
+                ${window.ConsumptionUtils ? window.ConsumptionUtils.renderPartBasicInfoCard(partData.part_info) : '<div class="alert alert-warning">消耗分析工具未載入</div>'}
+            </div>
+            <div class="col-md-7">
+                ${inventorySummaryHtml || '<div class="alert alert-warning">消耗分析工具未載入</div>'}
+            </div>
+        </div>
+        <hr class="my-4 border-2 opacity-25">
+        <h5 class="fw-bold mb-4"><i class="fas fa-list me-2"></i> 詳細分析清單</h5>
+    `;
+    
+    label.innerHTML = `<i class="fas fa-chart-pie me-2 text-primary"></i>零件耗損詳細分析 (${partData.part_info.part_number})`;
+    
+    if (window.ConsumptionUtils) {
+        summarySection.innerHTML = summaryRow;
+        detailList.innerHTML = displayInventories.map(inv => 
+            window.ConsumptionUtils.renderLocationDetailCard(inv, partData.part_info.locations)
+        ).join('<hr class="my-5 border-2 opacity-50">');
+    } else {
+        summarySection.innerHTML = `
+            <div class="alert alert-danger">
+                <h6><i class="fas fa-exclamation-triangle me-2"></i>消耗分析工具未載入</h6>
+                <p>請確保 consumption_utils.js 檔案已正確載入。</p>
+            </div>
+        `;
+        detailList.innerHTML = '';
+    }
+}
+
+// 渲染可點擊的庫存摘要表格
+function renderClickableInventorySummaryTable(inventories, currentLocationId) {
+    if (!inventories || inventories.length === 0) {
+        return '<div class="alert alert-info">暫無庫存資料</div>';
+    }
+    
+    const tableRows = inventories.map(inv => {
+        const available = inv.available_quantity || 0;
+        const statusClass = inv.consumption_analysis?.stock_status === 'critical' ? 'text-danger fw-bold' :
+                           inv.consumption_analysis?.stock_status === 'warning' ? 'text-warning fw-bold' : 
+                           'text-success';
+        const statusIcon = inv.consumption_analysis?.stock_status === 'critical' ? '🔴' :
+                          inv.consumption_analysis?.stock_status === 'warning' ? '🟡' : '🟢';
+        
+        const isCurrentLocation = currentLocationId === inv.warehouse_location_id;
+        const rowClass = isCurrentLocation ? 'table-warning' : '';
+        const currentLabel = isCurrentLocation ? '<i class="fas fa-arrow-right me-1 text-primary"></i>' : '';
+        
+        // 取得耗損分析資料
+        const analysis = inv.consumption_analysis || {};
+        const avgDaily = analysis.avg_daily_consumption || 0;
+        const daysOfStock = analysis.days_of_stock || 0;
+        
+        // 格式化日平均用量
+        const avgDailyText = avgDaily > 0 ? avgDaily.toFixed(1) : '-';
+        
+        // 格式化庫存天數
+        let daysText = '-';
+        let daysClass = '';
+        if (avgDaily > 0 && available > 0) {
+            daysText = daysOfStock.toFixed(1);
+            if (daysOfStock < 7) {
+                daysClass = 'text-danger fw-bold';
+            } else if (daysOfStock < 14) {
+                daysClass = 'text-warning fw-bold';
+            } else {
+                daysClass = 'text-success';
+            }
+        } else if (available <= 0) {
+            daysText = '0.0';
+            daysClass = 'text-danger fw-bold';
+        }
+        
+        return `
+            <tr class="${rowClass} location-row" style="cursor: pointer;" onclick="openConsumptionAnalysisDirect('${inv.part_number}', ${inv.warehouse_location_id})" title="點擊查看此儲位詳細分析">
+                <td>${currentLabel}${inv.warehouse_name || 'N/A'}</td>
+                <td>${inv.location_code || 'N/A'}</td>
+                <td class="text-end">${available}</td>
+                <td class="text-end text-muted">${avgDailyText}</td>
+                <td class="text-end ${daysClass}">${daysText}</td>
+                <td class="text-center ${statusClass}">${statusIcon}</td>
+            </tr>
+        `;
+    }).join('');
+    
+    return `
+        <div class="card h-100">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="fas fa-warehouse me-2"></i>全區庫存分佈 <small class="text-muted">(點擊切換儲位)</small></h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="bg-light" style="position: sticky; top: 0; z-index: 1;">
+                            <tr>
+                                <th>倉庫</th>
+                                <th>儲位</th>
+                                <th class="text-end">可用庫存</th>
+                                <th class="text-end">日平均用量</th>
+                                <th class="text-end">庫存天數</th>
+                                <th class="text-center">狀態</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// 顯示沒有儲位的零件資訊
+function showPartInfoWithoutInventory(partInfo) {
+    const summarySection = document.getElementById('consumptionSummarySection');
+    const detailList = document.getElementById('consumptionDetailList');
+    const label = document.getElementById('consumptionDetailModalLabel');
+    
+    if (!summarySection || !detailList || !label) {
+        return;
+    }
+    
+    label.innerHTML = `<i class="fas fa-info-circle me-2 text-primary"></i>零件資訊 (${partInfo.part_number})`;
+    
+    const summaryHtml = `
+        <div class="alert alert-info mb-3">
+            <i class="fas fa-info-circle me-2"></i>此零件尚未設定儲位或無庫存資料
+        </div>
+        <div class="row mb-4 g-3">
+            <div class="col-md-12">
+                ${window.ConsumptionUtils ? window.ConsumptionUtils.renderPartBasicInfoCard(partInfo) : '<div class="alert alert-warning">消耗分析工具未載入</div>'}
+            </div>
+        </div>
+    `;
+    
+    summarySection.innerHTML = summaryHtml;
+    detailList.innerHTML = '<div class="alert alert-secondary"><i class="fas fa-inbox me-2"></i>暫無詳細分析資料</div>';
+}
+
 // Auto-fill row data and handle scanner input
 function autoFillRow(partNumberInput) {
     const partNumber = partNumberInput.value.trim();

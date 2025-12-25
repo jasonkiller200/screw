@@ -149,7 +149,7 @@
                    name="items[0][part_number]" 
                    placeholder="請輸入品號" 
                    style="min-width: 120px; cursor: pointer; color: #0d6efd; text-decoration: underline;" 
-                   onclick="if(this.value) showPartDetails(this.value)"
+                   onclick="showPartDetailsWithLocation(this)"
                    title="點擊查看零件詳情"
                    required>
         </td>
@@ -216,19 +216,23 @@
     </tr>
 </template>
 
-<!-- 詳細資訊模態 -->
-<div class="modal fade" id="detailModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="detailModalLabel">詳細資訊</h5>
+<!-- 耗損分析模態框 -->
+<div class="modal fade" id="consumptionDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content" style="height: calc(100vh - 20px);">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title" id="consumptionDetailModalLabel">🛠️ 消耗分析與採購建議</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body" id="detailContent">
-                <!-- 動態載入內容 -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+            <div class="modal-body p-0" style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+                <!-- 固定在頂部的基本資料與庫存分佈 -->
+                <div id="consumptionSummarySection" class="p-4 border-bottom bg-light" style="flex-shrink: 0;">
+                    <!-- 基本資料與庫存分佈內容 -->
+                </div>
+                <!-- 可滾動的詳細分析清單 -->
+                <div id="consumptionDetailList" class="p-4" style="flex: 1; overflow-y: auto; position: relative;">
+                    <!-- 詳細分析清單內容 -->
+                </div>
             </div>
         </div>
     </div>
@@ -237,6 +241,7 @@
 {% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/consumption_analysis.css') }}">
 <style>
 /* 表格優化 */
 #batchItemsTable {
@@ -319,10 +324,25 @@
 [title] {
     cursor: help;
 }
+
+/* 儲位行樣式 */
+.location-row {
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+.location-row:hover {
+    background-color: rgba(13, 110, 253, 0.1) !important;
+    transform: translateX(3px);
+}
+.location-row:active {
+    transform: translateX(1px);
+}
+.table-warning {
+    background-color: rgba(255, 193, 7, 0.2) !important;
+}
 </style>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/weekly_orders/review.js') }}"></script>
+<script src="{{ url_for('static', filename='js/consumption_utils.js') }}"></script>
 <script src="{{ url_for('weekly_order.batch_register_js', items=request.args.get('items')) }}"></script>
 {% endblock %}
