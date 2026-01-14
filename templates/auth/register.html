@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}註冊 - 五金零件庫存管理系統{% endblock %}
+{% block title %}註冊 - 協鴻五金零件管理系統{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -8,10 +8,10 @@
         <div class="col-md-6">
             <div class="card shadow">
                 <div class="card-body p-4">
-                    <h3 class="text-center mb-4">
-                        <i class="fas fa-user-plus text-primary"></i>
-                        使用者註冊
-                    </h3>
+                    <div class="text-center mb-4">
+                        <img src="{{ url_for('static', filename='logo.png') }}" alt="協鴻" height="50" class="mb-3">
+                        <h3 style="color: #9B2D8E;">使用者註冊</h3>
+                    </div>
                     
                     {% with messages = get_flashed_messages(with_categories=true) %}
                         {% if messages %}
@@ -119,7 +119,7 @@
                             </div>
                         </div>
                         
-                        <button type="submit" class="btn btn-primary w-100 mb-3">
+                        <button type="submit" class="btn w-100 mb-3" style="background-color: #9B2D8E; border-color: #9B2D8E; color: white;">
                             <i class="fas fa-user-plus me-2"></i>註冊
                         </button>
                     </form>
@@ -127,7 +127,7 @@
                     <hr>
                     
                     <div class="text-center">
-                        <a href="{{ url_for('auth.login') }}" class="text-decoration-none">
+                        <a href="{{ url_for('auth.login') }}" class="text-decoration-none" style="color: #9B2D8E;">
                             <i class="fas fa-arrow-left me-1"></i>返回登入
                         </a>
                     </div>

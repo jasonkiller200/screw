@@ -1,12 +1,12 @@
 {
-  "name": "五金零件庫存管理系統",
-  "short_name": "庫存管理",
-  "description": "五金零件庫存管理系統 - 支援庫存查詢、入出庫作業、盤點管理",
+  "name": "協鴻五金零件管理系統",
+  "short_name": "協鴻零件管理",
+  "description": "協鴻五金零件管理系統 - 支援庫存查詢、入出庫作業、盤點管理",
   "id": "/",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#0d6efd",
+  "theme_color": "#9B2D8E",
   "scope": "/",
   "icons": [
     {
