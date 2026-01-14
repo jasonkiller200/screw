@@ -46,13 +46,19 @@ function updateCycleCard(data) {
     // 更新狀態標籤
     if (cycle.is_active) {
         statusEl.textContent = '進行中';
-        statusEl.className = 'badge bg-success ms-2';
+        statusEl.className = 'badge ms-2';
+        statusEl.style.backgroundColor = '#E8D5F2';
+        statusEl.style.color = '#9B2D8E';
     } else if (cycle.is_overdue) {
         statusEl.textContent = '已截止';
         statusEl.className = 'badge bg-danger ms-2';
+        statusEl.style.backgroundColor = '';
+        statusEl.style.color = '';
     } else {
         statusEl.textContent = cycle.status;
         statusEl.className = 'badge bg-warning ms-2';
+        statusEl.style.backgroundColor = '';
+        statusEl.style.color = '';
     }
     
     // 更新卡片內容
