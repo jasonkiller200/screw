@@ -1,3 +1,7 @@
+# Gevent monkey patching - 必須在所有 import 之前
+from gevent import monkey
+monkey.patch_all()
+
 import os
 from flask import Flask
 from flask_cors import CORS
@@ -126,12 +130,12 @@ if __name__ == '__main__':
     
     if os.path.exists(cert_file) and os.path.exists(key_file):
         # 使用 HTTPS (支援 iOS Service Worker 和相機存取)
-        print("🔐 啟用 HTTPS 模式")
+        print("🔐 啟用 HTTPS 模式 (Gevent 異步)")
         print("📱 iOS 裝置現在可以使用 Service Worker 和相機功能")
         ssl_context = (cert_file, key_file)
-        socketio.run(app, host='0.0.0.0', port=5005, debug=True, ssl_context=ssl_context, allow_unsafe_werkzeug=True)
+        socketio.run(app, host='0.0.0.0', port=5005, debug=False, ssl_context=ssl_context)
     else:
         # 使用 HTTP (僅限 Android 和開發測試)
-        print("⚠️  HTTP 模式 (iOS 功能受限)")
+        print("⚠️  HTTP 模式 (Gevent 異步)")
         print("💡 執行 'python generate_ssl_cert.py' 生成 SSL 憑證以啟用 HTTPS")
-        socketio.run(app, host='0.0.0.0', port=5005, debug=True, allow_unsafe_werkzeug=True)
+        socketio.run(app, host='0.0.0.0', port=5005, debug=False)

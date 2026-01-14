@@ -3,6 +3,33 @@ let currentRegistrationData = null;
 let currentPartData = null; // 用於儲存零件詳情資料供耗損分析使用
 let currentClickedLocationId = null; // 用於跟蹤當前點擊的儲位ID
 
+// 初始化：清理可能殘留的 backdrop
+document.addEventListener('DOMContentLoaded', function() {
+    // 清理頁面加載時可能殘留的 backdrop
+    cleanupBackdrops();
+    
+    // 為所有模態添加關閉事件監聽
+    const modals = ['rejectModal', 'modifyModal', 'consumptionDetailModal'];
+    modals.forEach(modalId => {
+        const modalElement = document.getElementById(modalId);
+        if (modalElement) {
+            modalElement.addEventListener('hidden.bs.modal', function () {
+                // 模態關閉後清理 backdrop
+                cleanupBackdrops();
+                // 移除 modal-open class
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+            });
+        }
+    });
+});
+
+// 清理 backdrop 的通用函數
+function cleanupBackdrops() {
+    document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+}
+
 // 篩選功能
 document.querySelectorAll('input[name="statusFilter"]').forEach(radio => {
     radio.addEventListener('change', function() {
@@ -86,7 +113,30 @@ function viewDetails(registrationId) {
 function reviewRegistration(registrationId, action) {
     if (action === 'rejected') {
         currentRegistrationId = registrationId;
-        new bootstrap.Modal(document.getElementById('rejectModal')).show();
+        
+        // 清除舊的 backdrop 避免層疊
+        cleanupBackdrops();
+        
+        const modalElement = document.getElementById('rejectModal');
+        const modal = bootstrap.Modal.getInstance(modalElement) || new bootstrap.Modal(modalElement, {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
+        
+        // 清空輸入框
+        document.getElementById('rejectReason').value = '';
+        
+        modal.show();
+        
+        // 確保焦點在輸入框上
+        setTimeout(() => {
+            const rejectReasonField = document.getElementById('rejectReason');
+            if (rejectReasonField) {
+                rejectReasonField.focus();
+            }
+        }, 300);
+        
         return;
     }
     
@@ -331,6 +381,9 @@ function showPartDetails(partNumber, warehouseLocationId = null) {
 function modifyQuantity(registrationId) {
     currentRegistrationId = registrationId;
     
+    // 清除舊的 backdrop 避免層疊
+    cleanupBackdrops();
+    
     // 獲取當前項目詳細信息
     fetch(`/weekly_orders/registration/${registrationId}`)
         .then(response => response.json())
@@ -344,7 +397,22 @@ function modifyQuantity(registrationId) {
             document.getElementById('modifyReason').value = '';
             
             // 顯示模態框
-            new bootstrap.Modal(document.getElementById('modifyModal')).show();
+            const modalElement = document.getElementById('modifyModal');
+            const modal = bootstrap.Modal.getInstance(modalElement) || new bootstrap.Modal(modalElement, {
+                backdrop: true,
+                keyboard: true,
+                focus: true
+            });
+            modal.show();
+            
+            // 確保焦點在數量輸入框上
+            setTimeout(() => {
+                const quantityField = document.getElementById('modifiedQuantity');
+                if (quantityField) {
+                    quantityField.focus();
+                    quantityField.select();
+                }
+            }, 300);
         })
         .catch(error => {
             console.error('Error:', error);

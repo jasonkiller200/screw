@@ -20,7 +20,7 @@ class AIService:
         self.model_name = "gemma3:4b"  # 預設模型，可以配置
         self.db_path = "instance/hardware.db"  # 正確的資料庫路徑
         self.conversation_history = {}  # 存儲對話歷史，按會話ID分組
-        self.ollama_client = ollama.Client(host='http://192.168.6.122:11434')  # Ollama 服務器位址
+        self.ollama_client = ollama.Client(host='http://192.168.6.137:11434')  # Ollama 服務器位址
         
     def _get_schema_info(self) -> str:
         """獲取資料庫結構資訊"""
