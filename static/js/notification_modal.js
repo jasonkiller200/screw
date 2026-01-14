@@ -3,8 +3,14 @@
  */
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Initial check for unread messages on page load
-    checkAndShowUnreadModal();
+    // 檢查是否在登入/註冊頁面，如果是則不執行通知檢查
+    const isAuthPage = window.location.pathname.includes('/login') || 
+                       window.location.pathname.includes('/register');
+    
+    if (!isAuthPage) {
+        // Initial check for unread messages on page load
+        checkAndShowUnreadModal();
+    }
 
     // Add event listener for the history button (the bell icon in the navbar)
     const historyBtn = document.getElementById('notificationHistoryBtn');
@@ -22,11 +28,18 @@ document.addEventListener('DOMContentLoaded', function() {
  * This function will be called by window.updateNotificationCount in base.html
  */
 window.checkAndShowUnreadModal = function() {
+    // 再次檢查是否在認證頁面
+    const isAuthPage = window.location.pathname.includes('/login') || 
+                       window.location.pathname.includes('/register');
+    if (isAuthPage) {
+        return; // 在登入/註冊頁面不執行
+    }
+    
     fetch('/notifications/api/unread-count')
         .then(response => {
             if (!response.ok) {
                 if (response.status === 401) {
-                    console.log('User not authenticated for unread count, not showing modal.');
+                    // 靜默處理未授權錯誤，不顯示在控制台
                     return Promise.reject('Unauthorized');
                 }
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -42,7 +55,12 @@ window.checkAndShowUnreadModal = function() {
                 showNotificationModal(true); // true = load only unread notifications
             }
         })
-        .catch(error => console.error('Error fetching unread count for modal:', error));
+        .catch(error => {
+            // 只在非 Unauthorized 錯誤時記錄
+            if (error !== 'Unauthorized') {
+                console.error('Error fetching unread count for modal:', error);
+            }
+        });
 };
 
 
