@@ -31,7 +31,7 @@ function updateCycleCard(data) {
             <div class="text-center py-3">
                 <i class="fas fa-calendar-plus fa-2x text-muted mb-3"></i>
                 <h5 class="text-muted">目前沒有活躍的申請週期</h5>
-                <button class="btn btn-primary" onclick="createNewCycle()">
+                <button class="btn" style="background-color: #9B2D8E; border-color: #9B2D8E; color: white;" onclick="createNewCycle()">
                     <i class="fas fa-plus me-1"></i>建立新週期
                 </button>
             </div>
@@ -86,7 +86,7 @@ function updateCycleCard(data) {
                 <div class="row text-center">
                     <div class="col-6">
                         <div class="border rounded p-2">
-                            <h4 class="text-primary mb-1">${data.stats.total}</h4>
+                            <h4 class="mb-1" style="color: #9B2D8E;">${data.stats.total}</h4>
                             <small class="text-muted">總登記</small>
                         </div>
                     </div>

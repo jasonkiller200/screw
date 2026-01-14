@@ -11,7 +11,7 @@
             <p class="text-muted">管理每週申請單登記與審查流程</p>
         </div>
         <div class="col-md-4 text-end">
-            <button type="button" class="btn btn-primary" onclick="refreshSummary()">
+            <button type="button" class="btn" style="background-color: #9B2D8E; border-color: #9B2D8E; color: white;" onclick="refreshSummary()">
                 <i class="fas fa-sync-alt me-1"></i>重新整理
             </button>
         </div>
@@ -20,16 +20,16 @@
     <!-- 當前週期狀態卡片 -->
     <div class="row mb-4">
         <div class="col-12">
-            <div class="card border-primary" id="currentCycleCard">
-                <div class="card-header bg-primary text-white">
+            <div class="card" style="border-color: #9B2D8E;" id="currentCycleCard">
+                <div class="card-header text-white" style="background-color: #9B2D8E;">
                     <h5 class="mb-0">
                         <i class="fas fa-clock me-2"></i>當前申請訂單
-                        <span class="badge bg-light text-primary ms-2" id="cycleStatus">載入中...</span>
+                        <span class="badge bg-light ms-2" style="color: #9B2D8E;" id="cycleStatus">載入中...</span>
                     </h5>
                 </div>
                 <div class="card-body" id="cycleContent">
                     <div class="text-center py-3">
-                        <div class="spinner-border text-primary" role="status">
+                        <div class="spinner-border" style="color: #9B2D8E;" role="status">
                             <span class="visually-hidden">載入中...</span>
                         </div>
                     </div>
@@ -72,11 +72,11 @@
         <div class="col-md-4">
             <div class="card h-100">
                 <div class="card-header">
-                    <h6 class="mb-0"><i class="fas fa-box-open text-primary"></i> 待入庫管理</h6>
+                    <h6 class="mb-0"><i class="fas fa-box-open" style="color: #9B2D8E;"></i> 待入庫管理</h6>
                 </div>
                 <div class="card-body">
                     <p class="card-text">查看已核准待入庫的項目</p>
-                    <a href="{{ url_for('weekly_order.pending_inbound_orders') }}" class="btn btn-primary">
+                    <a href="{{ url_for('weekly_order.pending_inbound_orders') }}" class="btn" style="background-color: #9B2D8E; border-color: #9B2D8E; color: white;">
                         <i class="fas fa-dolly-flatbed me-1"></i>前往入庫
                     </a>
                 </div>
