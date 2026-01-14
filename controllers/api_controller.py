@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, send_file, Response
+from flask import Blueprint, jsonify, request, send_file, Response, session
 from flask_login import login_required, current_user
 from models.part import Part, Warehouse
 from models.order import Order
@@ -19,6 +19,43 @@ from services.part_service import PartService # Import PartService
 from services.work_order_service import WorkOrderService # Import WorkOrderService
 from services.dashboard_service import DashboardService # Import DashboardService
 from services.template_service import TemplateService # Import TemplateService
+
+@api_bp.route('/session/heartbeat', methods=['POST'])
+@login_required
+def session_heartbeat():
+    """
+    Session 心跳端點 - 用於延長 Session 有效期
+    前端定期調用此 API 以保持用戶登入狀態
+    """
+    try:
+        # 更新 session 的最後活動時間
+        session.permanent = True
+        session.modified = True
+        
+        return jsonify({
+            'success': True,
+            'message': 'Session 已延長',
+            'user': current_user.username,
+            'timestamp': datetime.now().isoformat()
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/session/check', methods=['GET'])
+@login_required
+def session_check():
+    """
+    檢查 Session 是否有效
+    """
+    return jsonify({
+        'success': True,
+        'authenticated': True,
+        'user': current_user.username,
+        'timestamp': datetime.now().isoformat()
+    }), 200
 
 @api_bp.route('/inventory/stock/export', methods=['GET'])
 @login_required
