@@ -217,3 +217,80 @@ function updateTimeRemaining() {
         剩餘時間：${days}天 ${hours}小時 ${minutes}分鐘
     `;
 }
+
+// ============================================================================
+// 防重複訂購檢查：表單提交前攔截
+// ============================================================================
+(function() {
+    const form = document.querySelector('form[action*="register_order"]');
+    if (!form) return;
+
+    let pendingCheckConfirmed = false;
+
+    form.addEventListener('submit', function(e) {
+        if (pendingCheckConfirmed) {
+            pendingCheckConfirmed = false;
+            return;
+        }
+
+        const partNumber = (document.getElementById('part_number')?.value || '').trim();
+        const locationId = document.getElementById('warehouse_location_id')?.value || null;
+
+        if (!partNumber) return; // let normal validation handle it
+
+        e.preventDefault();
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const origHtml = submitBtn ? submitBtn.innerHTML : '';
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 檢查中...';
+        }
+
+        fetch('/api/weekly-orders/check-pending-inbound', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                part_number: partNumber,
+                warehouse_location_id: locationId || null
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = origHtml;
+            }
+
+            if (data.has_pending) {
+                let msg = `⚠️ 此零件已有 ${data.items.length} 筆待處理項目：\n\n`;
+                data.items.forEach(item => {
+                    msg += `• [${item.status_text}] ${item.quantity} 個`;
+                    if (item.type === 'pending_inbound') {
+                        msg += ` (剩餘 ${item.remaining})`;
+                    }
+                    msg += ` - ${item.applicant_name}\n`;
+                    msg += `  儲位: ${item.location_display || '未指定'}\n`;
+                });
+                msg += '\n確定要繼續提交嗎？';
+
+                if (confirm(msg)) {
+                    pendingCheckConfirmed = true;
+                    form.submit();
+                }
+            } else {
+                pendingCheckConfirmed = true;
+                form.submit();
+            }
+        })
+        .catch(err => {
+            console.warn('檢查待入庫失敗，直接提交:', err);
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = origHtml;
+            }
+            pendingCheckConfirmed = true;
+            form.submit();
+        });
+    });
+})();

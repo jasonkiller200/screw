@@ -3,26 +3,30 @@ let currentRegistrationData = null;
 let currentPartData = null; // 用於儲存零件詳情資料供耗損分析使用
 let currentClickedLocationId = null; // 用於跟蹤當前點擊的儲位ID
 
+// 儲存頁面載入後查到的重複資訊 { regId: { count, items } }
+let pendingInboundCache = {};
+
 // 初始化：清理可能殘留的 backdrop
 document.addEventListener('DOMContentLoaded', function() {
     // 清理頁面加載時可能殘留的 backdrop
     cleanupBackdrops();
     
-    // 為所有模態添加關閉事件監聽
+    // 為所有模態添加關閉事件監聯
     const modals = ['rejectModal', 'modifyModal', 'consumptionDetailModal'];
     modals.forEach(modalId => {
         const modalElement = document.getElementById(modalId);
         if (modalElement) {
             modalElement.addEventListener('hidden.bs.modal', function () {
-                // 模態關閉後清理 backdrop
                 cleanupBackdrops();
-                // 移除 modal-open class
                 document.body.classList.remove('modal-open');
                 document.body.style.overflow = '';
                 document.body.style.paddingRight = '';
             });
         }
     });
+
+    // 頁面載入後：批量檢查所有待審查項目是否有重複
+    checkAllPendingInbound();
 });
 
 // 清理 backdrop 的通用函數
@@ -140,8 +144,10 @@ function reviewRegistration(registrationId, action) {
         return;
     }
     
-    // 直接通過
-    submitReview(registrationId, action, '');
+    // 核准操作：先檢查重複
+    checkBeforeApprove(registrationId, function() {
+        submitReview(registrationId, action, '');
+    });
 }
 
 // 確認拒絕
@@ -196,11 +202,30 @@ function batchApprove() {
         return;
     }
     
-    if (!confirm(`確定要通過選中的 ${checkedBoxes.length} 個申請項目嗎？`)) {
-        return;
+    const registrationIds = Array.from(checkedBoxes).map(cb => parseInt(cb.value));
+    
+    // 檢查選中項目中有多少有重複
+    let duplicateCount = 0;
+    let duplicateDetails = [];
+    registrationIds.forEach(id => {
+        if (pendingInboundCache[id]) {
+            duplicateCount++;
+            const row = document.querySelector(`tr[data-reg-id="${id}"]`);
+            const pn = row ? row.dataset.partNumber : `ID:${id}`;
+            duplicateDetails.push(pn);
+        }
+    });
+    
+    let confirmMsg = `確定要通過選中的 ${checkedBoxes.length} 個申請項目嗎？`;
+    if (duplicateCount > 0) {
+        confirmMsg = `⚠️ 選中的 ${checkedBoxes.length} 個項目中，有 ${duplicateCount} 個存在待入庫/已登記的重複項目：\n\n` +
+                     duplicateDetails.join('、') +
+                     `\n\n確定要全部通過嗎？`;
     }
     
-    const registrationIds = Array.from(checkedBoxes).map(cb => parseInt(cb.value));
+    if (!confirm(confirmMsg)) {
+        return;
+    }
     
     fetch('/weekly_orders/batch_review', {
         method: 'POST',
@@ -436,15 +461,17 @@ function confirmModify() {
         return;
     }
     
-    if (modifiedQuantity === currentRegistrationData.quantity) {
-        alert('修改後的數量與原數量相同，將直接核准');
-        submitReview(currentRegistrationId, 'approved', modifyReason);
-    } else {
-        submitReview(currentRegistrationId, 'approved', modifyReason, modifiedQuantity);
-    }
-    
     // 隱藏模態框
     bootstrap.Modal.getInstance(document.getElementById('modifyModal')).hide();
+
+    // 修改數量後核准：也先檢查重複
+    checkBeforeApprove(currentRegistrationId, function() {
+        if (modifiedQuantity === currentRegistrationData.quantity) {
+            submitReview(currentRegistrationId, 'approved', modifyReason);
+        } else {
+            submitReview(currentRegistrationId, 'approved', modifyReason, modifiedQuantity);
+        }
+    });
 }
 
 // 渲染單一儲位詳情（不顯示切換功能，專用於週期訂單）
@@ -1102,3 +1129,179 @@ document.addEventListener('DOMContentLoaded', function() {
         showConsumptionBtn.addEventListener('click', showConsumptionAnalysis);
     }
 });
+
+// ============================================================================
+// 防重複訂購檢查功能
+// ============================================================================
+
+/**
+ * 頁面載入時：批量檢查所有待審查項目是否存在待入庫/已登記的重複項目
+ * 查到的結果存入 pendingInboundCache，並在表格行上顯示 ⚠️ 標記
+ */
+function checkAllPendingInbound() {
+    const rows = document.querySelectorAll('tr.registration-row[data-status="registered"]');
+    if (rows.length === 0) return;
+
+    // 收集所有待審查項目
+    const items = [];
+    rows.forEach(row => {
+        items.push({
+            part_number: row.dataset.partNumber,
+            warehouse_location_id: row.dataset.locationId || null,
+            exclude_id: row.dataset.regId  // 排除自身
+        });
+    });
+
+    fetch('/api/weekly-orders/check-pending-inbound-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: items })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.results) return;
+
+        rows.forEach(row => {
+            const pn = row.dataset.partNumber;
+            const locId = row.dataset.locationId || 'any';
+            const key = `${pn}_${locId}`;
+            const regId = row.dataset.regId;
+            const result = data.results[key];
+
+            if (result && result.has_pending) {
+                // 存入快取
+                pendingInboundCache[regId] = result;
+
+                // 更新行樣式
+                row.classList.add('row-has-duplicate');
+
+                // 在狀態欄插入 ⚠️ badge
+                const badgeContainer = row.querySelector(`.pending-inbound-badge[data-reg-id="${regId}"]`);
+                if (badgeContainer) {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-warning text-dark badge-duplicate ms-1';
+                    badge.setAttribute('tabindex', '0');
+                    badge.setAttribute('data-bs-toggle', 'popover');
+                    badge.setAttribute('data-bs-trigger', 'click');
+                    badge.setAttribute('data-bs-html', 'true');
+                    badge.setAttribute('data-bs-placement', 'left');
+                    badge.setAttribute('title', `⚠️ 已有 ${result.count} 筆待處理`);
+                    badge.setAttribute('data-bs-content', formatPendingItemsTable(result.items));
+                    badge.innerHTML = `⚠️ ${result.count}`;
+                    badgeContainer.appendChild(badge);
+
+                    // 初始化 popover
+                    new bootstrap.Popover(badge, {
+                        container: 'body',
+                        sanitize: false
+                    });
+                }
+            }
+        });
+    })
+    .catch(err => {
+        console.warn('批量檢查待入庫項目失敗:', err);
+    });
+}
+
+/**
+ * 單筆核准前檢查：如有待入庫項目，彈出確認對話框
+ * @param {number} registrationId - 登記項目 ID
+ * @param {Function} onConfirm - 確認後的回調
+ */
+function checkBeforeApprove(registrationId, onConfirm) {
+    // 先檢查快取
+    const cached = pendingInboundCache[registrationId];
+    if (cached && cached.has_pending) {
+        const msg = buildApproveConfirmMessage(cached);
+        if (confirm(msg)) {
+            onConfirm();
+        }
+        return;
+    }
+
+    // 快取未命中，即時查詢
+    const row = document.querySelector(`tr[data-reg-id="${registrationId}"]`);
+    if (!row) {
+        onConfirm();
+        return;
+    }
+
+    const partNumber = row.dataset.partNumber;
+    const locationId = row.dataset.locationId || null;
+
+    fetch('/api/weekly-orders/check-pending-inbound', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            part_number: partNumber,
+            warehouse_location_id: locationId,
+            exclude_id: registrationId
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.has_pending) {
+            pendingInboundCache[registrationId] = data;
+            const msg = buildApproveConfirmMessage(data);
+            if (confirm(msg)) {
+                onConfirm();
+            }
+        } else {
+            onConfirm();
+        }
+    })
+    .catch(err => {
+        console.warn('檢查待入庫項目失敗，直接繼續:', err);
+        onConfirm();
+    });
+}
+
+/**
+ * 建構核准確認對話框訊息
+ */
+function buildApproveConfirmMessage(data) {
+    let msg = `⚠️ 此零件已有 ${data.items.length} 筆待處理項目：\n\n`;
+
+    data.items.forEach(item => {
+        const loc = item.location_display || '未指定儲位';
+        const date = item.created_at ? new Date(item.created_at).toLocaleDateString('zh-TW') : '-';
+        if (item.type === 'pending_inbound') {
+            msg += `• [${item.status_text}] ${item.quantity} 個 (已入庫 ${item.quantity_received}，剩餘 ${item.remaining}) - ${item.applicant_name} (${date})\n`;
+        } else {
+            msg += `• [${item.status_text}] ${item.quantity} 個 - ${item.applicant_name} (${date})\n`;
+        }
+        msg += `  儲位: ${loc}\n`;
+    });
+
+    msg += '\n確定要核准此申請嗎？';
+    return msg;
+}
+
+/**
+ * 格式化待入庫項目為 HTML 表格（用於 popover）
+ */
+function formatPendingItemsTable(items) {
+    if (!items || items.length === 0) return '無資料';
+
+    let html = '<table class="table table-sm table-bordered">';
+    html += '<thead><tr><th>狀態</th><th>數量</th><th>剩餘</th><th>申請人</th><th>日期</th></tr></thead><tbody>';
+
+    items.forEach(item => {
+        const date = item.created_at ? new Date(item.created_at).toLocaleDateString('zh-TW') : '-';
+        const statusClass = item.type === 'pending_inbound' ? 'text-primary' : 'text-secondary';
+        html += `<tr>
+            <td class="${statusClass}"><small>${item.status_text}</small></td>
+            <td class="text-end">${item.quantity}</td>
+            <td class="text-end">${item.remaining}</td>
+            <td><small>${item.applicant_name}</small></td>
+            <td><small>${date}</small></td>
+        </tr>`;
+    });
+
+    html += '</tbody></table>';
+    if (items.length > 0 && items[0].location_display) {
+        html += `<small class="text-muted">儲位: ${items[0].location_display}</small>`;
+    }
+    return html;
+}

@@ -149,11 +149,6 @@ function loadInventoryItems(items) {
             }
         }, index * 100); // 延遲處理避免DOM操作衝突
     });
-    
-    // 在最後添加一個空白行供新增
-    setTimeout(() => {
-        addNewItem();
-    }, items.length * 100 + 200);
 }
 
 // 新增項目
@@ -686,3 +681,102 @@ function autoFillRow(partNumberInput) {
         locationSelect.required = false;
     }
 }
+
+// ============================================================================
+// 防重複訂購檢查：表單提交前攔截
+// ============================================================================
+(function() {
+    const form = document.getElementById('batchOrderForm');
+    if (!form) return;
+
+    let pendingCheckConfirmed = false;
+
+    form.addEventListener('submit', function(e) {
+        // 如果已確認過，直接提交
+        if (pendingCheckConfirmed) {
+            pendingCheckConfirmed = false;
+            return;
+        }
+
+        e.preventDefault();
+
+        const rows = document.querySelectorAll('#batchItemsBody tr');
+        const items = [];
+
+        rows.forEach(row => {
+            const partNumber = (row.querySelector('input[name*="[part_number]"]')?.value || '').trim();
+            const locationId = row.querySelector('select[name*="[warehouse_location_id]"]')?.value || null;
+
+            if (partNumber) {
+                items.push({
+                    part_number: partNumber,
+                    warehouse_location_id: locationId || null
+                });
+            }
+        });
+
+        if (items.length === 0) {
+            form.submit();
+            return;
+        }
+
+        const submitBtn = document.getElementById('submitBatchOrder');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 檢查重複中...';
+        }
+
+        fetch('/api/weekly-orders/check-pending-inbound-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: items })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> 提交批量申請';
+            }
+
+            if (!data.results || Object.keys(data.results).length === 0) {
+                // 無重複，直接提交
+                pendingCheckConfirmed = true;
+                form.submit();
+                return;
+            }
+
+            // 有重複項目，組裝警告訊息
+            const duplicateKeys = Object.keys(data.results);
+            let msg = `⚠️ 以下 ${duplicateKeys.length} 個品號/儲位已有待處理的訂單項目：\n\n`;
+
+            duplicateKeys.forEach(key => {
+                const result = data.results[key];
+                msg += `📦 ${result.part_number} (${result.count} 筆)：\n`;
+                result.items.forEach(item => {
+                    msg += `   • [${item.status_text}] ${item.quantity} 個`;
+                    if (item.type === 'pending_inbound') {
+                        msg += ` (剩餘 ${item.remaining})`;
+                    }
+                    msg += ` - ${item.applicant_name}\n`;
+                });
+                msg += '\n';
+            });
+
+            msg += '確定要繼續提交嗎？';
+
+            if (confirm(msg)) {
+                pendingCheckConfirmed = true;
+                form.submit();
+            }
+        })
+        .catch(err => {
+            console.warn('批量檢查失敗，直接提交:', err);
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> 提交批量申請';
+            }
+            pendingCheckConfirmed = true;
+            form.submit();
+        });
+    });
+})();

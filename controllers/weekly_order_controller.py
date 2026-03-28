@@ -666,3 +666,133 @@ def api_register_order():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': f'登記失敗：{str(e)}'}), 500
+
+@weekly_order_bp.route('/api/weekly-orders/check-pending-inbound', methods=['POST'])
+@login_required
+def check_pending_inbound():
+    """檢查指定零件/儲位是否有待入庫或已登記的項目，用於防止重複申請"""
+    data = request.get_json()
+    part_number = (data.get('part_number') or '').strip()
+    warehouse_location_id = data.get('warehouse_location_id')
+    exclude_id = data.get('exclude_id')  # 排除自身 (審查時使用)
+
+    if not part_number:
+        return jsonify({'has_pending': False, 'items': []})
+
+    items = _query_pending_items(part_number, warehouse_location_id, exclude_id)
+
+    pending_count = sum(1 for i in items if i['type'] == 'pending_inbound')
+    registered_count = sum(1 for i in items if i['type'] == 'registered')
+
+    return jsonify({
+        'has_pending': len(items) > 0,
+        'pending_count': pending_count,
+        'registered_count': registered_count,
+        'items': items
+    })
+
+@weekly_order_bp.route('/api/weekly-orders/check-pending-inbound-batch', methods=['POST'])
+@login_required
+def check_pending_inbound_batch():
+    """批量檢查多個零件/儲位是否有待入庫項目，回傳以 part_number 為 key 的 map"""
+    data = request.get_json()
+    queries = data.get('items', [])
+
+    if not queries:
+        return jsonify({'results': {}})
+
+    results = {}
+    for q in queries:
+        part_number = (q.get('part_number') or '').strip()
+        warehouse_location_id = q.get('warehouse_location_id')
+        exclude_id = q.get('exclude_id')
+
+        if not part_number:
+            continue
+
+        # 用 part_number + location_id 做 key，避免同品號不同儲位衝突
+        key = f"{part_number}_{warehouse_location_id or 'any'}"
+        if key in results:
+            continue  # 跳過重複查詢
+
+        items = _query_pending_items(part_number, warehouse_location_id, exclude_id)
+        if items:
+            results[key] = {
+                'part_number': part_number,
+                'warehouse_location_id': warehouse_location_id,
+                'has_pending': True,
+                'count': len(items),
+                'items': items
+            }
+
+    return jsonify({'results': results})
+
+
+def _query_pending_items(part_number, warehouse_location_id=None, exclude_id=None):
+    """內部輔助函數：查詢指定零件的待入庫和已登記項目"""
+    all_items = []
+
+    # 1. 查詢已核准/部分入庫（待入庫）的項目
+    pending_query = OrderRegistration.query.filter(
+        OrderRegistration.part_number == part_number,
+        OrderRegistration.status.in_(['approved', 'partially_received'])
+    )
+    if warehouse_location_id:
+        try:
+            pending_query = pending_query.filter(
+                OrderRegistration.warehouse_location_id == int(warehouse_location_id)
+            )
+        except (ValueError, TypeError):
+            pass
+    if exclude_id:
+        pending_query = pending_query.filter(OrderRegistration.id != int(exclude_id))
+
+    for item in pending_query.all():
+        remaining = item.quantity - item.quantity_received
+        all_items.append({
+            'id': item.id,
+            'type': 'pending_inbound',
+            'part_number': item.part_number,
+            'part_name': item.part_name,
+            'quantity': item.quantity,
+            'quantity_received': item.quantity_received,
+            'remaining': remaining,
+            'status': item.status,
+            'status_text': '已核准' if item.status == 'approved' else '部分入庫',
+            'applicant_name': item.applicant_name,
+            'location_display': item.to_dict().get('location_display'),
+            'created_at': item.created_at.isoformat() if item.created_at else None
+        })
+
+    # 2. 查詢當前週期中已登記但尚未審核的項目
+    registered_query = OrderRegistration.query.filter(
+        OrderRegistration.part_number == part_number,
+        OrderRegistration.status == 'registered'
+    )
+    if warehouse_location_id:
+        try:
+            registered_query = registered_query.filter(
+                OrderRegistration.warehouse_location_id == int(warehouse_location_id)
+            )
+        except (ValueError, TypeError):
+            pass
+    if exclude_id:
+        registered_query = registered_query.filter(OrderRegistration.id != int(exclude_id))
+
+    for item in registered_query.all():
+        all_items.append({
+            'id': item.id,
+            'type': 'registered',
+            'part_number': item.part_number,
+            'part_name': item.part_name,
+            'quantity': item.quantity,
+            'quantity_received': 0,
+            'remaining': item.quantity,
+            'status': item.status,
+            'status_text': '已登記(待審查)',
+            'applicant_name': item.applicant_name,
+            'location_display': item.to_dict().get('location_display'),
+            'created_at': item.created_at.isoformat() if item.created_at else None
+        })
+
+    return all_items

@@ -802,8 +802,85 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         errorDiv.style.display = 'none';
+
+        // 檢查是否有待入庫/已登記的重複項目
+        const warningDiv = document.getElementById('weeklyOrderPendingWarning');
+        // 如果已經顯示過警告且使用者仍點擊提交，則直接送出
+        if (warningDiv && warningDiv.dataset.confirmed === 'true') {
+            warningDiv.dataset.confirmed = '';
+            doSubmitWeeklyOrder(data, submitButton, errorDiv);
+            return;
+        }
+
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 檢查中...';
+
+        fetch('/api/weekly-orders/check-pending-inbound', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                part_number: data.part_number,
+                warehouse_location_id: data.warehouse_location_id
+            })
+        })
+        .then(r => r.json())
+        .then(checkResult => {
+            if (checkResult.has_pending) {
+                // 顯示警告
+                if (warningDiv) {
+                    let detailHtml = '<table class="table table-sm table-bordered mb-2"><thead><tr><th>狀態</th><th>數量</th><th>剩餘</th><th>申請人</th><th>儲位</th></tr></thead><tbody>';
+                    checkResult.items.forEach(item => {
+                        detailHtml += `<tr>
+                            <td><small>${item.status_text}</small></td>
+                            <td class="text-end">${item.quantity}</td>
+                            <td class="text-end">${item.remaining}</td>
+                            <td><small>${item.applicant_name}</small></td>
+                            <td><small>${item.location_display || '未指定'}</small></td>
+                        </tr>`;
+                    });
+                    detailHtml += '</tbody></table>';
+
+                    warningDiv.innerHTML = `
+                        <h6 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>注意：此零件已有 ${checkResult.items.length} 筆待處理項目</h6>
+                        ${detailHtml}
+                        <p class="mb-0 small">如確認需要再次申請，請再次點擊「確認申請」。</p>
+                    `;
+                    warningDiv.style.display = 'block';
+                    warningDiv.dataset.confirmed = 'true';
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = '確認申請';
+                } else {
+                    // 無警告容器，用 confirm 代替
+                    let msg = `⚠️ 此零件已有 ${checkResult.items.length} 筆待處理項目，確定要再次申請嗎？`;
+                    if (confirm(msg)) {
+                        doSubmitWeeklyOrder(data, submitButton, errorDiv);
+                    } else {
+                        submitButton.disabled = false;
+                        submitButton.innerHTML = '確認申請';
+                    }
+                }
+            } else {
+                // 無重複，直接送出
+                doSubmitWeeklyOrder(data, submitButton, errorDiv);
+            }
+        })
+        .catch(err => {
+            console.warn('檢查待入庫失敗，直接送出:', err);
+            doSubmitWeeklyOrder(data, submitButton, errorDiv);
+        });
+    });
+
+    // 實際送出申請的函數
+    function doSubmitWeeklyOrder(data, submitButton, errorDiv) {
         submitButton.disabled = true;
         submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 正在提交...';
+
+        // 隱藏警告
+        const warningDiv = document.getElementById('weeklyOrderPendingWarning');
+        if (warningDiv) {
+            warningDiv.style.display = 'none';
+            warningDiv.dataset.confirmed = '';
+        }
 
         fetch('/api/weekly-orders/register', {
             method: 'POST',
@@ -833,7 +910,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 submitButton.disabled = false;
                 submitButton.innerHTML = '確認申請';
             });
-    });
+    }
 
 
     // 模態視窗清理函數
