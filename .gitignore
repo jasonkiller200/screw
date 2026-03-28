@@ -57,12 +57,11 @@ desktop.ini
 .env.local
 
 # Ignored by user
-import_parts_from_excel.py
-part.xlsx
-cert.key.bak 
-cert.pem.bak
-#acli_rovodev_bulid
-start_ai_system.bat
+scripts/import_parts_from_excel.py
+data/
+scripts/cert.key.bak
+scripts/cert.pem.bak
+scripts/start_ai_system.bat
 # SSH keys and agent files
 eval "$(ssh-agent -s)"
 eval "$(ssh-agent -s)".pub
