@@ -140,6 +140,75 @@
 .model-selector {
     margin-bottom: 15px;
 }
+
+/* Markdown 渲染樣式 */
+.ai-message table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 0.9em;
+}
+
+.ai-message table th,
+.ai-message table td {
+    border: 1px solid #dee2e6;
+    padding: 6px 10px;
+    text-align: left;
+}
+
+.ai-message table th {
+    background: #f1f3f5;
+    font-weight: 600;
+}
+
+.ai-message table tr:nth-child(even) {
+    background: #f8f9fa;
+}
+
+.ai-message table tr:hover {
+    background: #e9ecef;
+}
+
+.ai-message h1, .ai-message h2, .ai-message h3,
+.ai-message h4, .ai-message h5, .ai-message h6 {
+    margin-top: 12px;
+    margin-bottom: 6px;
+}
+
+.ai-message h3 {
+    font-size: 1.1em;
+}
+
+.ai-message ul, .ai-message ol {
+    padding-left: 20px;
+    margin: 6px 0;
+}
+
+.ai-message p {
+    margin: 6px 0;
+}
+
+.ai-message code {
+    background: #f1f3f5;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 0.9em;
+}
+
+.ai-message pre {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    padding: 10px;
+    overflow-x: auto;
+}
+
+.ai-message blockquote {
+    border-left: 3px solid #007bff;
+    padding-left: 10px;
+    margin: 8px 0;
+    color: #555;
+}
 </style>
 {% endblock %}
 
@@ -259,6 +328,7 @@
     </div>
 </div>
 
+<script src="{{ url_for('static', filename='js/vendor/marked.min.js') }}"></script>
 <script>
 let chatHistory = [];
 let currentSessionId = null;
@@ -505,7 +575,14 @@ function addMessageToHistory(type, content, sqlQuery = null, resultCount = null)
     } else if (type === 'ai') {
         messageDiv.className = 'message ai-message';
         let html = '<div class="message-header"><i class="fas fa-robot"></i> AI助手:</div>';
-        html += `<div>${content.replace(/\n/g, '<br>')}</div>`;
+        // 使用 marked.js 渲染 Markdown（表格、粗體、標題等）
+        let renderedContent;
+        try {
+            renderedContent = marked.parse(content);
+        } catch (e) {
+            renderedContent = content.replace(/\n/g, '<br>');
+        }
+        html += `<div class="ai-content">${renderedContent}</div>`;
         
         if (resultCount !== null) {
             html += `<div class="results-count">查詢結果: ${resultCount} 筆記錄</div>`;

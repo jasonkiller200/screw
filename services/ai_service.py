@@ -17,92 +17,103 @@ from extensions import db
 
 class AIService:
     def __init__(self):
-        self.model_name = "gemma3:4b"  # 預設模型，可以配置
+        self.model_name = "qwen3.5:9b"  # 預設模型，可以配置
         self.db_path = "instance/hardware.db"  # 正確的資料庫路徑
         self.conversation_history = {}  # 存儲對話歷史，按會話ID分組
         self.ollama_client = ollama.Client(host='http://192.168.6.137:11434')  # Ollama 服務器位址
         
     def _get_schema_info(self) -> str:
-        """獲取資料庫結構資訊"""
-        schema_info = """
+        """獲取資料庫結構資訊（自動從資料庫讀取 + 業務備註）"""
+        try:
+            return self._get_schema_info_auto()
+        except Exception:
+            return self._get_schema_info_fallback()
+
+    def _get_schema_info_auto(self) -> str:
+        """自動從資料庫讀取真實結構，附加業務語義備註"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # 取得所有表名（排除 alembic 和 sqlite 內部表）
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name NOT LIKE 'alembic%' AND name NOT LIKE 'sqlite_%' "
+            "ORDER BY name"
+        )
+        tables = cursor.fetchall()
+
+        # 業務語義備註，幫助 LLM 理解欄位含義
+        business_notes = {
+            'parts': '零件主檔。part_number 是唯一零件編號，lead_time 是採購前置期（天）',
+            'warehouses': '倉庫主檔。code 是倉庫代碼',
+            'warehouse_locations': '倉位表。warehouse_id 關聯 warehouses',
+            'part_warehouse_location': '零件與倉位的多對多關聯表',
+            'current_inventory': (
+                '現行庫存表。quantity_on_hand=實際庫存, available_quantity=可用庫存, '
+                'safety_stock=安全庫存, reorder_point=補貨點, '
+                'desired_days_of_stock=預期存貨天數(DDS), moq=最小訂購量(MOQ)'
+            ),
+            'inventory_transactions': (
+                '庫存交易記錄表。transaction_type: IN_PURCHASE=採購入庫, OUT_WORK_ORDER=工單出庫, '
+                'IN_TRANSFER=轉倉入庫, OUT_TRANSFER=轉倉出庫, OUT_AFTER_SALES=售後出庫, OUT_SCRAP=報廢出庫。'
+                'quantity 正數=入庫, 負數=出庫。transaction_date 用於時間範圍查詢'
+            ),
+            'work_order_demand': '工單需求表。order_id=工單編號, part_number=零件編號',
+            'order_history': '採購訂單表。status: pending=待處理, confirmed=已確認。supplier=供應商',
+        }
+
+        schema = "資料庫結構說明（自動讀取）：\n"
+        for (table_name,) in tables:
+            cursor.execute(f"PRAGMA table_info([{table_name}])")
+            columns = cursor.fetchall()
+
+            note = business_notes.get(table_name, '')
+            schema += f"\n{table_name} 表"
+            if note:
+                schema += f" — {note}"
+            schema += ":\n"
+            for col in columns:
+                # col: (cid, name, type, notnull, default, pk)
+                col_desc = f"  - {col[1]} ({col[2]})"
+                if col[5]:
+                    col_desc += " [PK]"
+                schema += col_desc + "\n"
+
+        conn.close()
+        return schema
+
+    def _get_schema_info_fallback(self) -> str:
+        """手寫的 schema 備援（當自動讀取失敗時使用）"""
+        return """
         資料庫結構說明：
-        
+
         1. parts (零件表)
-           - id: 零件ID
-           - part_number: 零件編號 
-           - name: 零件名稱
-           - description: 描述
-           - unit: 單位
-           - quantity_per_box: 每盒數量
-           - lead_time: 採購前置期
-           - standard_cost: 標準成本
-           - is_active: 是否啟用
-           
+           - id, part_number(唯一), name, description, unit
+           - quantity_per_box, lead_time(採購前置期), standard_cost, is_active
+
         2. warehouses (倉庫表)
-           - id: 倉庫ID
-           - code: 倉庫代碼
-           - name: 倉庫名稱
-           - description: 描述
-           - is_active: 是否啟用
-           
+           - id, code(唯一), name, description, is_active
+
         3. warehouse_locations (倉位表)
-           - id: 倉位ID
-           - warehouse_id: 倉庫ID
-           - location_code: 位置代碼
-           - description: 描述
-           
-        4. current_inventory (現行庫存表) - 存儲當前庫存狀態
-           - id: 記錄ID
-           - part_id: 零件ID
-           - warehouse_id: 倉庫ID
-           - warehouse_location_id: 倉位ID
-           - quantity_on_hand: 實際庫存數量
-           - reserved_quantity: 已預留數量
-           - available_quantity: 可用數量
-           - safety_stock: 安全庫存
-           - reorder_point: 補貨點
-           - last_updated: 最後更新時間
-           
-        5. inventory_transactions (庫存交易表) - 存儲所有庫存異動記錄（入庫、出庫等）
-           - id: 交易ID
-           - part_id: 零件ID
-           - warehouse_id: 倉庫ID
-           - warehouse_location_id: 倉位ID
-           - transaction_type: 交易類型 (IN_PURCHASE=採購入庫, OUT_WORK_ORDER=工單出庫, IN_TRANSFER=轉倉入庫, OUT_TRANSFER=轉倉出庫等)
-           - quantity: 數量（正數為入庫，負數為出庫）
-           - unit_cost: 單位成本
-           - transaction_date: 交易日期（用於查詢特定時間範圍的記錄）
-           - reference_type: 參考類型
-           - reference_id: 參考ID
-           - notes: 備註
-           - created_by: 建立者
-           - created_at: 建立時間
-           
+           - id, warehouse_id, location_code, description
+
+        4. current_inventory (現行庫存表)
+           - id, part_id, warehouse_id, warehouse_location_id
+           - quantity_on_hand(實際庫存), reserved_quantity, available_quantity(可用庫存)
+           - safety_stock(安全庫存), reorder_point(補貨點), last_updated
+
+        5. inventory_transactions (庫存交易表)
+           - id, part_id, warehouse_id, warehouse_location_id
+           - transaction_type(IN_PURCHASE/OUT_WORK_ORDER/IN_TRANSFER/OUT_TRANSFER等)
+           - quantity(正=入庫,負=出庫), unit_cost, transaction_date, notes, created_by
+
         6. work_order_demand (工單需求表)
-           - id: 需求ID
-           - order_id: 工單編號
-           - part_number: 零件編號
-           - required_quantity: 需求數量
-           - material_description: 物料說明
-           - operation_description: 作業說明
-           - parent_material_description: 上層物料說明
-           - required_date: 需求日期
-           - bulk_material: 散裝物料
-           
+           - id, order_id, part_number, required_quantity, required_date
+
         7. order_history (訂單表)
-           - id: 訂單ID
-           - part_id: 零件ID
-           - warehouse_id: 倉庫ID
-           - quantity_ordered: 訂購數量
-           - quantity_received: 已收貨數量
-           - unit_cost: 單位成本
-           - status: 狀態 (pending, confirmed等)
-           - supplier: 供應商
-           - expected_date: 預期到貨日期
-           - order_date: 訂單日期
-           - notes: 備註
+           - id, part_id, warehouse_id, quantity_ordered, quantity_received
+           - unit_cost, status(pending/confirmed), supplier, expected_date, order_date
         """
-        return schema_info
         
     def _generate_sql_query_with_context(self, user_question: str, session_id: str) -> str:
         """使用AI生成SQL查詢，考慮對話歷史"""
@@ -111,7 +122,7 @@ class AIService:
         conversation_history = self._get_conversation_history(session_id)
         
         system_prompt = f"""
-        你是一個專業的SQL查詢生成器。根據用戶的問題，生成對應的SQL查詢語句。
+        你是一個專業的SQL查詢生成器。根據用戶的問題，生成對應的SQLite SQL查詢語句。
 
         {self._get_schema_info()}
 
@@ -122,25 +133,55 @@ class AIService:
         4. 如果需要連接表格，使用適當的JOIN語句
         5. 限制結果數量，在查詢結尾加上LIMIT 50（除非用戶特別要求全部）
         6. 使用正確的表名和欄位名
-        7. 對於時間相關查詢，使用datetime函數
+        7. 對於時間相關查詢，使用SQLite的date()/datetime()函數，例如 date('now','-7 days')
         8. 如果用戶問的是延續性問題（如"那麼"、"再看看"、"這些中"），請參考對話歷史來理解上下文
         
         重要提示：
         - 查詢"入庫記錄"、"出庫記錄"、"庫存交易"等異動記錄時，使用 inventory_transactions 表
         - 查詢"當前庫存"、"現有庫存"時，使用 current_inventory 表
         - 查詢時間範圍時，inventory_transactions 使用 transaction_date 欄位
-        - 入庫記錄的 transaction_type 通常包含 'IN_' 開頭（如 IN_PURCHASE, IN_TRANSFER）
-        - 出庫記錄的 transaction_type 通常包含 'OUT_' 開頭（如 OUT_WORK_ORDER, OUT_TRANSFER）
+        - 入庫記錄的 transaction_type 以 'IN_' 開頭（IN_PURCHASE, IN_TRANSFER）
+        - 出庫記錄的 transaction_type 以 'OUT_' 開頭（OUT_WORK_ORDER, OUT_TRANSFER, OUT_AFTER_SALES, OUT_SCRAP）
+        - 需要零件名稱時，JOIN parts 表用 part_id 或 part_number 關聯
+        - 需要倉庫名稱時，JOIN warehouses 表用 warehouse_id 關聯
 
-        範例：
+        範例（請嚴格學習這些模式）：
+
         用戶問：有多少個零件？
-        回答：SELECT COUNT(*) FROM parts
+        回答：SELECT COUNT(*) as total FROM parts
 
         用戶問：最近一週有哪些入庫記錄？
-        回答：SELECT * FROM inventory_transactions WHERE transaction_type LIKE 'IN_%' AND transaction_date >= date('now', '-7 days') ORDER BY transaction_date DESC LIMIT 50
+        回答：SELECT it.*, p.part_number, p.name as part_name FROM inventory_transactions it JOIN parts p ON it.part_id = p.id WHERE it.transaction_type LIKE 'IN_%' AND it.transaction_date >= date('now', '-7 days') ORDER BY it.transaction_date DESC LIMIT 50
 
         用戶問：庫存不足的零件有哪些？
-        回答：SELECT p.part_number, p.name, ci.available_quantity FROM parts p JOIN current_inventory ci ON p.id = ci.part_id WHERE ci.available_quantity < ci.reorder_point LIMIT 50
+        回答：SELECT p.part_number, p.name, ci.available_quantity, ci.safety_stock, ci.reorder_point FROM parts p JOIN current_inventory ci ON p.id = ci.part_id WHERE ci.available_quantity < ci.reorder_point ORDER BY ci.available_quantity ASC LIMIT 50
+
+        用戶問：哪些倉庫的零件種類最多？
+        回答：SELECT w.code, w.name, COUNT(DISTINCT ci.part_id) as part_count FROM warehouses w JOIN current_inventory ci ON w.id = ci.warehouse_id GROUP BY w.id ORDER BY part_count DESC
+
+        用戶問：零件 P001 的最近異動記錄？
+        回答：SELECT it.transaction_type, it.quantity, it.transaction_date, it.notes, w.name as warehouse_name FROM inventory_transactions it JOIN parts p ON it.part_id = p.id JOIN warehouses w ON it.warehouse_id = w.id WHERE p.part_number = 'P001' ORDER BY it.transaction_date DESC LIMIT 20
+
+        用戶問：今天有哪些庫存交易？
+        回答：SELECT it.*, p.part_number, p.name as part_name FROM inventory_transactions it JOIN parts p ON it.part_id = p.id WHERE date(it.transaction_date) = date('now') ORDER BY it.transaction_date DESC LIMIT 50
+
+        用戶問：工單需求量最高的前10個零件是什麼？
+        回答：SELECT wod.part_number, SUM(wod.required_quantity) as total_demand, COUNT(*) as order_count FROM work_order_demand wod GROUP BY wod.part_number ORDER BY total_demand DESC LIMIT 10
+
+        用戶問：目前有多少待處理的採購訂單？
+        回答：SELECT COUNT(*) as pending_count FROM order_history WHERE status = 'pending'
+
+        用戶問：庫存價值最高的前10個零件？
+        回答：SELECT p.part_number, p.name, ci.quantity_on_hand, p.standard_cost, (ci.quantity_on_hand * p.standard_cost) as total_value FROM parts p JOIN current_inventory ci ON p.id = ci.part_id WHERE p.standard_cost > 0 ORDER BY total_value DESC LIMIT 10
+
+        用戶問：最近三天出庫最多的零件？
+        回答：SELECT p.part_number, p.name, SUM(ABS(it.quantity)) as total_out FROM inventory_transactions it JOIN parts p ON it.part_id = p.id WHERE it.transaction_type LIKE 'OUT_%' AND it.transaction_date >= date('now', '-3 days') GROUP BY it.part_id ORDER BY total_out DESC LIMIT 10
+
+        用戶問：各倉庫的庫存總量？
+        回答：SELECT w.code, w.name, SUM(ci.quantity_on_hand) as total_qty, COUNT(DISTINCT ci.part_id) as part_types FROM warehouses w JOIN current_inventory ci ON w.id = ci.warehouse_id GROUP BY w.id ORDER BY total_qty DESC
+
+        用戶問：哪些零件有工單需求但庫存為零？
+        回答：SELECT DISTINCT wod.part_number, wod.material_description, COALESCE(ci.quantity_on_hand, 0) as on_hand FROM work_order_demand wod LEFT JOIN parts p ON wod.part_number = p.part_number LEFT JOIN current_inventory ci ON p.id = ci.part_id WHERE COALESCE(ci.quantity_on_hand, 0) = 0 LIMIT 50
         """
         
         # 構建包含歷史的對話訊息
@@ -225,6 +266,44 @@ class AIService:
             raise Exception(f"執行SQL查詢失敗: {str(e)} | SQL: {sql_query}")
         except Exception as e:
             raise Exception(f"執行SQL查詢失敗: {str(e)}")
+
+    def _retry_sql_with_error(self, user_question: str, failed_sql: str, error_msg: str, session_id: str) -> str:
+        """SQL 執行失敗時，讓 LLM 根據錯誤訊息修正 SQL"""
+        retry_prompt = f"""
+你之前生成的 SQL 查詢執行失敗了，請根據錯誤訊息修正。
+
+用戶的問題：{user_question}
+
+失敗的 SQL：{failed_sql}
+
+錯誤訊息：{error_msg}
+
+{self._get_schema_info()}
+
+請生成一個修正後的 SQL SELECT 語句。只返回 SQL，不要包含任何解釋。
+"""
+        try:
+            response = self.ollama_client.chat(
+                model=self.model_name,
+                messages=[
+                    {'role': 'user', 'content': retry_prompt}
+                ]
+            )
+            sql_query = response['message']['content'].strip()
+            # 清理格式
+            if sql_query.startswith('```sql'):
+                sql_query = sql_query[6:]
+            if sql_query.startswith('```'):
+                sql_query = sql_query[3:]
+            if sql_query.endswith('```'):
+                sql_query = sql_query[:-3]
+            sql_query = ' '.join(sql_query.split())
+
+            if not sql_query.upper().startswith('SELECT'):
+                raise Exception(f"修正後的查詢不是有效的SELECT語句: {sql_query}")
+            return sql_query
+        except Exception as e:
+            raise Exception(f"SQL 修正失敗: {str(e)}")
     
     def _format_answer_with_context(self, user_question: str, query_results: List[Dict[str, Any]], sql_query: str, session_id: str) -> str:
         """使用AI格式化答案，考慮對話歷史"""
@@ -394,7 +473,7 @@ class AIService:
             }
     
     def query_database(self, user_question: str, session_id: str = "default") -> Dict[str, Any]:
-        """主要查詢方法，支持對話歷史"""
+        """主要查詢方法，支持對話歷史和 SQL 自動重試"""
         try:
             # 1. 檢查Ollama連接
             connection_status = self.check_ollama_connection()
@@ -415,8 +494,31 @@ class AIService:
             # 2. 生成SQL查詢（考慮對話歷史）
             sql_query = self._generate_sql_query_with_context(user_question, session_id)
             
-            # 3. 執行查詢
-            query_results = self._execute_sql_query(sql_query)
+            # 3. 執行查詢（含自動重試）
+            query_results = None
+            last_error = None
+            max_retries = 2  # 最多重試2次（共3次機會）
+            
+            for attempt in range(max_retries + 1):
+                try:
+                    query_results = self._execute_sql_query(sql_query)
+                    break  # 成功就跳出
+                except Exception as e:
+                    last_error = str(e)
+                    if attempt < max_retries:
+                        # 讓 LLM 根據錯誤訊息修正 SQL
+                        sql_query = self._retry_sql_with_error(
+                            user_question, sql_query, last_error, session_id
+                        )
+                    else:
+                        # 所有重試都失敗
+                        return {
+                            'success': False,
+                            'error': f'SQL 執行失敗（已重試 {max_retries} 次）: {last_error}',
+                            'sql_query': sql_query,
+                            'user_question': user_question,
+                            'session_id': session_id
+                        }
             
             # 4. 格式化回答（考慮對話歷史）
             formatted_answer = self._format_answer_with_context(user_question, query_results, sql_query, session_id)
