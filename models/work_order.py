@@ -1,10 +1,6 @@
 from extensions import db
 from datetime import datetime, timedelta
-
-def get_taipei_time():
-    from datetime import timezone
-    tz_taipei = timezone(timedelta(hours=8))
-    return datetime.now(tz_taipei)
+from utils.datetime_utils import get_taipei_time
 
 class WorkOrderDemand(db.Model):
     __tablename__ = 'work_order_demand'

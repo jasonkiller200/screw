@@ -4,12 +4,7 @@ from datetime import datetime, timedelta
 from .part import Part, Warehouse # Import Part and Warehouse models
 import random
 import sqlalchemy as sa
-
-# Helper function to get current time in UTC+8
-def get_taipei_time():
-    from datetime import timezone
-    tz_taipei = timezone(timedelta(hours=8))
-    return datetime.now(tz_taipei)
+from utils.datetime_utils import get_taipei_time
 
 class CurrentInventory(db.Model):
     __tablename__ = 'current_inventory'

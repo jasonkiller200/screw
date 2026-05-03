@@ -2,12 +2,7 @@ from extensions import db # Import the SQLAlchemy db instance
 from sqlalchemy.orm import relationship
 from sqlalchemy import event, and_ as sa_and
 from datetime import datetime
-
-# Helper function to get current time in UTC+8
-def get_taipei_time():
-    from datetime import timezone, timedelta
-    tz_taipei = timezone(timedelta(hours=8))
-    return datetime.now(tz_taipei)
+from utils.datetime_utils import get_taipei_time
 
 # Association table for Part and WarehouseLocation
 class PartWarehouseLocation(db.Model):

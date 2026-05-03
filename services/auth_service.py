@@ -4,7 +4,8 @@
 """
 
 from werkzeug.security import generate_password_hash, check_password_hash
-from models.weekly_order import User, get_taipei_time
+from models.user import User
+from utils.datetime_utils import get_taipei_time
 from extensions import db
 import re
 
@@ -138,13 +139,15 @@ class AuthService:
         驗證密碼強度
         
         規則：
-        - 至少 6 位數字
-        - 只能包含數字 0-9
+        - 至少 8 個字元
+        - 必須包含英文字母和數字
         """
-        if len(password) < 6:
-            return False, "密碼長度必須至少為6位數字。"
-        if not re.match(r'^[0-9]+$', password):
-            return False, "密碼只能包含數字 0-9。"
+        if len(password) < 8:
+            return False, "密碼長度必須至少為 8 個字元。"
+        if not re.search(r'[a-zA-Z]', password):
+            return False, "密碼必須包含至少一個英文字母。"
+        if not re.search(r'[0-9]', password):
+            return False, "密碼必須包含至少一個數字。"
         
         return True, ''
     

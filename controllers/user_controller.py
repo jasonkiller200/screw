@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, jsonify, flash, redirect,
 from flask_login import login_required, current_user
 from functools import wraps
 from extensions import db
-from models.weekly_order import User
+from models.user import User
 from datetime import datetime
 
 user_bp = Blueprint('user', __name__, url_prefix='/users')

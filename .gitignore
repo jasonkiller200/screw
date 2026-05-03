@@ -51,6 +51,7 @@ desktop.ini
 
 # Logs
 *.log
+logs/
 
 # Environment variables
 .env

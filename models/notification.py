@@ -3,10 +3,7 @@
 """
 from extensions import db
 from datetime import datetime, timedelta, timezone
-
-def get_taipei_time():
-    tz_taipei = timezone(timedelta(hours=8))
-    return datetime.now(tz_taipei)
+from utils.datetime_utils import get_taipei_time
 
 
 class Notification(db.Model):
