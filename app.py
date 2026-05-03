@@ -91,7 +91,7 @@ def create_app():
     # ====== CORS 設定 ======
     # 限制跨域請求來源為內網 IP 和本機
     allowed_origins = os.environ.get('CORS_ORIGINS', 
-        'https://192.168.6.119:5005,https://localhost:5005,http://localhost:5005'
+        'https://192.168.6.119:5005,http://192.168.6.119:5005,https://localhost:5005,http://localhost:5005'
     ).split(',')
     CORS(app, origins=allowed_origins)
     

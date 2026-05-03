@@ -8,6 +8,7 @@ migrate = Migrate()
 login_manager = LoginManager()
 socketio = SocketIO(cors_allowed_origins=[
     'https://192.168.6.119:5005',
+    'http://192.168.6.119:5005',
     'https://localhost:5005',
     'http://localhost:5005'
 ])
