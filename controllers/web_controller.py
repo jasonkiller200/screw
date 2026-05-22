@@ -764,6 +764,12 @@ def parts_comparison_report():
     """零件差異分析報告頁面"""
     return render_template('reports/parts_comparison.html')
 
+@web_bp.route('/reports/idle-inventory')
+@login_required
+def idle_inventory_report():
+    """閒置庫存分析報告頁面"""
+    return render_template('reports/idle_inventory.html')
+
 @web_bp.route('/reports/ai-query')
 @login_required
 def ai_query_report():
@@ -783,6 +789,14 @@ def parts_comparison_data():
 
     data = ReportService.get_parts_comparison_data()
 
+    return jsonify(data)
+
+
+@web_bp.route('/reports/idle-inventory/data')
+@login_required
+def idle_inventory_data():
+    """獲取閒置庫存分析數據"""
+    data = ReportService.get_idle_inventory_report_data()
     return jsonify(data)
 
 
@@ -811,6 +825,21 @@ def export_parts_comparison():
         flash(f"匯出失敗: {str(e)}", 'error')
 
         return redirect(url_for('web.parts_comparison_report'))
+
+@web_bp.route('/reports/idle-inventory/export')
+@login_required
+def export_idle_inventory():
+    """匯出閒置庫存分析數據到 Excel"""
+    try:
+        file_content, filename = ReportService.export_idle_inventory_excel()
+
+        return send_file(BytesIO(file_content),
+                         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                         as_attachment=True,
+                         download_name=filename)
+    except Exception as e:
+        flash(f"匯出失敗: {str(e)}", 'error')
+        return redirect(url_for('web.idle_inventory_report'))
 
 @web_bp.route('/reports/parts-comparison/add-parts', methods=['POST'])
 @login_required

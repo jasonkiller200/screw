@@ -714,6 +714,8 @@ function showPartDetails(partNumber, warehouseLocationId = null) {
 function renderSingleLocationDetail(part, inventory, allInventories, weeklyOrderData) {
     // 處理庫存數據，適配不同的數據結構
     let warehouse, location, quantity, reserved_quantity, available;
+    const currentIdleAnalysis = inventory?.idle_analysis || null;
+    const currentIdleDisplay = formatIdleAnalysis(currentIdleAnalysis);
     
     if (inventory.warehouse && inventory.warehouse_location) {
         // 新的數據結構
@@ -751,6 +753,7 @@ function renderSingleLocationDetail(part, inventory, allInventories, weeklyOrder
             const quantity_on_hand = inv ? inv.quantity_on_hand : 0;
             const reserved_quantity = inv ? inv.reserved_quantity : 0;
             const available_quantity = inv ? inv.available_quantity : 0;
+            const idleDisplay = formatIdleAnalysis(inv?.idle_analysis);
             
             // 計算健康度
             const healthInfo = calculateLocationHealth(available_quantity, quantity_on_hand);
@@ -765,6 +768,8 @@ function renderSingleLocationDetail(part, inventory, allInventories, weeklyOrder
                     <td class="text-end">${quantity_on_hand}</td>
                     <td class="text-end">${reserved_quantity}</td>
                     <td class="text-end"><strong>${available_quantity}</strong></td>
+                    <td>${idleDisplay.lastConsumptionLabel}</td>
+                    <td class="text-center">${idleDisplay.idleDaysLabel}</td>
                     <td class="text-center">
                         <span class="badge ${healthInfo.badgeClass}" title="${healthInfo.tooltip}">
                             ${healthInfo.icon} ${healthInfo.text}
@@ -883,6 +888,16 @@ function renderSingleLocationDetail(part, inventory, allInventories, weeklyOrder
                                 <small class="text-muted">可用數量</small>
                             </div>
                         </div>
+                        <div class="row mt-3 text-center">
+                            <div class="col-6">
+                                <div class="fw-semibold">${currentIdleDisplay.lastConsumptionLabel}</div>
+                                <small class="text-muted">最後耗用日</small>
+                            </div>
+                            <div class="col-6">
+                                <span class="badge ${currentIdleDisplay.badgeClass}">${currentIdleDisplay.idleDaysLabel}</span>
+                                <div><small class="text-muted">閒置天數</small></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -899,6 +914,8 @@ function renderSingleLocationDetail(part, inventory, allInventories, weeklyOrder
                                 <th class="text-end">在庫數量</th>
                                 <th class="text-end">預留數量</th>
                                 <th class="text-end">可用數量</th>
+                                <th>最後耗用日</th>
+                                <th class="text-center">閒置天數</th>
                                 <th class="text-center">健康度</th>
                             </tr>
                         </thead>
@@ -927,6 +944,7 @@ function renderAllLocationsOverview(part, inventories, orders) {
             const quantity_on_hand = inv ? inv.quantity_on_hand : 0;
             const reserved_quantity = inv ? inv.reserved_quantity : 0;
             const available_quantity = inv ? inv.available_quantity : 0;
+            const idleDisplay = formatIdleAnalysis(inv?.idle_analysis);
 
             return `
                 <tr>
@@ -935,11 +953,13 @@ function renderAllLocationsOverview(part, inventories, orders) {
                     <td class="text-end">${quantity_on_hand}</td>
                     <td class="text-end">${reserved_quantity}</td>
                     <td class="text-end"><strong>${available_quantity}</strong></td>
+                    <td>${idleDisplay.lastConsumptionLabel}</td>
+                    <td class="text-center"><span class="badge ${idleDisplay.badgeClass}">${idleDisplay.idleDaysLabel}</span></td>
                 </tr>
             `;
         }).join('');
     } else {
-        inventoryHtml = '<tr><td colspan="5" class="text-center text-muted">此零件未設定儲位</td></tr>';
+        inventoryHtml = '<tr><td colspan="7" class="text-center text-muted">此零件未設定儲位</td></tr>';
     }
 
     // 生成訂購歷史 HTML
@@ -1003,6 +1023,8 @@ function renderAllLocationsOverview(part, inventories, orders) {
                                 <th>在庫數量</th>
                                 <th>預留數量</th>
                                 <th>可用數量</th>
+                                <th>最後耗用日</th>
+                                <th>閒置天數</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1034,6 +1056,49 @@ function renderAllLocationsOverview(part, inventories, orders) {
             </div>
         </div>
     `;
+}
+
+function formatIdleAnalysis(idleAnalysis) {
+    if (!idleAnalysis || !idleAnalysis.last_consumption_date) {
+        return {
+            lastConsumptionLabel: '上線後未領料',
+            idleDaysLabel: '上線後未領料',
+            badgeClass: 'bg-secondary'
+        };
+    }
+
+    const idleDays = idleAnalysis.idle_days;
+    const lastConsumptionLabel = new Date(idleAnalysis.last_consumption_date).toLocaleDateString('zh-TW');
+
+    if (idleAnalysis.idle_bucket === 'obsolete') {
+        return {
+            lastConsumptionLabel,
+            idleDaysLabel: `${idleDays} 天`,
+            badgeClass: 'bg-danger'
+        };
+    }
+
+    if (idleAnalysis.idle_bucket === 'stagnant') {
+        return {
+            lastConsumptionLabel,
+            idleDaysLabel: `${idleDays} 天`,
+            badgeClass: 'bg-warning text-dark'
+        };
+    }
+
+    if (idleAnalysis.idle_bucket === 'aging') {
+        return {
+            lastConsumptionLabel,
+            idleDaysLabel: `${idleDays} 天`,
+            badgeClass: 'bg-info text-dark'
+        };
+    }
+
+    return {
+        lastConsumptionLabel,
+        idleDaysLabel: `${idleDays} 天`,
+        badgeClass: 'bg-success'
+    };
 }
 
 // 切換顯示所有儲位
