@@ -377,6 +377,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/consumption_utils.js') }}"></script>
-<script src="{{ url_for('static', filename='js/weekly_orders/review.js') }}"></script>
+<script src="{{ url_for('static', filename='js/consumption_utils.js') }}?v={{ range(1, 10000) | random }}"></script>
+<script src="{{ url_for('static', filename='js/weekly_orders/review.js') }}?v={{ range(1, 10000) | random }}"></script>
 {% endblock %}

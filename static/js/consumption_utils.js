@@ -177,6 +177,7 @@ function renderOverallSummary(summary) {
 function renderLocationDetailCard(inventory, allLocations = []) {
     const analysis = inventory.consumption_analysis;
     const suggestion = inventory.order_suggestion;
+    const idleDisplay = formatIdleAnalysis(inventory.idle_analysis);
 
     // 如果沒有分析資料，顯示基本資訊
     if (!analysis || !suggestion) {
@@ -283,6 +284,20 @@ function renderLocationDetailCard(inventory, allLocations = []) {
                                     <div class="metric-label">📊 平均消耗</div>
                                     <div class="metric-value">${analysis.avg_daily_consumption}<span class="metric-unit">${inventory.unit}/天</span></div>
                                     <div class="metric-subtext">基於工作日</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="consumption-metric-card secondary">
+                                    <div class="metric-label">🗓️ 最後耗用日</div>
+                                    <div class="metric-value" style="font-size: 1.5rem;">${idleDisplay.lastConsumptionLabel}</div>
+                                    <div class="metric-subtext">${idleDisplay.subtext}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="consumption-metric-card ${idleDisplay.cardClass}">
+                                    <div class="metric-label">⌛ 閒置天數</div>
+                                    <div class="metric-value" style="font-size: 1.5rem;">${idleDisplay.idleDaysLabel}</div>
+                                    <div class="metric-subtext">${idleDisplay.bucketLabel}</div>
                                 </div>
                             </div>
                         </div>
@@ -653,6 +668,8 @@ function renderInventorySummaryTable(inventories) {
                             <th>倉庫</th>
                             <th>儲位</th>
                             <th class="text-end">可用庫存</th>
+                            <th>最後耗用日</th>
+                            <th class="text-end">閒置天數</th>
                             <th class="text-end">日平均用量</th>
                             <th class="text-end">庫存天數</th>
                             <th class="text-center">狀態</th>
@@ -662,6 +679,7 @@ function renderInventorySummaryTable(inventories) {
                         ${inventories.map(inv => {
                             const available = inv.available_quantity !== undefined ? inv.available_quantity : (inv.quantity_on_hand - (inv.reserved_quantity || 0));
                             const health = calculateInventoryHealth(available);
+                            const idleDisplay = formatIdleAnalysis(inv.idle_analysis);
                             
                             // 取得耗損分析資料
                             const analysis = inv.consumption_analysis || {};
@@ -693,6 +711,8 @@ function renderInventorySummaryTable(inventories) {
                                     <td>${inv.warehouse_name || 'N/A'}</td>
                                     <td><code>${inv.location_code}</code></td>
                                     <td class="text-end fw-bold">${available} ${inv.unit}</td>
+                                    <td>${idleDisplay.lastConsumptionLabel}</td>
+                                    <td class="text-end ${idleDisplay.textClass}">${idleDisplay.idleDaysLabel}</td>
                                     <td class="text-end text-muted">${avgDailyText}</td>
                                     <td class="text-end ${daysClass}">${daysText}</td>
                                     <td class="text-center">
@@ -708,6 +728,64 @@ function renderInventorySummaryTable(inventories) {
             </div>
         </div>
     `;
+}
+
+function formatIdleAnalysis(idleAnalysis) {
+    if (!idleAnalysis || !idleAnalysis.last_consumption_date) {
+        return {
+            lastConsumptionLabel: '上線後未領料',
+            idleDaysLabel: '上線後未領料',
+            bucketLabel: '系統期間內無領料紀錄',
+            subtext: '系統期間內無領料紀錄',
+            textClass: 'text-muted',
+            cardClass: 'secondary'
+        };
+    }
+
+    const idleDays = idleAnalysis.idle_days;
+    const lastConsumptionLabel = formatDate(idleAnalysis.last_consumption_date);
+
+    if (idleAnalysis.idle_bucket === 'obsolete') {
+        return {
+            lastConsumptionLabel,
+            idleDaysLabel: `${idleDays} 天`,
+            bucketLabel: '180+ 天未領料',
+            subtext: '高優先治理',
+            textClass: 'text-danger fw-bold',
+            cardClass: 'danger'
+        };
+    }
+
+    if (idleAnalysis.idle_bucket === 'stagnant') {
+        return {
+            lastConsumptionLabel,
+            idleDaysLabel: `${idleDays} 天`,
+            bucketLabel: '90-179 天未領料',
+            subtext: '優先檢視',
+            textClass: 'text-warning fw-bold',
+            cardClass: 'warning'
+        };
+    }
+
+    if (idleAnalysis.idle_bucket === 'aging') {
+        return {
+            lastConsumptionLabel,
+            idleDaysLabel: `${idleDays} 天`,
+            bucketLabel: '30-89 天未領料',
+            subtext: '持續追蹤',
+            textClass: 'text-info fw-bold',
+            cardClass: 'primary'
+        };
+    }
+
+    return {
+        lastConsumptionLabel,
+        idleDaysLabel: `${idleDays} 天`,
+        bucketLabel: '30 天內有領料',
+        subtext: '近期有耗用',
+        textClass: 'text-success',
+        cardClass: 'success'
+    };
 }
 
 /**
