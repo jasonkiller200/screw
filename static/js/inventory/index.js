@@ -1568,12 +1568,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 加入週期申請 (新版：使用獨立模態視窗)
     function addToWeeklyOrder(partNumber, partName, unit, partType, locationsString, preSelectedLocationId = null, suggestedQuantity = null) {
+        const normalizedUnit = unit || 'pcs';
+        const partDisplayElement = document.getElementById('weeklyOrderPartDisplay');
+        const unitDisplayElement = document.getElementById('weeklyOrderUnitDisplay');
+
         // 填充模態視窗中的零件資訊
         document.getElementById('weeklyOrderPartNumber').value = partNumber;
         document.getElementById('weeklyOrderPartName').value = partName;
-        document.getElementById('weeklyOrderUnit').value = unit;
+        document.getElementById('weeklyOrderUnit').value = normalizedUnit;
         document.getElementById('weeklyOrderPartType').value = partType; 
-        document.getElementById('weeklyOrderPartDisplay').textContent = `${partNumber} (${partName})`;
+        if (partDisplayElement) {
+            partDisplayElement.textContent = unitDisplayElement
+                ? `${partNumber} (${partName})`
+                : `${partNumber} (${partName}) | 單位: ${normalizedUnit}`;
+        }
+        if (unitDisplayElement) {
+            unitDisplayElement.textContent = normalizedUnit;
+        }
 
         // 清除舊的錯誤訊息並重設表單
         document.getElementById('weeklyOrderError').style.display = 'none';
@@ -1582,9 +1593,16 @@ document.addEventListener('DOMContentLoaded', function() {
         // 重新設定零件資訊（reset() 會清除所有值，需重設）
         document.getElementById('weeklyOrderPartNumber').value = partNumber;
         document.getElementById('weeklyOrderPartName').value = partName;
-        document.getElementById('weeklyOrderUnit').value = unit || 'pcs';
+        document.getElementById('weeklyOrderUnit').value = normalizedUnit;
         document.getElementById('weeklyOrderPartType').value = partType || 'N/A';
-        document.getElementById('weeklyOrderPartDisplay').textContent = `${partNumber} (${partName})`;
+        if (partDisplayElement) {
+            partDisplayElement.textContent = unitDisplayElement
+                ? `${partNumber} (${partName})`
+                : `${partNumber} (${partName}) | 單位: ${normalizedUnit}`;
+        }
+        if (unitDisplayElement) {
+            unitDisplayElement.textContent = normalizedUnit;
+        }
 
         // 如果有建議訂購量，自動填入
         if (suggestedQuantity && suggestedQuantity > 0) {
