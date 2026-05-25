@@ -3,12 +3,9 @@
 """
 from extensions import db
 from models.notification import Notification, Announcement
-from models.weekly_order import User
+from models.user import User
 from datetime import datetime, timedelta, timezone
-
-def get_taipei_time():
-    tz_taipei = timezone(timedelta(hours=8))
-    return datetime.now(tz_taipei)
+from utils.datetime_utils import get_taipei_time
 
 
 class NotificationService:

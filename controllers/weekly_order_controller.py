@@ -1,10 +1,12 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, send_file, make_response
 from flask_login import login_required, current_user
 from extensions import db
-from models.weekly_order import WeeklyOrderCycle, OrderRegistration, OrderReviewLog, User
+from models.weekly_order import WeeklyOrderCycle, OrderRegistration, OrderReviewLog
+from models.user import User
 from models.part import WarehouseLocation # Import for relationship loading
 from services.inventory_service import InventoryService # New import
 from services.weekly_order_service import WeeklyOrderService # New import
+from utils.datetime_utils import get_taipei_time
 from datetime import datetime, timedelta
 from sqlalchemy.orm import joinedload
 import pandas as pd
@@ -12,12 +14,6 @@ from io import BytesIO
 import os
 
 weekly_order_bp = Blueprint('weekly_order', __name__)
-
-# Helper function to get current time in UTC+8
-def get_taipei_time():
-    from datetime import timezone, timedelta
-    tz_taipei = timezone(timedelta(hours=8))
-    return datetime.now(tz_taipei)
 
 @weekly_order_bp.route('/weekly-orders')
 @login_required
@@ -93,7 +89,6 @@ def register_order():
             'part_name': request.args.get('part_name', ''),
             'quantity': request.args.get('quantity', ''),
             'unit': request.args.get('unit', ''),
-            'category': request.args.get('category', ''),
             'category': request.args.get('category', ''),
             'source': request.args.get('source', '')  # 來源：shortage, lookup, manual
         }
@@ -225,8 +220,12 @@ def batch_register_form():
                     item_index += 1
                     continue
 
-                # 獲取下一個項次
-                max_sequence = db.session.query(db.func.max(OrderRegistration.item_sequence)).filter_by(cycle_id=current_cycle.id).scalar()
+                # 獲取下一個項次 (使用 with_for_update 防止競爭條件)
+                max_sequence = db.session.query(
+                    db.func.max(OrderRegistration.item_sequence)
+                ).filter_by(
+                    cycle_id=current_cycle.id
+                ).with_for_update().scalar()
                 next_sequence = (max_sequence or 0) + 1
 
                 # 創建新的登記記錄
@@ -522,29 +521,34 @@ def cycle_summary():
             'message': '目前沒有活躍的申請週期'
         })
     
-    registrations = OrderRegistration.query.filter_by(cycle_id=current_cycle.id).all()
+    # 使用 SQL 聚合查詢取代載入全部記錄到記憶體
+    from sqlalchemy import case, func
+    stats = db.session.query(
+        func.count(OrderRegistration.id).label('total'),
+        func.count(case((OrderRegistration.status == 'registered', 1))).label('registered'),
+        func.count(case((OrderRegistration.status == 'approved', 1))).label('approved'),
+        func.count(case((OrderRegistration.status == 'rejected', 1))).label('rejected')
+    ).filter_by(cycle_id=current_cycle.id).first()
     
     summary = {
         'has_active_cycle': True,
         'cycle': current_cycle.to_dict(),
         'stats': {
-            'total': len(registrations),
-            'registered': len([r for r in registrations if r.status == 'registered']),
-            'approved': len([r for r in registrations if r.status == 'approved']),
-            'rejected': len([r for r in registrations if r.status == 'rejected'])
+            'total': stats.total,
+            'registered': stats.registered,
+            'approved': stats.approved,
+            'rejected': stats.rejected
         },
         'time_remaining': None
     }
     
     # 計算剩餘時間
     if current_cycle.is_active:
+        from utils.datetime_utils import TZ_TAIPEI
         now = get_taipei_time()
         deadline_aware = current_cycle.deadline
         if deadline_aware.tzinfo is None:
-            # 如果 deadline 沒有時區信息，假設它是台北時間
-            from datetime import timezone, timedelta
-            tz_taipei = timezone(timedelta(hours=8))
-            deadline_aware = deadline_aware.replace(tzinfo=tz_taipei)
+            deadline_aware = deadline_aware.replace(tzinfo=TZ_TAIPEI)
         
         remaining = deadline_aware - now
         if remaining.total_seconds() > 0:
@@ -675,11 +679,19 @@ def check_pending_inbound():
     part_number = (data.get('part_number') or '').strip()
     warehouse_location_id = data.get('warehouse_location_id')
     exclude_id = data.get('exclude_id')  # 排除自身 (審查時使用)
+    only_pending_inbound = bool(data.get('only_pending_inbound'))
+    require_location = bool(data.get('require_location'))
 
     if not part_number:
         return jsonify({'has_pending': False, 'items': []})
 
-    items = _query_pending_items(part_number, warehouse_location_id, exclude_id)
+    items = _query_pending_items(
+        part_number,
+        warehouse_location_id,
+        exclude_id,
+        include_registered=not only_pending_inbound,
+        require_location=require_location,
+    )
 
     pending_count = sum(1 for i in items if i['type'] == 'pending_inbound')
     registered_count = sum(1 for i in items if i['type'] == 'registered')
@@ -706,6 +718,8 @@ def check_pending_inbound_batch():
         part_number = (q.get('part_number') or '').strip()
         warehouse_location_id = q.get('warehouse_location_id')
         exclude_id = q.get('exclude_id')
+        only_pending_inbound = bool(q.get('only_pending_inbound'))
+        require_location = bool(q.get('require_location'))
 
         if not part_number:
             continue
@@ -715,7 +729,13 @@ def check_pending_inbound_batch():
         if key in results:
             continue  # 跳過重複查詢
 
-        items = _query_pending_items(part_number, warehouse_location_id, exclude_id)
+        items = _query_pending_items(
+            part_number,
+            warehouse_location_id,
+            exclude_id,
+            include_registered=not only_pending_inbound,
+            require_location=require_location,
+        )
         if items:
             results[key] = {
                 'part_number': part_number,
@@ -728,9 +748,12 @@ def check_pending_inbound_batch():
     return jsonify({'results': results})
 
 
-def _query_pending_items(part_number, warehouse_location_id=None, exclude_id=None):
+def _query_pending_items(part_number, warehouse_location_id=None, exclude_id=None, include_registered=True, require_location=False):
     """內部輔助函數：查詢指定零件的待入庫和已登記項目"""
     all_items = []
+
+    if require_location and not warehouse_location_id:
+        return all_items
 
     # 1. 查詢已核准/部分入庫（待入庫）的項目
     pending_query = OrderRegistration.query.filter(
@@ -765,34 +788,35 @@ def _query_pending_items(part_number, warehouse_location_id=None, exclude_id=Non
         })
 
     # 2. 查詢當前週期中已登記但尚未審核的項目
-    registered_query = OrderRegistration.query.filter(
-        OrderRegistration.part_number == part_number,
-        OrderRegistration.status == 'registered'
-    )
-    if warehouse_location_id:
-        try:
-            registered_query = registered_query.filter(
-                OrderRegistration.warehouse_location_id == int(warehouse_location_id)
-            )
-        except (ValueError, TypeError):
-            pass
-    if exclude_id:
-        registered_query = registered_query.filter(OrderRegistration.id != int(exclude_id))
+    if include_registered:
+        registered_query = OrderRegistration.query.filter(
+            OrderRegistration.part_number == part_number,
+            OrderRegistration.status == 'registered'
+        )
+        if warehouse_location_id:
+            try:
+                registered_query = registered_query.filter(
+                    OrderRegistration.warehouse_location_id == int(warehouse_location_id)
+                )
+            except (ValueError, TypeError):
+                pass
+        if exclude_id:
+            registered_query = registered_query.filter(OrderRegistration.id != int(exclude_id))
 
-    for item in registered_query.all():
-        all_items.append({
-            'id': item.id,
-            'type': 'registered',
-            'part_number': item.part_number,
-            'part_name': item.part_name,
-            'quantity': item.quantity,
-            'quantity_received': 0,
-            'remaining': item.quantity,
-            'status': item.status,
-            'status_text': '已登記(待審查)',
-            'applicant_name': item.applicant_name,
-            'location_display': item.to_dict().get('location_display'),
-            'created_at': item.created_at.isoformat() if item.created_at else None
-        })
+        for item in registered_query.all():
+            all_items.append({
+                'id': item.id,
+                'type': 'registered',
+                'part_number': item.part_number,
+                'part_name': item.part_name,
+                'quantity': item.quantity,
+                'quantity_received': 0,
+                'remaining': item.quantity,
+                'status': item.status,
+                'status_text': '已登記(待審查)',
+                'applicant_name': item.applicant_name,
+                'location_display': item.to_dict().get('location_display'),
+                'created_at': item.created_at.isoformat() if item.created_at else None
+            })
 
     return all_items

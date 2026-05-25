@@ -3,6 +3,8 @@ from gevent import monkey
 monkey.patch_all()
 
 import os
+import logging
+from logging.handlers import RotatingFileHandler
 from flask import Flask
 from flask_cors import CORS
 from controllers.api_controller import api_bp
@@ -10,20 +12,27 @@ from controllers.web_controller import web_bp
 from controllers.inventory_controller import inventory_api_bp
 from controllers.weekly_order_controller import weekly_order_bp
 from controllers.ai_controller import ai_bp
-from controllers.auth_controller import auth_bp  # 新增
+from controllers.auth_controller import auth_bp
 from controllers.user_controller import user_bp  # 使用者管理
 from controllers.admin_controller import admin_bp  # 管理員控制器
-from extensions import db, migrate, login_manager, socketio  # 新增 socketio
+from extensions import db, migrate, login_manager, socketio
 from datetime import timedelta, datetime
 
 def create_app():
     """應用程式工廠函數"""
     app = Flask(__name__)
-    app.secret_key = 'your-secret-key-here'  # 在生產環境中請使用環境變數
+    
+    # ====== 安全性設定 ======
+    # Secret Key: 優先使用環境變數，若無則使用預設值（僅適用於開發環境）
+    app.secret_key = os.environ.get('SECRET_KEY', 'screw-dev-secret-key-change-in-production')
     
     # Configure SQLAlchemy
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///hardware.db' # Use the existing database file
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False # Suppress warning
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///hardware.db'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    # SQLite timeout: 避免多人同時操作時出現 database locked 錯誤
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'connect_args': {'timeout': 30}
+    }
     
     # Configure Session
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
@@ -76,11 +85,35 @@ def create_app():
     # User loader callback for Flask-Login
     @login_manager.user_loader
     def load_user(user_id):
-        from models.weekly_order import User
+        from models.user import User
         return User.query.get(int(user_id))
     
-    # Enable Cross-Origin Resource Sharing for mobile app
-    CORS(app)
+    # ====== CORS 設定 ======
+    # 限制跨域請求來源為內網 IP 和本機
+    allowed_origins = os.environ.get('CORS_ORIGINS', 
+        'https://192.168.6.119:5005,http://192.168.6.119:5005,https://localhost:5005,http://localhost:5005'
+    ).split(',')
+    CORS(app, origins=allowed_origins)
+    
+    # ====== 日誌設定 ======
+    if not app.debug:
+        # 確保日誌目錄存在
+        log_dir = os.path.join(app.root_path, 'logs')
+        os.makedirs(log_dir, exist_ok=True)
+        
+        file_handler = RotatingFileHandler(
+            os.path.join(log_dir, 'app.log'),
+            maxBytes=10 * 1024 * 1024,  # 10 MB
+            backupCount=5,
+            encoding='utf-8'
+        )
+        file_handler.setFormatter(logging.Formatter(
+            '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
+        ))
+        file_handler.setLevel(logging.INFO)
+        app.logger.addHandler(file_handler)
+        app.logger.setLevel(logging.INFO)
+        app.logger.info('螺絲五金庫存管理系統啟動')
     
     # Conditional blueprint registration for Alembic
     if os.environ.get("ALEMBIC_RUNNING") != "true":
@@ -118,7 +151,8 @@ from models.part import Part, Warehouse, WarehouseLocation, PartWarehouseLocatio
 from models.order import Order
 from models.inventory import CurrentInventory, InventoryTransaction, StockCount, StockCountDetail
 from models.work_order import WorkOrderDemand # ADD THIS LINE
-from models.weekly_order import WeeklyOrderCycle, OrderRegistration, User, OrderReviewLog
+from models.weekly_order import WeeklyOrderCycle, OrderRegistration, OrderReviewLog
+from models.user import User
 from models.template import StockOutTemplate, StockOutTemplateItem  # 導入模板模型
 
 if __name__ == '__main__':
@@ -139,3 +173,4 @@ if __name__ == '__main__':
         print("⚠️  HTTP 模式 (Gevent 異步)")
         print("💡 執行 'python generate_ssl_cert.py' 生成 SSL 憑證以啟用 HTTPS")
         socketio.run(app, host='0.0.0.0', port=5005, debug=False)
+

@@ -4,12 +4,7 @@ from datetime import datetime
 from .part import Part # Import Part model for relationships
 from .part import Warehouse # Import Warehouse model for relationships
 from .part import WarehouseLocation # Import WarehouseLocation model for relationships
-
-# Helper function to get current time in UTC+8
-def get_taipei_time():
-    from datetime import timezone, timedelta
-    tz_taipei = timezone(timedelta(hours=8))
-    return datetime.now(tz_taipei)
+from utils.datetime_utils import get_taipei_time
 
 class Order(db.Model):
     __tablename__ = 'order_history'

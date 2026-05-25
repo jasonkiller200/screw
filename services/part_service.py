@@ -326,6 +326,12 @@ class PartService:
                 inventory_data = []
                 for inv in inventories:
                     inv_dict = inv.to_dict()
+
+                    try:
+                        inv_dict['idle_analysis'] = inv.get_idle_analysis()
+                    except Exception as e:
+                        logging.warning(f"Error calculating idle analysis for inventory {inv.id}: {e}")
+                        inv_dict['idle_analysis'] = None
                     
                     # 消耗分析 (基於30天工作日)
                     try:
@@ -527,7 +533,7 @@ class PartService:
         output.seek(0)
 
         from datetime import datetime
-        filename = f"零件清單_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx"
+        filename = f"零件清單_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
 
         return output.getvalue(), filename
 

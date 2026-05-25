@@ -4,12 +4,7 @@ from datetime import datetime, timedelta
 from .part import Part, Warehouse # Import Part and Warehouse models
 import random
 import sqlalchemy as sa
-
-# Helper function to get current time in UTC+8
-def get_taipei_time():
-    from datetime import timezone
-    tz_taipei = timezone(timedelta(hours=8))
-    return datetime.now(tz_taipei)
+from utils.datetime_utils import get_taipei_time
 
 class CurrentInventory(db.Model):
     __tablename__ = 'current_inventory'
@@ -209,6 +204,48 @@ class CurrentInventory(db.Model):
             'desired_days_of_stock': desired_days,
             'moq': int(moq),
             'urgency_score': self._calculate_urgency_score(analysis, triggered_quantity)
+        }
+
+    def get_idle_analysis(self):
+        """
+        取得該儲位零件的閒置分析（基於最後耗用日）
+
+        Returns:
+            dict: {
+                'last_consumption_date': ISO 日期字串或 None,
+                'idle_days': 閒置天數或 None,
+                'idle_bucket': normal/aging/stagnant/obsolete/no_consumption_history
+            }
+        """
+        last_consumption = InventoryTransaction.get_last_consumption_transaction(
+            self.part_id,
+            self.warehouse_location_id
+        )
+
+        if not last_consumption:
+            return {
+                'last_consumption_date': None,
+                'idle_days': None,
+                'idle_bucket': 'no_consumption_history'
+            }
+
+        last_consumption_date = last_consumption.transaction_date
+        today = get_taipei_time().date()
+        idle_days = max(0, (today - last_consumption_date.date()).days)
+
+        if idle_days >= 180:
+            idle_bucket = 'obsolete'
+        elif idle_days >= 90:
+            idle_bucket = 'stagnant'
+        elif idle_days >= 30:
+            idle_bucket = 'aging'
+        else:
+            idle_bucket = 'normal'
+
+        return {
+            'last_consumption_date': last_consumption_date.isoformat() if last_consumption_date else None,
+            'idle_days': idle_days,
+            'idle_bucket': idle_bucket
         }
     
     def _calculate_urgency_score(self, analysis, suggested_quantity):
@@ -467,6 +504,23 @@ class InventoryTransaction(db.Model):
     warehouse = relationship("Warehouse", backref="transactions")
     warehouse_location = relationship("WarehouseLocation", backref="transactions")
     user = relationship("User", foreign_keys=[user_id], backref="inventory_transactions")
+
+    @classmethod
+    def get_consumption_transaction_types(cls):
+        """真正代表料件被使用的出庫類型。"""
+        return ['OUT_WORK_ORDER', 'OUT_AFTER_SALES']
+
+    @classmethod
+    def get_last_consumption_transaction(cls, part_id, location_id):
+        """取得特定零件在特定儲位最後一次真正耗用的交易。"""
+        return cls.query.filter(
+            cls.part_id == part_id,
+            cls.warehouse_location_id == location_id,
+            cls.transaction_type.in_(cls.get_consumption_transaction_types())
+        ).order_by(
+            db.desc(cls.transaction_date),
+            db.desc(cls.id)
+        ).first()
     
     @classmethod
     def get_working_days_count(cls, start_date, end_date, warehouse_id=None):
@@ -548,7 +602,7 @@ class InventoryTransaction(db.Model):
         # - OUT_WORK_ORDER: 工單領用
         # - OUT_AFTER_SALES: 售服領用
         # - OUT_SCRAP: 報廢
-        consumption_out_types = ['OUT_WORK_ORDER', 'OUT_AFTER_SALES', 'OUT_SCRAP']
+        consumption_out_types = cls.get_consumption_transaction_types()
 
         # 總出庫量
         total_out = db.session.query(

@@ -477,6 +477,8 @@ function confirmModify() {
 // 渲染單一儲位詳情（不顯示切換功能，專用於週期訂單）
 function renderSingleLocationDetailOnly(part, inventory, allInventories, locationId) {
     let warehouse, location, quantity, reserved_quantity, available;
+    const currentIdleAnalysis = inventory?.idle_analysis || null;
+    const currentIdleDisplay = formatIdleAnalysis(currentIdleAnalysis);
     
     if (inventory) {
         if (inventory.warehouse && inventory.warehouse_location) {
@@ -544,6 +546,16 @@ function renderSingleLocationDetailOnly(part, inventory, allInventories, locatio
                                 <small class="text-muted">可用數量</small>
                             </div>
                         </div>
+                        <div class="row mt-3 text-center">
+                            <div class="col-6">
+                                <div class="fw-semibold">${currentIdleDisplay.lastConsumptionLabel}</div>
+                                <small class="text-muted">最後耗用日</small>
+                            </div>
+                            <div class="col-6">
+                                <span class="badge ${currentIdleDisplay.badgeClass}">${currentIdleDisplay.idleDaysLabel}</span>
+                                <div><small class="text-muted">閒置天數</small></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -562,6 +574,7 @@ function renderAllLocationsOverview(part, inventories, orders) {
             const quantity_on_hand = inv ? inv.quantity_on_hand : 0;
             const reserved_quantity = inv ? inv.reserved_quantity : 0;
             const available_quantity = inv ? inv.available_quantity : 0;
+            const idleDisplay = formatIdleAnalysis(inv?.idle_analysis);
 
             return `
                 <tr>
@@ -570,11 +583,13 @@ function renderAllLocationsOverview(part, inventories, orders) {
                     <td class="text-end">${quantity_on_hand}</td>
                     <td class="text-end">${reserved_quantity}</td>
                     <td class="text-end"><strong>${available_quantity}</strong></td>
+                    <td>${idleDisplay.lastConsumptionLabel}</td>
+                    <td class="text-center"><span class="badge ${idleDisplay.badgeClass}">${idleDisplay.idleDaysLabel}</span></td>
                 </tr>
             `;
         }).join('');
     } else {
-        inventoryHtml = '<tr><td colspan="5" class="text-center text-muted">此零件未設定儲位</td></tr>';
+        inventoryHtml = '<tr><td colspan="7" class="text-center text-muted">此零件未設定儲位</td></tr>';
     }
 
     let historyHtml = '';
@@ -637,6 +652,8 @@ function renderAllLocationsOverview(part, inventories, orders) {
                                 <th class="text-end">在庫數量</th>
                                 <th class="text-end">預留數量</th>
                                 <th class="text-end">可用數量</th>
+                                <th>最後耗用日</th>
+                                <th>閒置天數</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -668,6 +685,49 @@ function renderAllLocationsOverview(part, inventories, orders) {
             </div>
         </div>
     `;
+}
+
+function formatIdleAnalysis(idleAnalysis) {
+    if (!idleAnalysis || !idleAnalysis.last_consumption_date) {
+        return {
+            lastConsumptionLabel: '上線後未領料',
+            idleDaysLabel: '上線後未領料',
+            badgeClass: 'bg-secondary'
+        };
+    }
+
+    const idleDays = idleAnalysis.idle_days;
+    const lastConsumptionLabel = new Date(idleAnalysis.last_consumption_date).toLocaleDateString('zh-TW');
+
+    if (idleAnalysis.idle_bucket === 'obsolete') {
+        return {
+            lastConsumptionLabel,
+            idleDaysLabel: `${idleDays} 天`,
+            badgeClass: 'bg-danger'
+        };
+    }
+
+    if (idleAnalysis.idle_bucket === 'stagnant') {
+        return {
+            lastConsumptionLabel,
+            idleDaysLabel: `${idleDays} 天`,
+            badgeClass: 'bg-warning text-dark'
+        };
+    }
+
+    if (idleAnalysis.idle_bucket === 'aging') {
+        return {
+            lastConsumptionLabel,
+            idleDaysLabel: `${idleDays} 天`,
+            badgeClass: 'bg-info text-dark'
+        };
+    }
+
+    return {
+        lastConsumptionLabel,
+        idleDaysLabel: `${idleDays} 天`,
+        badgeClass: 'bg-success'
+    };
 }
 
 // 計算儲位健康度

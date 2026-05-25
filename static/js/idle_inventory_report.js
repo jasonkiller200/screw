@@ -1,0 +1,208 @@
+let idleInventoryData = null;
+let filteredIdleInventoryItems = [];
+
+document.addEventListener('DOMContentLoaded', () => {
+    const refreshBtn = document.getElementById('refreshBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const searchInput = document.getElementById('searchInput');
+    const bucketFilter = document.getElementById('bucketFilter');
+    const warehouseFilter = document.getElementById('warehouseFilter');
+
+    refreshBtn?.addEventListener('click', loadIdleInventoryReport);
+    exportBtn?.addEventListener('click', () => {
+        window.location.href = '/reports/idle-inventory/export';
+    });
+    searchInput?.addEventListener('input', applyFilters);
+    bucketFilter?.addEventListener('change', applyFilters);
+    warehouseFilter?.addEventListener('change', applyFilters);
+
+    loadIdleInventoryReport();
+});
+
+function loadIdleInventoryReport() {
+    document.getElementById('loadingDiv').style.display = 'block';
+    document.getElementById('errorDiv').style.display = 'none';
+    document.getElementById('summaryDiv').style.display = 'none';
+    document.getElementById('resultsDiv').style.display = 'none';
+
+    fetch('/reports/idle-inventory/data')
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        })
+        .then((data) => {
+            document.getElementById('loadingDiv').style.display = 'none';
+            if (!data.success) {
+                showError(data.error || '載入失敗');
+                return;
+            }
+
+            idleInventoryData = data;
+            populateSummary(data.summary);
+            populateWarehouseFilter(data.filters?.warehouses || []);
+            applyFilters();
+
+            document.getElementById('summaryDiv').style.display = 'block';
+            document.getElementById('resultsDiv').style.display = 'block';
+        })
+        .catch((error) => {
+            document.getElementById('loadingDiv').style.display = 'none';
+            showError(`載入閒置庫存報表失敗: ${error.message}`);
+        });
+}
+
+function populateSummary(summary) {
+    document.getElementById('totalLocationsCount').textContent = formatNumber(summary.total_locations || 0);
+    document.getElementById('totalPartNumbersCount').textContent = formatNumber(summary.total_part_numbers || 0);
+    document.getElementById('totalQuantityCount').textContent = formatNumber(summary.total_quantity || 0);
+    document.getElementById('idleOver30Count').textContent = formatNumber(summary.idle_over_30_count || 0);
+    document.getElementById('idleOver90Count').textContent = formatNumber(summary.idle_over_90_count || 0);
+    document.getElementById('idleOver180Count').textContent = formatNumber(summary.idle_over_180_count || 0);
+    document.getElementById('noConsumptionHistoryCount').textContent = formatNumber(summary.no_consumption_history_count || 0);
+}
+
+function populateWarehouseFilter(warehouses) {
+    const warehouseFilter = document.getElementById('warehouseFilter');
+    const currentValue = warehouseFilter.value;
+    warehouseFilter.innerHTML = '<option value="all">全部倉庫</option>';
+
+    warehouses.forEach((warehouse) => {
+        const option = document.createElement('option');
+        option.value = String(warehouse.id);
+        option.textContent = `${warehouse.name} (${warehouse.code})`;
+        warehouseFilter.appendChild(option);
+    });
+
+    warehouseFilter.value = Array.from(warehouseFilter.options).some((option) => option.value === currentValue)
+        ? currentValue
+        : 'all';
+}
+
+function applyFilters() {
+    if (!idleInventoryData) {
+        return;
+    }
+
+    const searchTerm = document.getElementById('searchInput').value.trim().toLowerCase();
+    const bucket = document.getElementById('bucketFilter').value;
+    const warehouseId = document.getElementById('warehouseFilter').value;
+
+    filteredIdleInventoryItems = idleInventoryData.items.filter((item) => {
+        const matchBucket = bucket === 'all' || item.idle_bucket === bucket;
+        const matchWarehouse = warehouseId === 'all' || String(item.warehouse_id) === warehouseId;
+        const searchText = [
+            item.part_number,
+            item.part_name,
+            item.part_type,
+            item.warehouse_name,
+            item.warehouse_code,
+            item.location_code,
+        ].join(' ').toLowerCase();
+        const matchSearch = searchTerm === '' || searchText.includes(searchTerm);
+        return matchBucket && matchWarehouse && matchSearch;
+    });
+
+    renderTable(filteredIdleInventoryItems);
+    document.getElementById('resultCount').textContent = formatNumber(filteredIdleInventoryItems.length);
+}
+
+function renderTable(items) {
+    const tbody = document.getElementById('idleInventoryTableBody');
+
+    if (!items.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="11" class="text-center text-muted py-4">目前沒有符合條件的閒置庫存資料</td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = items.map((item) => {
+        const idleDisplay = formatIdleDisplay(item);
+        return `
+            <tr>
+                <td><strong>${escapeHtml(item.part_number)}</strong></td>
+                <td>${escapeHtml(item.part_name || '')}</td>
+                <td>${escapeHtml(item.part_type || '')}</td>
+                <td>${escapeHtml(item.warehouse_name)} <span class="text-muted">(${escapeHtml(item.warehouse_code)})</span></td>
+                <td>${escapeHtml(item.location_code)}</td>
+                <td class="text-end">${formatNumber(item.quantity_on_hand)}</td>
+                <td class="text-end">${formatNumber(item.available_quantity)}</td>
+                <td class="text-end">${formatNumber(item.reserved_quantity)}</td>
+                <td>${idleDisplay.lastConsumptionLabel}</td>
+                <td class="text-center">${idleDisplay.idleDaysLabel}</td>
+                <td class="text-center"><span class="badge ${idleDisplay.badgeClass}">${idleDisplay.bucketLabel}</span></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function formatIdleDisplay(item) {
+    if (!item.last_consumption_date) {
+        return {
+            lastConsumptionLabel: '上線後未領料',
+            idleDaysLabel: '上線後未領料',
+            bucketLabel: '上線後未領料',
+            badgeClass: 'bg-secondary',
+        };
+    }
+
+    if (item.idle_bucket === 'obsolete') {
+        return {
+            lastConsumptionLabel: formatDate(item.last_consumption_date),
+            idleDaysLabel: `${item.idle_days} 天`,
+            bucketLabel: '180+ 天',
+            badgeClass: 'bg-danger',
+        };
+    }
+
+    if (item.idle_bucket === 'stagnant') {
+        return {
+            lastConsumptionLabel: formatDate(item.last_consumption_date),
+            idleDaysLabel: `${item.idle_days} 天`,
+            bucketLabel: '90-179 天',
+            badgeClass: 'bg-warning text-dark',
+        };
+    }
+
+    if (item.idle_bucket === 'aging') {
+        return {
+            lastConsumptionLabel: formatDate(item.last_consumption_date),
+            idleDaysLabel: `${item.idle_days} 天`,
+            bucketLabel: '30-89 天',
+            badgeClass: 'bg-info text-dark',
+        };
+    }
+
+    return {
+        lastConsumptionLabel: formatDate(item.last_consumption_date),
+        idleDaysLabel: `${item.idle_days} 天`,
+        bucketLabel: '30 天內',
+        badgeClass: 'bg-success',
+    };
+}
+
+function showError(message) {
+    document.getElementById('errorMessage').textContent = message;
+    document.getElementById('errorDiv').style.display = 'block';
+}
+
+function formatNumber(value) {
+    return Number(value || 0).toLocaleString('zh-TW');
+}
+
+function formatDate(value) {
+    return new Date(value).toLocaleDateString('zh-TW');
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}

@@ -6,7 +6,7 @@ from flask_login import login_required, current_user
 from functools import wraps
 from sqlalchemy import inspect
 from extensions import db
-from models.weekly_order import User
+from models.user import User
 from models.part import Part
 from models.inventory import CurrentInventory, InventoryTransaction
 from models.work_order import WorkOrderDemand
