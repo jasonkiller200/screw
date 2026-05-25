@@ -252,7 +252,9 @@ function updateTimeRemaining() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 part_number: partNumber,
-                warehouse_location_id: locationId || null
+                warehouse_location_id: locationId || null,
+                only_pending_inbound: true,
+                require_location: true
             })
         })
         .then(r => r.json())

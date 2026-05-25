@@ -1758,7 +1758,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     part_number: data.part_number,
-                    warehouse_location_id: data.warehouse_location_id
+                    warehouse_location_id: data.warehouse_location_id,
+                    only_pending_inbound: true,
+                    require_location: true
                 })
             })
             .then(r => r.json())

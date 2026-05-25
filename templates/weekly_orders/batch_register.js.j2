@@ -710,7 +710,9 @@ function autoFillRow(partNumberInput) {
             if (partNumber) {
                 items.push({
                     part_number: partNumber,
-                    warehouse_location_id: locationId || null
+                    warehouse_location_id: locationId || null,
+                    only_pending_inbound: true,
+                    require_location: true
                 });
             }
         });

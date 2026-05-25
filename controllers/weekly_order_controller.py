@@ -679,11 +679,19 @@ def check_pending_inbound():
     part_number = (data.get('part_number') or '').strip()
     warehouse_location_id = data.get('warehouse_location_id')
     exclude_id = data.get('exclude_id')  # 排除自身 (審查時使用)
+    only_pending_inbound = bool(data.get('only_pending_inbound'))
+    require_location = bool(data.get('require_location'))
 
     if not part_number:
         return jsonify({'has_pending': False, 'items': []})
 
-    items = _query_pending_items(part_number, warehouse_location_id, exclude_id)
+    items = _query_pending_items(
+        part_number,
+        warehouse_location_id,
+        exclude_id,
+        include_registered=not only_pending_inbound,
+        require_location=require_location,
+    )
 
     pending_count = sum(1 for i in items if i['type'] == 'pending_inbound')
     registered_count = sum(1 for i in items if i['type'] == 'registered')
@@ -710,6 +718,8 @@ def check_pending_inbound_batch():
         part_number = (q.get('part_number') or '').strip()
         warehouse_location_id = q.get('warehouse_location_id')
         exclude_id = q.get('exclude_id')
+        only_pending_inbound = bool(q.get('only_pending_inbound'))
+        require_location = bool(q.get('require_location'))
 
         if not part_number:
             continue
@@ -719,7 +729,13 @@ def check_pending_inbound_batch():
         if key in results:
             continue  # 跳過重複查詢
 
-        items = _query_pending_items(part_number, warehouse_location_id, exclude_id)
+        items = _query_pending_items(
+            part_number,
+            warehouse_location_id,
+            exclude_id,
+            include_registered=not only_pending_inbound,
+            require_location=require_location,
+        )
         if items:
             results[key] = {
                 'part_number': part_number,
@@ -732,9 +748,12 @@ def check_pending_inbound_batch():
     return jsonify({'results': results})
 
 
-def _query_pending_items(part_number, warehouse_location_id=None, exclude_id=None):
+def _query_pending_items(part_number, warehouse_location_id=None, exclude_id=None, include_registered=True, require_location=False):
     """內部輔助函數：查詢指定零件的待入庫和已登記項目"""
     all_items = []
+
+    if require_location and not warehouse_location_id:
+        return all_items
 
     # 1. 查詢已核准/部分入庫（待入庫）的項目
     pending_query = OrderRegistration.query.filter(
@@ -769,34 +788,35 @@ def _query_pending_items(part_number, warehouse_location_id=None, exclude_id=Non
         })
 
     # 2. 查詢當前週期中已登記但尚未審核的項目
-    registered_query = OrderRegistration.query.filter(
-        OrderRegistration.part_number == part_number,
-        OrderRegistration.status == 'registered'
-    )
-    if warehouse_location_id:
-        try:
-            registered_query = registered_query.filter(
-                OrderRegistration.warehouse_location_id == int(warehouse_location_id)
-            )
-        except (ValueError, TypeError):
-            pass
-    if exclude_id:
-        registered_query = registered_query.filter(OrderRegistration.id != int(exclude_id))
+    if include_registered:
+        registered_query = OrderRegistration.query.filter(
+            OrderRegistration.part_number == part_number,
+            OrderRegistration.status == 'registered'
+        )
+        if warehouse_location_id:
+            try:
+                registered_query = registered_query.filter(
+                    OrderRegistration.warehouse_location_id == int(warehouse_location_id)
+                )
+            except (ValueError, TypeError):
+                pass
+        if exclude_id:
+            registered_query = registered_query.filter(OrderRegistration.id != int(exclude_id))
 
-    for item in registered_query.all():
-        all_items.append({
-            'id': item.id,
-            'type': 'registered',
-            'part_number': item.part_number,
-            'part_name': item.part_name,
-            'quantity': item.quantity,
-            'quantity_received': 0,
-            'remaining': item.quantity,
-            'status': item.status,
-            'status_text': '已登記(待審查)',
-            'applicant_name': item.applicant_name,
-            'location_display': item.to_dict().get('location_display'),
-            'created_at': item.created_at.isoformat() if item.created_at else None
-        })
+        for item in registered_query.all():
+            all_items.append({
+                'id': item.id,
+                'type': 'registered',
+                'part_number': item.part_number,
+                'part_name': item.part_name,
+                'quantity': item.quantity,
+                'quantity_received': 0,
+                'remaining': item.quantity,
+                'status': item.status,
+                'status_text': '已登記(待審查)',
+                'applicant_name': item.applicant_name,
+                'location_display': item.to_dict().get('location_display'),
+                'created_at': item.created_at.isoformat() if item.created_at else None
+            })
 
     return all_items
