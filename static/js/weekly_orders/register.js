@@ -171,6 +171,20 @@ function searchParts(query) {
         });
 }
 
+function showRegisterPartConsumptionDetails() {
+    const partNumber = (document.getElementById('part_number')?.value || '').trim();
+    const locationValue = document.getElementById('warehouse_location_id')?.value;
+    const warehouseLocationId = locationValue ? parseInt(locationValue, 10) : null;
+
+    if (!partNumber) {
+        return;
+    }
+
+    if (window.PartDetailModal) {
+        window.PartDetailModal.openConsumptionAnalysisDirect(partNumber, warehouseLocationId);
+    }
+}
+
 // 頁面載入時更新時間，並每分鐘更新一次
 document.addEventListener('DOMContentLoaded', function() {
     updateTimeRemaining();

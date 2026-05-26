@@ -132,7 +132,6 @@ function quickStockIn(partNumber, locationId) {
     document.getElementById('actionQuantity').value = '';
     document.getElementById('actionNotes').value = '';
     
-    // Show/Hide relevant sections
     document.getElementById('transactionTypeInGroup').style.display = 'block';
     document.getElementById('transactionTypeOutGroup').style.display = 'none';
     document.getElementById('workOrderGroup').style.display = 'none';
@@ -151,31 +150,27 @@ function quickStockOut(partNumber, locationId) {
     document.getElementById('actionQuantity').value = '';
     document.getElementById('actionNotes').value = '';
 
-    // Show/Hide relevant sections
     document.getElementById('transactionTypeInGroup').style.display = 'none';
     document.getElementById('transactionTypeOutGroup').style.display = 'block';
     
-    // Trigger change event to show/hide work order field based on default selection
     const transactionTypeOut = document.getElementById('actionTransactionTypeOut');
     const workOrderIdInput = document.getElementById('actionWorkOrderId');
     const actionNotesInput = document.getElementById('actionNotes');
 
     if (transactionTypeOut.value === 'OUT_WORK_ORDER') {
         document.getElementById('workOrderGroup').style.display = 'block';
-        // Set initial notes for work order
         if (workOrderIdInput.value) {
             actionNotesInput.value = `工單領用 - 工單編號: ${workOrderIdInput.value}`;
         }
     } else {
         document.getElementById('workOrderGroup').style.display = 'none';
-        actionNotesInput.value = ''; // Clear notes if not work order
+        actionNotesInput.value = '';
     }
-    validateQuickActionWorkOrderId(); // Initial validation on modal open
+    validateQuickActionWorkOrderId();
     const modal = new bootstrap.Modal(document.getElementById('quickActionModal'));
     modal.show();
 }
 
-// Listen for changes on the stock-out transaction type dropdown
 document.getElementById('actionTransactionTypeOut').addEventListener('change', function() {
     const workOrderGroup = document.getElementById('workOrderGroup');
     const workOrderIdInput = document.getElementById('actionWorkOrderId');
@@ -188,12 +183,11 @@ document.getElementById('actionTransactionTypeOut').addEventListener('change', f
         }
     } else {
         workOrderGroup.style.display = 'none';
-        actionNotesInput.value = ''; // Clear notes if not work order
+        actionNotesInput.value = '';
     }
-    validateQuickActionWorkOrderId(); // Re-validate on type change
+    validateQuickActionWorkOrderId();
 });
 
-// Listen for changes on the work order ID input to update notes
 document.getElementById('actionWorkOrderId').addEventListener('input', function() {
     const transactionTypeOut = document.getElementById('actionTransactionTypeOut');
     const actionNotesInput = document.getElementById('actionNotes');
@@ -204,10 +198,9 @@ document.getElementById('actionWorkOrderId').addEventListener('input', function(
             actionNotesInput.value = '工單領用 - 工單編號: ';
         }
     }
-    validateQuickActionWorkOrderId(); // Re-validate on input change
+    validateQuickActionWorkOrderId();
 });
 
-// 提交快速操作
 document.getElementById('submitQuickAction').addEventListener('click', function() {
     const partNumber = document.getElementById('actionPartNumber').value;
     const locationId = document.getElementById('actionLocationId').value;
@@ -220,7 +213,8 @@ document.getElementById('submitQuickAction').addEventListener('click', function(
         return;
     }
     
-    let url, payload;
+    let url;
+    let payload;
     if (actionType === 'IN') {
         url = '/api/inventory/stock-in';
         const transactionType = document.getElementById('actionTransactionTypeIn').value;
@@ -235,7 +229,7 @@ document.getElementById('submitQuickAction').addEventListener('click', function(
             transaction_type: transactionType,
             notes: notes
         };
-    } else { // OUT
+    } else {
         url = '/api/inventory/stock-out';
         const transactionType = document.getElementById('actionTransactionTypeOut').value;
         if (!transactionType) {
@@ -243,7 +237,6 @@ document.getElementById('submitQuickAction').addEventListener('click', function(
             return;
         }
 
-        // Perform work order ID validation before proceeding
         if (transactionType === 'OUT_WORK_ORDER' && !validateQuickActionWorkOrderId()) {
             alert('請修正工單編號。');
             return;
@@ -256,7 +249,6 @@ document.getElementById('submitQuickAction').addEventListener('click', function(
             transaction_type: transactionType,
             notes: notes
         };
-        // If work order, add work_order_id to payload
         if (transactionType === 'OUT_WORK_ORDER') {
             payload.work_order_id = document.getElementById('actionWorkOrderId').value;
         }
@@ -269,170 +261,91 @@ document.getElementById('submitQuickAction').addEventListener('click', function(
         },
         body: JSON.stringify(payload)
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert(data.message);
-            location.reload();
-        } else {
-            alert('操作失敗：' + data.error);
-        }
-    })
-    .catch(err => {
-        alert('網路錯誤：' + err.message);
-    });
-    
-    bootstrap.Modal.getInstance(document.getElementById('quickActionModal')).hide();
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message || '操作成功！');
+                location.reload();
+            } else {
+                alert(data.error || '操作失敗');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('操作失敗，請稍後再試');
+        });
 });
 
-// 匯出庫存 - 使用當前篩選條件
-function exportInventory() {
-    // 取得當前 URL 的查詢參數
-    const currentUrl = new URL(window.location);
-    const warehouseId = currentUrl.searchParams.get('warehouse_id');
-    
-    let exportUrl = '/api/inventory/stock/export?';
-    const params = new URLSearchParams();
-    
-    if (warehouseId) params.append('warehouse_id', warehouseId);
-    
-    exportUrl += params.toString();
-    
-    // 開啟新視窗下載 XLSX 檔案
-    window.open(exportUrl, '_blank');
-}
-
-// 匯出所有倉庫的庫存
-function exportAllInventory() {
-    window.open('/api/inventory/stock/export', '_blank');
-}
-
-// 匯出低庫存清單
-function exportLowStock() {
-    const currentUrl = new URL(window.location);
-    const warehouseId = currentUrl.searchParams.get('warehouse_id');
-    
-    let exportUrl = '/api/inventory/low-stock/export';
-    if (warehouseId) {
-        exportUrl += `?warehouse_id=${warehouseId}`;
-    }
-    
-    window.open(exportUrl, '_blank');
-}
-
-// 顯示進階匯出選項（未來擴展用）
-function showExportOptions() {
-    alert('進階匯出選項功能將在下個版本中提供');
-}
-
-// Function to validate work order ID for quick action modal
 function validateQuickActionWorkOrderId() {
-    const transactionTypeSelect = document.getElementById('actionTransactionTypeOut');
+    const transactionTypeOut = document.getElementById('actionTransactionTypeOut');
     const workOrderIdInput = document.getElementById('actionWorkOrderId');
-    const workOrderIdFeedback = document.getElementById('action-work-order-id-feedback');
-    
-    const isWorkOrderType = transactionTypeSelect.value === 'OUT_WORK_ORDER';
-    let isValid = true;
-    let feedbackMessage = '';
 
-    if (isWorkOrderType) {
-        workOrderIdInput.setAttribute('required', 'required');
-        if (workOrderIdInput.value.trim() === '') {
-            isValid = false;
-            feedbackMessage = '工單編號為必填項。';
-        } else if (workOrderIdInput.value.trim().length < 9) {
-            isValid = false;
-            feedbackMessage = '工單編號至少需要9碼。';
-        }
-    } else {
-        workOrderIdInput.removeAttribute('required');
-    }
-
-    if (isValid) {
+    if (transactionTypeOut.value !== 'OUT_WORK_ORDER') {
         workOrderIdInput.classList.remove('is-invalid');
-        workOrderIdInput.classList.add('is-valid');
-        workOrderIdFeedback.textContent = '';
-    } else {
-        workOrderIdInput.classList.add('is-invalid');
-        workOrderIdInput.classList.remove('is-valid');
-        workOrderIdFeedback.textContent = feedbackMessage;
+        return true;
     }
+
+    const workOrderId = workOrderIdInput.value.trim();
+    const isValid = /^\d{5}$/.test(workOrderId);
+    workOrderIdInput.classList.toggle('is-invalid', !isValid);
     return isValid;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    // 初始化所有行的原始值並進行驗證
-    const allRows = document.querySelectorAll('.inventory-row');
-    allRows.forEach(row => {
+function exportInventory() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const warehouseId = urlParams.get('warehouse_id') || '';
+    const exportUrl = warehouseId ? `/api/inventory/stock/export?warehouse_id=${warehouseId}` : '/api/inventory/stock/export';
+    window.open(exportUrl, '_blank');
+}
+
+function exportAllInventory() {
+    window.open('/api/export/all-inventory-excel', '_blank');
+}
+
+function exportLowStock() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const warehouseId = urlParams.get('warehouse_id') || '';
+    const exportUrl = warehouseId ? `/api/export/low-stock-excel?warehouse_id=${warehouseId}` : '/api/export/low-stock-excel';
+    window.open(exportUrl, '_blank');
+}
+
+function showExportOptions() {
+    const modal = new bootstrap.Modal(document.getElementById('exportOptionsModal'));
+    modal.show();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.inventory-row').forEach(row => {
         const partId = row.dataset.partId;
         const locationId = row.dataset.locationId;
         const key = `${partId}-${locationId}`;
-        
+
         const safetyStockInput = row.querySelector('.safety-stock-input');
         const reorderPointInput = row.querySelector('.reorder-point-input');
-        
-        // 儲存原始值
+
         originalValues.set(key, {
             safety: parseFloat(safetyStockInput.value) || 0,
             reorder: parseFloat(reorderPointInput.value) || 0
         });
-        
-        // 初始驗證
-        if (reorderPointInput) {
-            validateStockLevels(reorderPointInput);
-        }
-        
-        // 監聽輸入變更
+
         safetyStockInput.addEventListener('input', function() {
-            checkIfModified(this);
+            validateStockLevels(this);
         });
-        
+
         reorderPointInput.addEventListener('input', function() {
-            checkIfModified(this);
+            validateStockLevels(this);
         });
-    });
-    
-    // 離開頁面前檢查是否有未儲存的變更
-    window.addEventListener('beforeunload', (event) => {
-        const hasUnsavedChanges = document.querySelectorAll('.row-modified').length > 0;
-        
-        if (hasUnsavedChanges) {
-            const message = '您有未儲存的庫存設定變更，確定要離開嗎？';
-            event.preventDefault();
-            event.returnValue = message; // 標準寫法
-            return message; // 部分瀏覽器需要
-        }
-    });
-    
-    const saveButtons = document.querySelectorAll('.save-stock-levels-btn');
 
-    saveButtons.forEach(button => {
-        button.addEventListener('click', (event) => {
-            const row = event.currentTarget.closest('.inventory-row');
-            const partId = row.dataset.partId;
-            
-            const safetyStockInput = row.querySelector('.safety-stock-input');
-            const reorderPointInput = row.querySelector('.reorder-point-input');
+        const saveButton = row.querySelector('.save-stock-levels-btn');
+        saveButton.addEventListener('click', function() {
+            const button = this;
+            const safetyStock = parseInt(safetyStockInput.value) || 0;
+            const reorderPoint = parseInt(reorderPointInput.value) || 0;
 
-            const safetyStock = parseFloat(safetyStockInput.value);
-            const reorderPoint = parseFloat(reorderPointInput.value);
-
-            if (!partId || safetyStock === '' || reorderPoint === '') {
-                alert('無法獲取零件ID或庫存值');
-                return;
-            }
-            
-            // 驗證數值合理性
-            if (safetyStock < 0 || reorderPoint < 0) {
-                alert('❌ 安全庫存和補貨點不能為負數');
-                return;
-            }
-            
-            // 驗證補貨點是否小於安全庫存（不允許儲存）
             if (reorderPoint < safetyStock) {
                 const partNumber = row.dataset.partNumber;
                 const partName = row.dataset.partName;
-                
+
                 alert(
                     `❌ 補貨點設定錯誤，無法儲存\n\n` +
                     `零件：${partNumber} - ${partName}\n` +
@@ -443,12 +356,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     `補貨點 = (平均每日用量 × 採購前置期) + 安全庫存\n\n` +
                     `範例：日用量100個 × 前置期5天 + 安全庫存300 = 800`
                 );
-                
-                // 觸發驗證顯示錯誤訊息
+
                 validateStockLevels(reorderPointInput);
                 return;
-            }else if (reorderPoint === safetyStock && reorderPoint > 0) {
-                // 警告：補貨點等於安全庫存
+            } else if (reorderPoint === safetyStock && reorderPoint > 0) {
                 const confirmed = confirm(
                     `⚠️ 補貨點設定提醒\n\n` +
                     `補貨點 (${reorderPoint}) 等於安全庫存 (${safetyStock})\n\n` +
@@ -457,13 +368,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     `範例：日用量100個 × 前置期5天 + 安全庫存300 = 800\n\n` +
                     `是否繼續儲存？`
                 );
-                
+
                 if (!confirmed) {
                     return;
                 }
             }
 
-            // Add visual feedback that something is happening
             button.disabled = true;
             button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
@@ -474,36 +384,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify({
                     warehouse_id: row.dataset.warehouseId,
-                    warehouse_location_id: row.dataset.locationId, // 添加儲位ID
+                    warehouse_location_id: row.dataset.locationId,
                     safety_stock: safetyStock,
                     reorder_point: reorderPoint,
                 }),
             })
             .then(response => {
                 if (!response.ok) {
-                    // If response is not OK, read the error message from JSON body
-                    return response.json().then(err => { throw new Error(err.error || '伺服器錯誤') });
+                    return response.json().then(err => { throw new Error(err.error || '伺服器錯誤'); });
                 }
                 return response.json();
             })
             .then(data => {
                 if (data.success) {
-                    // 更新原始值（儲存成功後）
-                    const locationId = row.dataset.locationId;
-                    const key = `${partId}-${locationId}`;
-                    originalValues.set(key, {
+                    const saveKey = `${partId}-${row.dataset.locationId}`;
+                    originalValues.set(saveKey, {
                         safety: safetyStock,
                         reorder: reorderPoint
                     });
-                    
-                    // 移除修改標記
+
                     markRowAsModified(row, false);
-                    
-                    // Visual feedback for success
+
                     row.style.transition = 'background-color 0.5s ease';
-                    row.style.backgroundColor = '#d4edda'; // Light green
-                    
-                    // 顯示成功訊息
+                    row.style.backgroundColor = '#d4edda';
+
                     const successMsg = document.createElement('div');
                     successMsg.className = 'alert alert-success alert-dismissible fade show position-fixed';
                     successMsg.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 300px;';
@@ -513,13 +417,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     `;
                     document.body.appendChild(successMsg);
-                    
+
                     setTimeout(() => {
-                        row.style.backgroundColor = ''; // Reset background
+                        row.style.backgroundColor = '';
                         successMsg.remove();
                     }, 3000);
-                    
-                    // 清除驗證提示
+
                     validateStockLevels(reorderPointInput);
                 } else {
                     throw new Error(data.error || '更新失敗');
@@ -528,14 +431,12 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(error => {
                 console.error('Error:', error);
                 alert(`❌ 更新失敗: ${error.message}`);
-                // Visual feedback for error
-                row.style.backgroundColor = '#f8d7da'; // Light red
+                row.style.backgroundColor = '#f8d7da';
                 setTimeout(() => {
-                    row.style.backgroundColor = ''; // Reset background
+                    row.style.backgroundColor = '';
                 }, 2000);
             })
             .finally(() => {
-                // Restore button state
                 button.disabled = false;
                 button.innerHTML = '<i class="fas fa-save"></i>';
             });
@@ -543,519 +444,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// 全域變數用於儲存當前零件資料
-let currentPartData = null;
-let currentClickedLocationId = null;
-
-// 直接開啟「耗損分析與採購建議」模態視窗（跳過第一層零件詳情 modal）
-function openConsumptionAnalysisDirect(partNumber, warehouseLocationId = null) {
-    if (!partNumber) return;
-
-    // 記錄使用者點擊的儲位（用於決定耗損視窗預設顯示哪個儲位）
-    currentClickedLocationId = warehouseLocationId;
-
-    // 先把耗損 modal 打開並顯示 loading，讓使用者有即時回饋
-    const modalElement = document.getElementById('consumptionDetailModal');
-    const label = document.getElementById('consumptionDetailModalLabel');
-    const summarySection = document.getElementById('consumptionSummarySection');
-    const detailList = document.getElementById('consumptionDetailList');
-
-    if (label) {
-        label.textContent = `🛠️ 消耗分析與採購建議 (${partNumber})`;
-    }
-    if (summarySection) {
-        summarySection.innerHTML = `
-            <div class="text-center py-3">
-                <div class="spinner-border text-primary" role="status"></div>
-                <div class="mt-2 text-muted">正在載入零件與庫存分佈...</div>
-            </div>
-        `;
-    }
-    if (detailList) {
-        detailList.innerHTML = `
-            <div class="text-center py-3">
-                <div class="spinner-border text-secondary" role="status"></div>
-                <div class="mt-2 text-muted">正在載入耗損詳情...</div>
-            </div>
-        `;
-    }
-
-    let modal = bootstrap.Modal.getInstance(modalElement);
-    if (!modal) {
-        modal = new bootstrap.Modal(modalElement, { backdrop: true, keyboard: true, focus: true });
-    }
-    modal.show();
-
-    // 載入資料後，直接呼叫既有的 showConsumptionAnalysis() 產生完整畫面
-    fetch(`/api/part/${encodeURIComponent(partNumber)}?include_locations=true`)
-        .then(r => r.json())
-        .then(data => {
-            if (data.error) {
-                throw new Error(data.error);
-            }
-            currentPartData = data;
-            showConsumptionAnalysis();
-        })
-        .catch(err => {
-            console.error('openConsumptionAnalysisDirect error:', err);
-            if (detailList) {
-                detailList.innerHTML = `<div class="alert alert-danger m-3">載入失敗：${err.message}</div>`;
-            }
-        });
-}
-
-// 顯示零件詳情（支援儲位參數）
-function showPartDetails(partNumber, warehouseLocationId = null) {
-    if (!partNumber) {
-        return;
-    }
-    
-    // 儲存點擊的儲位ID
-    currentClickedLocationId = warehouseLocationId;
-    
-    const modalLabel = document.getElementById('partDetailModalLabel');
-    const detailContent = document.getElementById('partDetailContent');
-    const modalElement = document.getElementById('partDetailModal');
-    const showConsumptionBtn = document.getElementById('showConsumptionAnalysisBtn');
-    
-    if (!modalLabel || !detailContent || !modalElement) {
-        alert('模態視窗元素未找到，請確認頁面載入完整');
-        return;
-    }
-    
-    modalLabel.textContent = `零件詳情: ${partNumber}`;
-    detailContent.innerHTML = `
-        <div class="text-center py-3">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">載入中...</span>
-            </div>
-            <p class="mt-2">正在載入零件資訊...</p>
-        </div>
-    `;
-    
-    // 隱藏耗損分析按鈕
-    if (showConsumptionBtn) {
-        showConsumptionBtn.style.display = 'none';
-    }
-    
-    // 重用或創建 modal 實例
-    let modal = bootstrap.Modal.getInstance(modalElement);
-    if (!modal) {
-        modal = new bootstrap.Modal(modalElement, {
-            backdrop: true,
-            keyboard: true,
-            focus: true
-        });
-        
-        // 只在第一次創建時添加清理事件
-        modalElement.addEventListener('hidden.bs.modal', function() {
-            cleanupModalBackdrops();
-        }, { once: true });
-    }
-    modal.show();
-
-    fetch(`/api/part/${encodeURIComponent(partNumber)}?include_locations=true`)
-        .then(response => response.json())
-        .then(data => {
-            // 儲存當前零件資料供耗損分析使用
-            currentPartData = data;
-            
-            // 獲取週期訂單相關數據
-            return Promise.all([
-                data,
-                fetch(`/api/part/${encodeURIComponent(partNumber)}/weekly-orders`).then(r => r.json()).catch(() => null)
-            ]);
-        })
-        .then(([data, weeklyOrderData]) => {
-            if (data.error) {
-                detailContent.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
-                return;
-            }
-            
-            // 儲存當前零件資料供耗損分析使用
-            currentPartData = data;
-
-            const part = data.part_info;
-            const inventories = data.inventories || [];
-            const orders = data.order_history || [];
-
-            // 決定顯示模式：如果有指定儲位ID，優先顯示該儲位詳情
-            const targetInventory = currentClickedLocationId ? 
-                inventories?.find(inv => inv.warehouse_location_id === currentClickedLocationId) : 
-                null;
-
-            let contentHtml = '';
-
-            if (targetInventory) {
-                // 顯示單一儲位詳情
-                contentHtml = renderSingleLocationDetail(part, targetInventory, inventories, weeklyOrderData);
-            } else {
-                // 顯示所有儲位概覽（保持原有邏輯）
-                contentHtml = renderAllLocationsOverview(part, inventories, orders);
-            }
-
-            detailContent.innerHTML = contentHtml;
-            
-            // 如果有庫存資料，顯示耗損分析按鈕
-            if (showConsumptionBtn && inventories && inventories.length > 0) {
-                showConsumptionBtn.style.display = 'inline-block';
-                // 確保按鈕事件監聽器正確設置
-                showConsumptionBtn.onclick = showConsumptionAnalysis;
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching part details:', error);
-            detailContent.innerHTML = `<div class="alert alert-danger">載入零件詳情失敗：${error.message}</div>`;
-        });
-}
-
-
-// 渲染單一儲位詳情
-function renderSingleLocationDetail(part, inventory, allInventories, weeklyOrderData) {
-    // 處理庫存數據，適配不同的數據結構
-    let warehouse, location, quantity, reserved_quantity, available;
-    const currentIdleAnalysis = inventory?.idle_analysis || null;
-    const currentIdleDisplay = formatIdleAnalysis(currentIdleAnalysis);
-    
-    if (inventory.warehouse && inventory.warehouse_location) {
-        // 新的數據結構
-        warehouse = inventory.warehouse;
-        location = inventory.warehouse_location;
-        quantity = inventory.quantity_on_hand || inventory.quantity || 0;
-        reserved_quantity = inventory.reserved_quantity || 0;
-        available = inventory.available_quantity || (quantity - reserved_quantity);
-    } else {
-        // 從 part.locations 中尋找對應的儲位資料
-        const locationData = part.locations?.find(loc => loc.id === currentClickedLocationId);
-        if (locationData) {
-            warehouse = { name: locationData.warehouse_name, code: locationData.warehouse_code };
-            location = { location_code: locationData.location_code };
-            quantity = inventory.quantity_on_hand || inventory.quantity || 0;
-            reserved_quantity = inventory.reserved_quantity || 0;
-            available = inventory.available_quantity || (quantity - reserved_quantity);
-        } else {
-            warehouse = { name: 'N/A', code: 'N/A' };
-            location = { location_code: 'N/A' };
-            quantity = inventory.quantity || 0;
-            reserved_quantity = inventory.reserved_quantity || 0;
-            available = quantity - reserved_quantity;
-        }
-    }
-
-    // 生成所有儲位的表格，並高亮當前儲位
-    let inventoryHtml = '';
-    const all_locations = (part && part.locations) ? part.locations : [];
-
-    if (all_locations.length > 0) {
-        inventoryHtml = all_locations.map(loc => {
-            // 從 allInventories 陣列中尋找此儲位的庫存記錄
-            const inv = allInventories.find(i => i.warehouse_location_id === loc.id);
-            const quantity_on_hand = inv ? inv.quantity_on_hand : 0;
-            const reserved_quantity = inv ? inv.reserved_quantity : 0;
-            const available_quantity = inv ? inv.available_quantity : 0;
-            const idleDisplay = formatIdleAnalysis(inv?.idle_analysis);
-            
-            // 計算健康度
-            const healthInfo = calculateLocationHealth(available_quantity, quantity_on_hand);
-            const isCurrentLocation = loc.id === currentClickedLocationId;
-            const rowClass = isCurrentLocation ? 'table-warning' : '';
-            const currentLabel = isCurrentLocation ? '<i class="fas fa-arrow-right me-1 text-primary"></i>' : '';
-
-            return `
-                <tr class="${rowClass}" style="cursor: pointer;" onclick="openConsumptionAnalysisDirect('${part.part_number}', ${loc.id})">
-                    <td>${currentLabel}${loc.warehouse_name} (${loc.warehouse_code})</td>
-                    <td>${loc.location_code}</td>
-                    <td class="text-end">${quantity_on_hand}</td>
-                    <td class="text-end">${reserved_quantity}</td>
-                    <td class="text-end"><strong>${available_quantity}</strong></td>
-                    <td>${idleDisplay.lastConsumptionLabel}</td>
-                    <td class="text-center">${idleDisplay.idleDaysLabel}</td>
-                    <td class="text-center">
-                        <span class="badge ${healthInfo.badgeClass}" title="${healthInfo.tooltip}">
-                            ${healthInfo.icon} ${healthInfo.text}
-                        </span>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-    } else {
-        inventoryHtml = '<tr><td colspan="6" class="text-center text-muted">此零件未設定儲位</td></tr>';
-    }
-    
-    // 週期訂單相關數據
-    let weeklyOrderHtml = '';
-    const weeklyOrderError = checkWeeklyOrderCompatibility(weeklyOrderData);
-    
-    if (weeklyOrderError) {
-        weeklyOrderHtml = `
-            <div class="row mt-3">
-                <div class="col-12">
-                    <div class="alert alert-warning">
-                        <h6><i class="fas fa-exclamation-triangle me-2"></i>週期申請系統相容性問題</h6>
-                        <p class="mb-1">${weeklyOrderError}</p>
-                        <small class="text-muted">請聯繫系統管理員檢查週期訂單模組設定。</small>
-                    </div>
-                </div>
-            </div>
-        `;
-    } else if (weeklyOrderData?.registrations?.length > 0) {
-        const locationOrders = weeklyOrderData.registrations.filter(reg => 
-            reg.warehouse_location_id === (inventory.warehouse_location_id || currentClickedLocationId)
-        );
-        
-        if (locationOrders.length > 0) {
-            weeklyOrderHtml = `
-                <div class="row mt-3">
-                    <div class="col-12">
-                        <h6><i class="fas fa-calendar-week me-2 text-success"></i>週期訂單申請記錄</h6>
-                        <div class="table-responsive">
-                            <table class="table table-sm table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>申請週期</th>
-                                        <th>申請數量</th>
-                                        <th>已入庫</th>
-                                        <th>狀態</th>
-                                        <th>申請人</th>
-                                        <th>申請日期</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${locationOrders.map(order => `
-                                        <tr>
-                                            <td><strong>${order.cycle_name || 'N/A'}</strong></td>
-                                            <td class="text-end">${order.quantity || 0}</td>
-                                            <td class="text-end">${order.quantity_received || 0}</td>
-                                            <td>
-                                                <span class="badge ${getStatusBadgeClass(order.status)}">
-                                                    ${getStatusText(order.status)}
-                                                </span>
-                                            </td>
-                                            <td>${order.applicant_name || 'N/A'}</td>
-                                            <td>${order.created_at ? new Date(order.created_at).toLocaleDateString() : 'N/A'}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            `;
-        } else {
-            weeklyOrderHtml = `
-                <div class="row mt-3">
-                    <div class="col-12">
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle me-2"></i>此儲位暫無週期訂單申請記錄
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-    }
-    
-    return `
-        <div class="row">
-            <div class="col-md-6">
-                <h6><i class="fas fa-info-circle me-2"></i>基本資訊</h6>
-                <table class="table table-sm">
-                    <tr><td><strong>零件編號：</strong></td><td>${(part && part.part_number) || 'N/A'}</td></tr>
-                    <tr><td><strong>名稱：</strong></td><td>${(part && part.name) || 'N/A'}</td></tr>
-                    <tr><td><strong>描述：</strong></td><td>${(part && part.description) || '無'}</td></tr>
-                    <tr><td><strong>單位：</strong></td><td>${(part && part.unit) || 'N/A'}</td></tr>
-                    <tr><td><strong>每盒數量：</strong></td><td>${(part && part.quantity_per_box) || 'N/A'}</td></tr>
-                    <tr><td><strong>採購前置期：</strong></td><td>${(part && part.lead_time) || 'N/A'} 天</td></tr>
-                </table>
-            </div>
-            <div class="col-md-6">
-                <h6><i class="fas fa-warehouse me-2"></i>當前儲位詳情</h6>
-                <div class="card border-warning bg-warning bg-opacity-10">
-                    <div class="card-body">
-                        <h6 class="card-title text-warning-emphasis">
-                            <i class="fas fa-arrow-right me-2"></i>${warehouse.name || 'N/A'} - ${location.location_code || 'N/A'}
-                        </h6>
-                        <div class="row text-center">
-                            <div class="col-4">
-                                <div class="text-primary fw-bold fs-4">${quantity}</div>
-                                <small class="text-muted">在庫數量</small>
-                            </div>
-                            <div class="col-4">
-                                <div class="text-warning fw-bold fs-4">${reserved_quantity}</div>
-                                <small class="text-muted">預留數量</small>
-                            </div>
-                            <div class="col-4">
-                                <div class="text-success fw-bold fs-4">${available}</div>
-                                <small class="text-muted">可用數量</small>
-                            </div>
-                        </div>
-                        <div class="row mt-3 text-center">
-                            <div class="col-6">
-                                <div class="fw-semibold">${currentIdleDisplay.lastConsumptionLabel}</div>
-                                <small class="text-muted">最後耗用日</small>
-                            </div>
-                            <div class="col-6">
-                                <span class="badge ${currentIdleDisplay.badgeClass}">${currentIdleDisplay.idleDaysLabel}</span>
-                                <div><small class="text-muted">閒置天數</small></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="row mt-3">
-            <div class="col-12">
-                <h6><i class="fas fa-list me-2"></i>所有儲位庫存 <small class="text-muted">(點擊切換儲位)</small></h6>
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover">
-                        <thead class="table-light">
-                            <tr>
-                                <th>倉庫</th>
-                                <th>倉位</th>
-                                <th class="text-end">在庫數量</th>
-                                <th class="text-end">預留數量</th>
-                                <th class="text-end">可用數量</th>
-                                <th>最後耗用日</th>
-                                <th class="text-center">閒置天數</th>
-                                <th class="text-center">健康度</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${inventoryHtml}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        ${weeklyOrderHtml}
-    `;
-}
-
-// 渲染所有儲位概覽
-function renderAllLocationsOverview(part, inventories, orders) {
-    // 生成庫存表格 HTML
-    let inventoryHtml = '';
-    const all_locations = (part && part.locations) ? part.locations : [];
-
-    if (all_locations.length > 0) {
-        inventoryHtml = all_locations.map(loc => {
-            // 從 inventories 陣列中尋找此儲位的庫存記錄
-            const inv = inventories.find(i => i.warehouse_location_id === loc.id);
-
-            const quantity_on_hand = inv ? inv.quantity_on_hand : 0;
-            const reserved_quantity = inv ? inv.reserved_quantity : 0;
-            const available_quantity = inv ? inv.available_quantity : 0;
-            const idleDisplay = formatIdleAnalysis(inv?.idle_analysis);
-
-            return `
-                <tr>
-                    <td>${loc.warehouse_name} (${loc.warehouse_code})</td>
-                    <td>${loc.location_code}</td>
-                    <td class="text-end">${quantity_on_hand}</td>
-                    <td class="text-end">${reserved_quantity}</td>
-                    <td class="text-end"><strong>${available_quantity}</strong></td>
-                    <td>${idleDisplay.lastConsumptionLabel}</td>
-                    <td class="text-center"><span class="badge ${idleDisplay.badgeClass}">${idleDisplay.idleDaysLabel}</span></td>
-                </tr>
-            `;
-        }).join('');
-    } else {
-        inventoryHtml = '<tr><td colspan="7" class="text-center text-muted">此零件未設定儲位</td></tr>';
-    }
-
-    // 生成訂購歷史 HTML
-    let historyHtml = '';
-    if (orders && orders.length > 0) {
-        const statusMap = {
-            'registered': { text: '已登記', class: 'secondary' },
-            'approved': { text: '已核准', class: 'primary' },
-            'partially_received': { text: '部分到貨', class: 'info' },
-            'completed': { text: '已完成', class: 'success' },
-            'rejected': { text: '已拒絕', class: 'danger' }
-        };
-
-        historyHtml = orders.slice(0, 10).map(order => {
-            const date = new Date(order.created_at || order.order_date);
-            const formattedDate = date.getFullYear() + '-' +
-                                  String(date.getMonth() + 1).padStart(2, '0') + '-' +
-                                  String(date.getDate()).padStart(2, '0');
-            
-            const statusInfo = statusMap[order.status] || { text: order.status, class: 'light' };
-
-            return `
-                <tr>
-                    <td>${formattedDate}</td>
-                    <td>${order.applicant_name || 'N/A'}</td>
-                    <td>${order.location_display || order.location_code || '無指定'}</td>
-                    <td class="text-end">${order.quantity || order.quantity_ordered || 0}</td>
-                    <td>
-                        <span class="badge bg-${statusInfo.class}">
-                            ${statusInfo.text}
-                        </span>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-    } else {
-        historyHtml = '<tr><td colspan="5" class="text-center text-muted">暫無申請記錄</td></tr>';
-    }
-
-    return `
-        <div class="row">
-            <div class="col-md-6">
-                <h6>基本資訊</h6>
-                <table class="table table-sm">
-                    <tr><td><strong>零件編號：</strong></td><td>${(part && part.part_number) || 'N/A'}</td></tr>
-                    <tr><td><strong>名稱：</strong></td><td>${(part && part.name) || 'N/A'}</td></tr>
-                    <tr><td><strong>描述：</strong></td><td>${(part && part.description) || '無'}</td></tr>
-                    <tr><td><strong>單位：</strong></td><td>${(part && part.unit) || 'N/A'}</td></tr>
-                    <tr><td><strong>每盒數量：</strong></td><td>${(part && part.quantity_per_box) || 'N/A'}</td></tr>
-                    <tr><td><strong>採購前置期：</strong></td><td>${(part && part.lead_time) || 'N/A'} 天</td></tr>
-                </table>
-            </div>
-            <div class="col-md-6">
-                <h6>各儲位庫存</h6>
-                <div class="table-responsive">
-                    <table class="table table-sm table-striped">
-                        <thead>
-                            <tr>
-                                <th>倉庫</th>
-                                <th>倉位</th>
-                                <th>在庫數量</th>
-                                <th>預留數量</th>
-                                <th>可用數量</th>
-                                <th>最後耗用日</th>
-                                <th>閒置天數</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${inventoryHtml}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        <div class="row mt-3">
-            <div class="col-12">
-                <h6>訂購歷史</h6>
-                <div class="order-history" style="max-height: 200px; overflow-y: auto;">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>申請日期</th>
-                                <th>申請人</th>
-                                <th>儲位</th>
-                                <th>數量</th>
-                                <th>狀態</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${historyHtml}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    `;
+function getCurrentPartData() {
+    return window.PartDetailModal ? window.PartDetailModal.getCurrentPartData() : null;
 }
 
 function formatIdleAnalysis(idleAnalysis) {
@@ -1499,21 +889,6 @@ function safeCloseModal(modalElement) {
 
 // 初始化事件監聽器
 document.addEventListener('DOMContentLoaded', function() {
-    // 耗損分析按鈕事件
-    const showConsumptionBtn = document.getElementById('showConsumptionAnalysisBtn');
-    if (showConsumptionBtn) {
-        showConsumptionBtn.addEventListener('click', showConsumptionAnalysis);
-    }
-    
-    // 為消耗分析模態視窗添加關閉清理事件
-    const consumptionDetailModal = document.getElementById('consumptionDetailModal');
-    if (consumptionDetailModal) {
-        consumptionDetailModal.addEventListener('hidden.bs.modal', function() {
-            console.log('🧹 Consumption modal closed, cleaning up');
-            setTimeout(cleanupModalBackdrops, 100);
-        });
-    }
-
     // 為週期訂單模態視窗添加關閉清理事件
     const weeklyOrderModalElement = document.getElementById('weeklyOrderModal');
     if (weeklyOrderModalElement) {
@@ -1531,6 +906,7 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             e.stopPropagation();
             const locationId = locationRow.getAttribute('data-location-id');
+            const currentPartData = getCurrentPartData();
             if (locationId && currentPartData && currentPartData.part_info) {
                 console.log('📍 Location row clicked:', locationId);
                 window.switchLocationDetail(currentPartData.part_info.part_number, locationId);
@@ -1864,3 +1240,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
     }
 });
+
+if (window.PartDetailModal) {
+    window.openConsumptionAnalysisDirect = window.PartDetailModal.openConsumptionAnalysisDirect;
+    window.showPartDetails = window.PartDetailModal.showPartDetails;
+    window.showConsumptionAnalysis = window.PartDetailModal.showConsumptionAnalysis;
+    window.switchLocationDetail = window.PartDetailModal.switchLocationDetail;
+}

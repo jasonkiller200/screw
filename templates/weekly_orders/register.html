@@ -79,7 +79,7 @@
                                 <div class="input-group">
                                     <input type="text" class="form-control" id="part_number" name="part_number" 
                                            value="{{ prefill_data.part_number if prefill_data else '' }}" required>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="showPartDetails(document.getElementById('part_number').value)">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="showRegisterPartConsumptionDetails()">
                                         <i class="fas fa-info-circle"></i>
                                     </button>
                                 </div>
@@ -221,26 +221,15 @@
     </div>
 </div>
 
-<!-- 詳細資訊模態 -->
-<div class="modal fade" id="detailModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="detailModalLabel">詳細資訊</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="detailContent">
-                <!-- 動態載入內容 -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
-            </div>
-        </div>
-    </div>
+{% include 'shared/part_detail_modals.html' %}
+{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/consumption_analysis.css') }}">
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/weekly_orders/review.js') }}"></script>
+<script src="{{ url_for('static', filename='js/consumption_utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/shared/part_detail_modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/weekly_orders/register.js') }}"></script>
 {% endblock %}

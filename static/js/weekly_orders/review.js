@@ -939,6 +939,7 @@ function renderClickableInventorySummaryTable(inventories, currentLocationId) {
     }
     
     const tableRows = inventories.map(inv => {
+        const idleDisplay = formatIdleAnalysis(inv?.idle_analysis);
         const available = inv.available_quantity || 0;
         const statusClass = inv.consumption_analysis?.stock_status === 'critical' ? 'text-danger fw-bold' :
                            inv.consumption_analysis?.stock_status === 'warning' ? 'text-warning fw-bold' : 
@@ -980,6 +981,8 @@ function renderClickableInventorySummaryTable(inventories, currentLocationId) {
                 <td>${currentLabel}${inv.warehouse_name || 'N/A'}</td>
                 <td>${inv.location_code || 'N/A'}</td>
                 <td class="text-end">${available}</td>
+                <td>${idleDisplay.lastConsumptionLabel}</td>
+                <td class="text-end"><span class="badge ${idleDisplay.badgeClass}">${idleDisplay.idleDaysLabel}</span></td>
                 <td class="text-end text-muted">${avgDailyText}</td>
                 <td class="text-end ${daysClass}">${daysText}</td>
                 <td class="text-center ${statusClass}">${statusIcon}</td>
@@ -1000,6 +1003,8 @@ function renderClickableInventorySummaryTable(inventories, currentLocationId) {
                                 <th>倉庫</th>
                                 <th>儲位</th>
                                 <th class="text-end">可用庫存</th>
+                                <th>最後耗用日</th>
+                                <th class="text-end">閒置天數</th>
                                 <th class="text-end">日平均用量</th>
                                 <th class="text-end">庫存天數</th>
                                 <th class="text-center">狀態</th>

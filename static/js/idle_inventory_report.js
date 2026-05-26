@@ -122,9 +122,17 @@ function renderTable(items) {
 
     tbody.innerHTML = items.map((item) => {
         const idleDisplay = formatIdleDisplay(item);
+        const locationId = Number.isFinite(Number(item.warehouse_location_id)) ? Number(item.warehouse_location_id) : 'null';
         return `
             <tr>
-                <td><strong>${escapeHtml(item.part_number)}</strong></td>
+                <td>
+                    <button
+                        type="button"
+                        class="btn btn-link btn-sm p-0 fw-bold text-decoration-none align-baseline"
+                        onclick="openConsumptionAnalysisDirect('${escapeJs(item.part_number)}', ${locationId})"
+                        title="點擊查看零件詳情"
+                    >${escapeHtml(item.part_number)}</button>
+                </td>
                 <td>${escapeHtml(item.part_name || '')}</td>
                 <td>${escapeHtml(item.part_type || '')}</td>
                 <td>${escapeHtml(item.warehouse_name)} <span class="text-muted">(${escapeHtml(item.warehouse_code)})</span></td>
@@ -206,3 +214,9 @@ function escapeHtml(value) {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 }
+
+    function escapeJs(value) {
+        return String(value ?? '')
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'");
+    }

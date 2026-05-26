@@ -286,8 +286,9 @@ function showPartDetailsWithLocation(partNumberInput) {
     
     console.log('Selected warehouse_location_id:', warehouseLocationId);
     
-    // 直接呼叫 openConsumptionAnalysisDirect 函數，傳入儲位ID
-    openConsumptionAnalysisDirect(partNumber, warehouseLocationId);
+    if (window.PartDetailModal) {
+        window.PartDetailModal.openConsumptionAnalysisDirect(partNumber, warehouseLocationId);
+    }
 }
 
 // 顯示零件耗損詳情（直接開啟耗損分析模態視窗）- 保留給其他地方使用
@@ -298,8 +299,9 @@ function showPartDetails(partNumber) {
         return;
     }
     
-    // 直接呼叫 openConsumptionAnalysisDirect 函數
-    openConsumptionAnalysisDirect(partNumber, null);
+    if (window.PartDetailModal) {
+        window.PartDetailModal.openConsumptionAnalysisDirect(partNumber, null);
+    }
 }
 
 // 直接開啟「耗損分析與採購建議」模態視窗
@@ -782,3 +784,8 @@ function autoFillRow(partNumberInput) {
         });
     });
 })();
+
+if (window.PartDetailModal) {
+    window.openConsumptionAnalysisDirect = window.PartDetailModal.openConsumptionAnalysisDirect;
+    window.showConsumptionAnalysis = window.PartDetailModal.showConsumptionAnalysis;
+}

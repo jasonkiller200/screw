@@ -147,8 +147,15 @@
         </div>
     </div>
 </div>
+{% include 'shared/part_detail_modals.html' %}
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/consumption_analysis.css') }}">
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/consumption_utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/shared/part_detail_modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/idle_inventory_report.js') }}"></script>
 {% endblock %}

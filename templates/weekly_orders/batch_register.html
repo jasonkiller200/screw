@@ -216,27 +216,7 @@
     </tr>
 </template>
 
-<!-- 耗損分析模態框 -->
-<div class="modal fade" id="consumptionDetailModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content" style="height: calc(100vh - 20px);">
-            <div class="modal-header bg-light">
-                <h5 class="modal-title" id="consumptionDetailModalLabel">🛠️ 消耗分析與採購建議</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-0" style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
-                <!-- 固定在頂部的基本資料與庫存分佈 -->
-                <div id="consumptionSummarySection" class="p-4 border-bottom bg-light" style="flex-shrink: 0;">
-                    <!-- 基本資料與庫存分佈內容 -->
-                </div>
-                <!-- 可滾動的詳細分析清單 -->
-                <div id="consumptionDetailList" class="p-4" style="flex: 1; overflow-y: auto; position: relative;">
-                    <!-- 詳細分析清單內容 -->
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+{% include 'shared/part_detail_modals.html' %}
 
 {% endblock %}
 
@@ -344,5 +324,6 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/consumption_utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/shared/part_detail_modal.js') }}"></script>
 <script src="{{ url_for('weekly_order.batch_register_js', items=request.args.get('items')) }}"></script>
 {% endblock %}

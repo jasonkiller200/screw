@@ -1,0 +1,40 @@
+<!-- 零件詳情模態框 -->
+<div class="modal fade" id="partDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="partDetailModalLabel">零件詳情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="partDetailContent">
+                <!-- 動態載入內容 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="showConsumptionAnalysisBtn" style="display: none;">
+                    <i class="fas fa-chart-line me-1"></i>查看耗損詳情
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 耗損分析模態框 -->
+<div class="modal fade" id="consumptionDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content" style="height: calc(100vh - 20px);">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title" id="consumptionDetailModalLabel">🛠️ 消耗分析與採購建議</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0" style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+                <div id="consumptionSummarySection" class="p-4 border-bottom bg-light" style="flex-shrink: 0;">
+                    <!-- 基本資料與庫存分佈內容 -->
+                </div>
+                <div id="consumptionDetailList" class="p-4" style="flex: 1; overflow-y: auto; position: relative;">
+                    <!-- 詳細分析清單內容 -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
