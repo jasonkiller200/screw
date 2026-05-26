@@ -127,17 +127,17 @@
                     <table class="table table-sm table-hover align-middle">
                         <thead class="table-light">
                             <tr>
-                                <th>零件編號</th>
-                                <th>零件名稱</th>
-                                <th>類型</th>
-                                <th>倉庫</th>
-                                <th>儲位</th>
-                                <th class="text-end">在庫</th>
-                                <th class="text-end">可用</th>
-                                <th class="text-end">預留</th>
-                                <th>最後耗用日</th>
-                                <th class="text-center">閒置天數</th>
-                                <th class="text-center">分級</th>
+                                <th class="sortable-header" data-sort-key="part_number">零件編號<span class="sort-indicator">↕</span></th>
+                                <th class="sortable-header" data-sort-key="part_name">零件名稱<span class="sort-indicator">↕</span></th>
+                                <th class="sortable-header" data-sort-key="part_type">類型<span class="sort-indicator">↕</span></th>
+                                <th class="sortable-header" data-sort-key="warehouse_name">倉庫<span class="sort-indicator">↕</span></th>
+                                <th class="sortable-header" data-sort-key="location_code">儲位<span class="sort-indicator">↕</span></th>
+                                <th class="sortable-header text-end" data-sort-key="quantity_on_hand">在庫<span class="sort-indicator">↕</span></th>
+                                <th class="sortable-header text-end" data-sort-key="available_quantity">可用<span class="sort-indicator">↕</span></th>
+                                <th class="sortable-header text-end" data-sort-key="reserved_quantity">預留<span class="sort-indicator">↕</span></th>
+                                <th class="sortable-header" data-sort-key="last_consumption_date">最後耗用日<span class="sort-indicator">↕</span></th>
+                                <th class="sortable-header text-center" data-sort-key="idle_days">閒置天數<span class="sort-indicator">↕</span></th>
+                                <th class="sortable-header text-center" data-sort-key="idle_bucket">分級<span class="sort-indicator">↕</span></th>
                             </tr>
                         </thead>
                         <tbody id="idleInventoryTableBody"></tbody>
@@ -152,6 +152,28 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/consumption_analysis.css') }}">
+<style>
+    .sortable-header {
+        cursor: pointer;
+        user-select: none;
+        white-space: nowrap;
+    }
+
+    .sortable-header:hover {
+        background-color: rgba(13, 110, 253, 0.08);
+    }
+
+    .sortable-header .sort-indicator {
+        display: inline-block;
+        width: 1rem;
+        margin-left: 0.25rem;
+        color: #6c757d;
+    }
+
+    .sortable-header.active {
+        color: #0d6efd;
+    }
+</style>
 {% endblock %}
 
 {% block extra_js %}

@@ -1,5 +1,9 @@
 let idleInventoryData = null;
 let filteredIdleInventoryItems = [];
+let currentSort = {
+    key: 'idle_days',
+    direction: 'desc',
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     const refreshBtn = document.getElementById('refreshBtn');
@@ -7,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('searchInput');
     const bucketFilter = document.getElementById('bucketFilter');
     const warehouseFilter = document.getElementById('warehouseFilter');
+    const sortableHeaders = document.querySelectorAll('[data-sort-key]');
 
     refreshBtn?.addEventListener('click', loadIdleInventoryReport);
     exportBtn?.addEventListener('click', () => {
@@ -15,6 +20,11 @@ document.addEventListener('DOMContentLoaded', () => {
     searchInput?.addEventListener('input', applyFilters);
     bucketFilter?.addEventListener('change', applyFilters);
     warehouseFilter?.addEventListener('change', applyFilters);
+    sortableHeaders.forEach((header) => {
+        header.addEventListener('click', () => handleSort(header.dataset.sortKey));
+    });
+
+    updateSortIndicators();
 
     loadIdleInventoryReport();
 });
@@ -104,8 +114,93 @@ function applyFilters() {
         return matchBucket && matchWarehouse && matchSearch;
     });
 
+    filteredIdleInventoryItems = sortItems(filteredIdleInventoryItems, currentSort);
+
     renderTable(filteredIdleInventoryItems);
     document.getElementById('resultCount').textContent = formatNumber(filteredIdleInventoryItems.length);
+}
+
+function handleSort(sortKey) {
+    if (!sortKey) {
+        return;
+    }
+
+    if (currentSort.key === sortKey) {
+        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSort = {
+            key: sortKey,
+            direction: getDefaultSortDirection(sortKey),
+        };
+    }
+
+    updateSortIndicators();
+    applyFilters();
+}
+
+function getDefaultSortDirection(sortKey) {
+    if (['quantity_on_hand', 'available_quantity', 'reserved_quantity', 'idle_days', 'last_consumption_date'].includes(sortKey)) {
+        return 'desc';
+    }
+
+    return 'asc';
+}
+
+function sortItems(items, sortConfig) {
+    const bucketOrder = {
+        no_consumption_history: 4,
+        obsolete: 3,
+        stagnant: 2,
+        aging: 1,
+        normal: 0,
+    };
+
+    return [...items].sort((left, right) => {
+        const leftValue = getSortValue(left, sortConfig.key, bucketOrder);
+        const rightValue = getSortValue(right, sortConfig.key, bucketOrder);
+
+        let comparison = 0;
+
+        if (leftValue === rightValue) {
+            comparison = String(left.part_number || '').localeCompare(String(right.part_number || ''), 'zh-Hant', { numeric: true, sensitivity: 'base' });
+        } else if (typeof leftValue === 'number' && typeof rightValue === 'number') {
+            comparison = leftValue - rightValue;
+        } else {
+            comparison = String(leftValue).localeCompare(String(rightValue), 'zh-Hant', { numeric: true, sensitivity: 'base' });
+        }
+
+        return sortConfig.direction === 'asc' ? comparison : comparison * -1;
+    });
+}
+
+function getSortValue(item, sortKey, bucketOrder) {
+    if (sortKey === 'idle_bucket') {
+        return bucketOrder[item.idle_bucket] ?? -1;
+    }
+
+    if (sortKey === 'last_consumption_date') {
+        return item.last_consumption_date ? new Date(item.last_consumption_date).getTime() : -1;
+    }
+
+    if (['quantity_on_hand', 'available_quantity', 'reserved_quantity', 'idle_days'].includes(sortKey)) {
+        return Number(item[sortKey] || 0);
+    }
+
+    return item[sortKey] || '';
+}
+
+function updateSortIndicators() {
+    document.querySelectorAll('[data-sort-key]').forEach((header) => {
+        const indicator = header.querySelector('.sort-indicator');
+        const isActive = header.dataset.sortKey === currentSort.key;
+
+        header.classList.toggle('active', isActive);
+        header.setAttribute('aria-sort', isActive ? (currentSort.direction === 'asc' ? 'ascending' : 'descending') : 'none');
+
+        if (indicator) {
+            indicator.textContent = isActive ? (currentSort.direction === 'asc' ? '▲' : '▼') : '↕';
+        }
+    });
 }
 
 function renderTable(items) {
@@ -215,8 +310,8 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
-    function escapeJs(value) {
-        return String(value ?? '')
+function escapeJs(value) {
+    return String(value ?? '')
         .replace(/\\/g, '\\\\')
         .replace(/'/g, "\\'");
-    }
+}
