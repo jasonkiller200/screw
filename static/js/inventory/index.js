@@ -279,15 +279,34 @@ document.getElementById('submitQuickAction').addEventListener('click', function(
 function validateQuickActionWorkOrderId() {
     const transactionTypeOut = document.getElementById('actionTransactionTypeOut');
     const workOrderIdInput = document.getElementById('actionWorkOrderId');
+    const workOrderIdFeedback = document.getElementById('action-work-order-id-feedback');
 
     if (transactionTypeOut.value !== 'OUT_WORK_ORDER') {
         workOrderIdInput.classList.remove('is-invalid');
+        workOrderIdInput.classList.remove('is-valid');
+        if (workOrderIdFeedback) {
+            workOrderIdFeedback.textContent = '';
+        }
         return true;
     }
 
     const workOrderId = workOrderIdInput.value.trim();
-    const isValid = /^\d{5}$/.test(workOrderId);
+    let isValid = true;
+    let feedbackMessage = '';
+
+    if (!workOrderId) {
+        isValid = false;
+        feedbackMessage = '工單編號為必填項。';
+    } else if (!/^\d{9,}$/.test(workOrderId)) {
+        isValid = false;
+        feedbackMessage = '工單編號至少需要 9 碼數字。';
+    }
+
     workOrderIdInput.classList.toggle('is-invalid', !isValid);
+    workOrderIdInput.classList.toggle('is-valid', isValid);
+    if (workOrderIdFeedback) {
+        workOrderIdFeedback.textContent = feedbackMessage;
+    }
     return isValid;
 }
 
