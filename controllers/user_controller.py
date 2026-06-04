@@ -100,14 +100,21 @@ def api_create_user():
         if User.query.filter_by(username=data['username']).first():
             return jsonify({'success': False, 'message': '使用者名稱已存在'}), 400
         
+        # 處理 email 欄位，若為空字串或空格則設為 None
+        email = data.get('email')
+        if email is not None:
+            email = email.strip()
+            if not email:
+                email = None
+        
         # 檢查 email 是否已存在
-        if data.get('email') and User.query.filter_by(email=data['email']).first():
+        if email and User.query.filter_by(email=email).first():
             return jsonify({'success': False, 'message': 'Email 已被使用'}), 400
         
         # 創建新使用者
         user = User(
             username=data['username'],
-            email=data.get('email'),
+            email=email,
             full_name=data['full_name'],
             department=data.get('department'),
             role=data.get('role', 'user'),
@@ -141,16 +148,23 @@ def api_update_user(user_id):
             if User.query.filter_by(username=data['username']).first():
                 return jsonify({'success': False, 'message': '使用者名稱已存在'}), 400
         
+        # 處理 email 欄位，若為空字串或空格則設為 None
+        email = data.get('email')
+        if email is not None:
+            email = email.strip()
+            if not email:
+                email = None
+        
         # 檢查 email 是否被其他使用者使用
-        if data.get('email') and data['email'] != user.email:
-            if User.query.filter_by(email=data['email']).first():
+        if email and email != user.email:
+            if User.query.filter_by(email=email).first():
                 return jsonify({'success': False, 'message': 'Email 已被使用'}), 400
         
         # 更新欄位
         if 'username' in data:
             user.username = data['username']
         if 'email' in data:
-            user.email = data['email']
+            user.email = email
         if 'full_name' in data:
             user.full_name = data['full_name']
         if 'department' in data:

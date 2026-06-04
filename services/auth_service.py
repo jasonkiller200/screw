@@ -79,6 +79,12 @@ class AuthService:
         if User.query.filter_by(username=username).first():
             return {'success': False, 'message': '使用者名稱已存在'}
         
+        # 處理 email 欄位，若為空字串或空格則設為 None
+        if email is not None:
+            email = email.strip()
+            if not email:
+                email = None
+
         # 檢查 Email 是否已存在
         if email and User.query.filter_by(email=email).first():
             return {'success': False, 'message': 'Email 已被使用'}
@@ -139,15 +145,13 @@ class AuthService:
         驗證密碼強度
         
         規則：
-        - 至少 8 個字元
-        - 必須包含英文字母和數字
+        - 至少 6 個字元
+        - 只能使用數字 0-9
         """
-        if len(password) < 8:
-            return False, "密碼長度必須至少為 8 個字元。"
-        if not re.search(r'[a-zA-Z]', password):
-            return False, "密碼必須包含至少一個英文字母。"
-        if not re.search(r'[0-9]', password):
-            return False, "密碼必須包含至少一個數字。"
+        if len(password) < 6:
+            return False, "密碼長度必須至少為 6 個位數。"
+        if not re.match(r'^[0-9]+$', password):
+            return False, "密碼只能包含數字 0-9。"
         
         return True, ''
     
