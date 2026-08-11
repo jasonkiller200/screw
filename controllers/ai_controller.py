@@ -54,7 +54,7 @@ def ai_query():
 def ai_status():
     """檢查AI服務狀態"""
     try:
-        status = ai_service.check_ollama_connection()
+        status = ai_service.check_vllm_connection()
         return jsonify(status)
         
     except Exception as e:
@@ -85,17 +85,19 @@ def ai_suggestions():
 def get_available_models():
     """獲取可用的AI模型列表"""
     try:
-        status = ai_service.check_ollama_connection()
+        status = ai_service.check_vllm_connection()
         if status['success']:
             return jsonify({
                 'success': True,
                 'models': status.get('available_models', []),
-                'current_model': status.get('current_model', '')
+                'current_model': status.get('current_model', ''),
+                'endpoint': status.get('endpoint', ''),
+                'endpoints': status.get('endpoints', [])
             })
         else:
             return jsonify({
                 'success': False,
-                'error': status.get('error', '無法連接到Ollama服務'),
+                'error': status.get('error', '無法連接到 vLLM 服務'),
                 'models': []
             })
         
@@ -129,7 +131,7 @@ def set_model():
         ai_service.model_name = model_name
         
         # 檢查模型是否可用
-        status = ai_service.check_ollama_connection()
+        status = ai_service.check_vllm_connection()
         
         return jsonify({
             'success': True,
@@ -137,6 +139,41 @@ def set_model():
             'status': status
         })
         
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@ai_bp.route('/set-endpoint', methods=['POST'])
+@login_required
+def set_endpoint():
+    """切換使用的 vLLM endpoint"""
+    try:
+        data = request.get_json()
+        if not data or 'endpoint' not in data:
+            return jsonify({
+                'success': False,
+                'error': '請提供 vLLM endpoint'
+            }), 400
+
+        endpoint = data['endpoint'].strip()
+        if not endpoint:
+            return jsonify({
+                'success': False,
+                'error': 'vLLM endpoint 不能為空'
+            }), 400
+
+        ai_service.set_vllm_endpoint(endpoint)
+        status = ai_service.check_vllm_connection()
+
+        return jsonify({
+            'success': status.get('success', False),
+            'endpoint': ai_service.vllm_api_base,
+            'status': status,
+            'error': status.get('error')
+        })
+
     except Exception as e:
         return jsonify({
             'success': False,

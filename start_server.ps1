@@ -1,11 +1,18 @@
 # PowerShell Script to Start the Flask Backend Server
 
+# Always run from the folder where this script lives, even when launched from a shortcut.
+$scriptRoot = $PSScriptRoot
+if (-not $scriptRoot) {
+    $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+Set-Location -LiteralPath $scriptRoot
+
 # 確保在執行前，您已安裝 Python 和相關依賴
 # 如果尚未安裝，請執行以下命令：
 # pip install -r requirements.txt
 
 # 檢查並啟動 Python 虛擬環境
-$venvActivateScript = ".\venv\Scripts\Activate.ps1"
+$venvActivateScript = Join-Path $scriptRoot "venv\Scripts\Activate.ps1"
 if (Test-Path $venvActivateScript) {
     Write-Host "正在啟動虛擬環境..." -ForegroundColor Green
     & $venvActivateScript
@@ -19,11 +26,11 @@ if (Test-Path $venvActivateScript) {
 }
 
 # 設定 Flask 應用程式檔案
-$env:FLASK_APP = "app.py"
+$env:FLASK_APP = Join-Path $scriptRoot "app.py"
 
 # 檢查 SSL 憑證是否存在
-$certFile = "cert.pem"
-$keyFile = "cert.key"
+$certFile = Join-Path $scriptRoot "cert.pem"
+$keyFile = Join-Path $scriptRoot "cert.key"
 
 if (-not (Test-Path $certFile) -or -not (Test-Path $keyFile)) {
     Write-Host "警告: 找不到 SSL 憑證 (cert.pem 或 cert.key)。" -ForegroundColor Yellow
@@ -39,7 +46,7 @@ Write-Host "按 Ctrl+C 停止伺服器`n" -ForegroundColor Cyan
 
 # 啟動 Flask 應用程式
 try {
-    python app.py
+    python (Join-Path $scriptRoot "app.py")
 } catch {
     Write-Host "`n錯誤: Flask 應用程式啟動失敗" -ForegroundColor Red
     Write-Host $_.Exception.Message -ForegroundColor Red

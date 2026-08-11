@@ -232,6 +232,18 @@
             <div class="suggested-questions">
                 <h5><i class="fas fa-cog"></i> 模型設定</h5>
                 <div class="model-selector">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <select id="endpointSelect" class="form-select">
+                                <option value="">載入中...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <button id="setEndpointBtn" class="btn btn-outline-primary" disabled>
+                                <i class="fas fa-network-wired"></i> 切換 vLLM 主機
+                            </button>
+                        </div>
+                    </div>
                     <div class="row">
                         <div class="col-md-6">
                             <select id="modelSelect" class="form-select">
@@ -250,7 +262,7 @@
                     <div class="mt-2">
                         <small class="text-muted">
                             <i class="fas fa-info-circle"></i> 
-                            只顯示已下載的可用模型
+                            會從目前 vLLM 主機 /v1/models 自動載入可用模型
                         </small>
                     </div>
                 </div>
@@ -357,14 +369,30 @@ function updateSessionDisplay() {
 
 // 載入可用模型
 function loadAvailableModels() {
+    const endpointSelect = document.getElementById('endpointSelect');
+    const setEndpointBtn = document.getElementById('setEndpointBtn');
     const modelSelect = document.getElementById('modelSelect');
     const setModelBtn = document.getElementById('setModelBtn');
     
-    // 可以使用專門的模型端點，或者使用狀態端點
     fetch('/ai/status')
         .then(response => response.json())
         .then(data => {
+            endpointSelect.innerHTML = '';
             modelSelect.innerHTML = '';
+
+            if (data.endpoints && data.endpoints.length > 0) {
+                data.endpoints.forEach(endpoint => {
+                    const option = document.createElement('option');
+                    option.value = endpoint;
+                    option.textContent = endpoint.replace(/^https?:\/\//, '').replace(/\/v1$/, '');
+                    option.selected = endpoint === data.endpoint;
+                    endpointSelect.appendChild(option);
+                });
+                setEndpointBtn.disabled = false;
+            } else {
+                endpointSelect.innerHTML = '<option value="">沒有 vLLM 主機設定</option>';
+                setEndpointBtn.disabled = true;
+            }
             
             if (data.success && data.available_models && data.available_models.length > 0) {
                 // 添加可用模型到選單
@@ -391,7 +419,7 @@ function loadAvailableModels() {
                 // 沒有可用模型
                 const option = document.createElement('option');
                 option.value = '';
-                option.textContent = data.success ? '沒有可用模型，請先下載模型' : '無法連接到Ollama服務';
+                option.textContent = data.success ? '目前 vLLM 主機沒有可用模型' : '無法連接到 vLLM 服務';
                 modelSelect.appendChild(option);
                 
                 setModelBtn.disabled = true;
@@ -448,7 +476,10 @@ function updateStatusIndicator(status) {
     
     if (status.success) {
         indicator.className = 'status-indicator status-connected';
-        let statusText = '<i class="fas fa-check-circle"></i> AI服務已連接';
+        let statusText = '<i class="fas fa-check-circle"></i> vLLM 服務已連接';
+        if (status.endpoint) {
+            statusText += ` | 主機: ${status.endpoint.replace(/^https?:\/\//, '').replace(/\/v1$/, '')}`;
+        }
         
         if (status.available_models && status.available_models.length > 0) {
             statusText += ` | 可用模型: ${status.available_models.length} 個`;
@@ -636,6 +667,48 @@ document.getElementById('refreshModelsBtn').onclick = function() {
         this.disabled = false;
         this.innerHTML = '<i class="fas fa-sync-alt"></i> 重新載入';
     }, 1000);
+};
+
+// 切換 vLLM 主機
+document.getElementById('setEndpointBtn').onclick = function() {
+    const endpointSelect = document.getElementById('endpointSelect');
+    const selectedEndpoint = endpointSelect.value;
+
+    if (!selectedEndpoint) {
+        alert('請選擇 vLLM 主機');
+        return;
+    }
+
+    this.disabled = true;
+    this.innerHTML = '<span class="loading-spinner"></span> 切換中...';
+
+    fetch('/ai/set-endpoint', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ endpoint: selectedEndpoint })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            updateStatusIndicator(data.status);
+            loadAvailableModels();
+            addMessageToHistory('ai', `vLLM 主機已切換為: ${data.endpoint}`);
+        } else {
+            alert('切換 vLLM 主機失敗: ' + (data.error || '未知錯誤'));
+            if (data.status) {
+                updateStatusIndicator(data.status);
+            }
+        }
+    })
+    .catch(error => {
+        alert('切換 vLLM 主機失敗: ' + error.message);
+    })
+    .finally(() => {
+        this.disabled = false;
+        this.innerHTML = '<i class="fas fa-network-wired"></i> 切換 vLLM 主機';
+    });
 };
 
 // 設定模型

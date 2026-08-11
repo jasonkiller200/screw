@@ -1,9 +1,8 @@
 """
 AI 查詢服務
-提供與 Ollama 模型整合的查詢功能
+提供與 vLLM OpenAI-compatible API 整合的查詢功能
 """
 
-import ollama
 import httpx
 import json
 import re
@@ -19,33 +18,157 @@ from extensions import db
 
 class AIService:
     def __init__(self):
-        self.model_name = "qwen3.5:9b"  # 預設模型，可以配置
+        self.llm_provider = "vllm"
+        self.vllm_api_bases = self._load_vllm_api_bases()
+        self.vllm_api_base = os.getenv("VLLM_API_BASE", self.vllm_api_bases[0])
+        self.vllm_api_key = os.getenv("VLLM_API_KEY", "")
+        self.model_name = os.getenv("VLLM_MODEL_NAME", "")  # 會由 /v1/models 自動載入
         self.db_path = "instance/hardware.db"  # 正確的資料庫路徑
         self.conversation_history = {}  # 存儲對話歷史，按會話ID分組
-        self.ollama_host = 'http://192.168.6.137:11434'
-        self.ollama_client = ollama.Client(host=self.ollama_host)  # 用於 list models 等非 chat 操作
 
     def _chat(self, messages: List[Dict[str, str]]) -> str:
-        """透過 REST API 呼叫 Ollama chat，強制關閉思考模式"""
+        """透過 OpenAI-compatible REST API 呼叫 vLLM chat completions"""
+        return self._chat_completion(messages)
+
+    def _chat_completion(
+        self,
+        messages: List[Dict[str, str]],
+        max_tokens: Optional[int] = None,
+    ) -> str:
+        """透過 OpenAI-compatible REST API 呼叫 vLLM chat completions"""
+        model_name = self.model_name or self._ensure_model_selected()
+        headers = {}
+        if self.vllm_api_key:
+            headers["Authorization"] = f"Bearer {self.vllm_api_key}"
+
+        payload = {
+            "model": model_name,
+            "messages": messages,
+            "stream": False,
+            "temperature": 0,
+            "chat_template_kwargs": {"enable_thinking": False},
+        }
+        if max_tokens:
+            payload["max_tokens"] = max_tokens
+
+        kwargs = {"json": payload, "timeout": 120.0}
+        if headers:
+            kwargs["headers"] = headers
+
         response = httpx.post(
-            f'{self.ollama_host}/api/chat',
-            json={
-                'model': self.model_name,
-                'messages': messages,
-                'think': False,
-                'stream': False,
-            },
-            timeout=120.0,
+            f"{self.vllm_api_base}/chat/completions",
+            **kwargs,
         )
         response.raise_for_status()
         data = response.json()
-        return self._clean_response(data['message']['content'])
+        return self._clean_response(data["choices"][0]["message"]["content"])
+
+    def _load_vllm_api_bases(self) -> List[str]:
+        """讀取 vLLM API base 清單，預設為兩台內網 vLLM 主機"""
+        configured = os.getenv(
+            "VLLM_API_BASES",
+            "http://192.168.7.22:8001/v1,http://192.168.7.9:8000/v1",
+        )
+        bases = [
+            self._normalize_vllm_api_base(base)
+            for base in configured.split(",")
+            if base.strip()
+        ]
+        return bases or ["http://192.168.7.22:8001/v1"]
+
+    def _normalize_vllm_api_base(self, api_base: str) -> str:
+        """允許輸入 host、/v1 或 /v1/models，統一成 OpenAI API base"""
+        api_base = api_base.strip().rstrip("/")
+        if not re.match(r"^https?://", api_base):
+            api_base = f"http://{api_base}"
+        if api_base.endswith("/models"):
+            api_base = api_base[: -len("/models")]
+        if not api_base.endswith("/v1"):
+            api_base = f"{api_base}/v1"
+        return api_base
+
+    def set_vllm_endpoint(self, api_base: str) -> None:
+        """切換目前使用的 vLLM endpoint"""
+        normalized = self._normalize_vllm_api_base(api_base)
+        if normalized not in self.vllm_api_bases:
+            self.vllm_api_bases.append(normalized)
+        self.vllm_api_base = normalized
+        self.model_name = ""
+
+    def _get_vllm_models(self, api_base: Optional[str] = None) -> List[str]:
+        """從 vLLM /v1/models 自動讀取目前可用模型"""
+        api_base = api_base or self.vllm_api_base
+        response = httpx.get(f"{api_base}/models", timeout=10.0)
+        response.raise_for_status()
+        data = response.json()
+        return [
+            model.get("id")
+            for model in data.get("data", [])
+            if model.get("id")
+        ]
+
+    def _ensure_model_selected(self) -> str:
+        """當目前模型不存在或未設定時，自動選擇 vLLM 主機提供的第一個模型"""
+        models = self._get_vllm_models()
+        if not models:
+            raise Exception(f"vLLM 主機沒有回傳可用模型: {self.vllm_api_base}")
+        if self.model_name not in models:
+            self.model_name = models[0]
+        return self.model_name
 
     def _clean_response(self, text: str) -> str:
         """清理 LLM 回應，移除思考標籤等"""
         # 移除 <think>...</think> 區塊（qwen3 思考模式）
         text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+        text = re.sub(r'^Here(?:\'s| is) a thinking process:.*?(?=\bSELECT\b|$)', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'^\s*(?:Thinking process|Reasoning|思考過程)[:：].*?(?=\bSELECT\b|$)', '', text, flags=re.DOTALL | re.IGNORECASE)
         return text.strip()
+
+    def _extract_sql_query(self, text: str) -> str:
+        """從模型回覆中抽出真正的 SQLite SELECT 查詢"""
+        sql_query = self._clean_response(text)
+
+        fenced_queries = re.findall(
+            r"```(?:sql)?\s*(SELECT\b[\s\S]*?)```",
+            sql_query,
+            flags=re.IGNORECASE,
+        )
+        if fenced_queries:
+            sql_query = fenced_queries[-1]
+        else:
+            limit_queries = re.findall(
+                r"\bSELECT\b[\s\S]*?\bLIMIT\s+\d+\b;?",
+                sql_query,
+                flags=re.IGNORECASE,
+            )
+            if limit_queries:
+                sql_query = limit_queries[-1]
+            else:
+                select_positions = [
+                    match.start()
+                    for match in re.finditer(r"\bSELECT\b", sql_query, flags=re.IGNORECASE)
+                ]
+                if select_positions:
+                    sql_query = sql_query[select_positions[-1]:]
+
+        sql_query = sql_query.strip().strip("`").strip()
+
+        prefixes_to_remove = ['SQL:', 'sql:', '查詢:', '答案:', 'Query:', 'Answer:']
+        for prefix in prefixes_to_remove:
+            if sql_query.upper().startswith(prefix.upper()):
+                sql_query = sql_query[len(prefix):].strip()
+
+        semicolon_index = sql_query.find(";")
+        if semicolon_index != -1:
+            sql_query = sql_query[:semicolon_index + 1]
+
+        sql_query = ''.join(char for char in sql_query if ord(char) >= 32 or char in ['\t', '\n'])
+        sql_query = ' '.join(sql_query.split()).rstrip(";")
+
+        if not sql_query.upper().startswith('SELECT'):
+            raise Exception(f"生成的查詢不是有效的SELECT語句: {text}")
+
+        return sql_query
         
     def _get_schema_info(self) -> str:
         """獲取資料庫結構資訊（自動從資料庫讀取 + 業務備註）"""
@@ -184,6 +307,7 @@ class AIService:
 問：有多少個零件？ → SELECT COUNT(*) as total FROM parts
 問：最近一週入庫記錄？ → SELECT it.*, p.part_number, p.name as part_name FROM inventory_transactions it JOIN parts p ON it.part_id = p.id WHERE it.transaction_type LIKE 'IN_%' AND it.transaction_date >= date('now', '-7 days') ORDER BY it.transaction_date DESC LIMIT 50
 問：庫存不足的零件？ → SELECT p.part_number, p.name, ci.available_quantity, ci.safety_stock, ci.reorder_point FROM parts p JOIN current_inventory ci ON p.id = ci.part_id WHERE ci.available_quantity < ci.reorder_point ORDER BY ci.available_quantity ASC LIMIT 50
+問：庫存最高的零件詳情？ → SELECT p.part_number, p.name, p.description, p.unit, SUM(ci.quantity_on_hand) as total_quantity_on_hand, SUM(ci.available_quantity) as total_available_quantity FROM parts p JOIN current_inventory ci ON p.id = ci.part_id GROUP BY p.id, p.part_number, p.name, p.description, p.unit ORDER BY total_quantity_on_hand DESC LIMIT 50
 問：哪些倉庫零件種類最多？ → SELECT w.code, w.name, COUNT(DISTINCT ci.part_id) as part_count FROM warehouses w JOIN current_inventory ci ON w.id = ci.warehouse_id GROUP BY w.id ORDER BY part_count DESC
 問：零件 P001 的最近異動？ → SELECT it.transaction_type, it.quantity, it.transaction_date, it.notes, w.name as warehouse_name FROM inventory_transactions it JOIN parts p ON it.part_id = p.id JOIN warehouses w ON it.warehouse_id = w.id WHERE p.part_number = 'P001' ORDER BY it.transaction_date DESC LIMIT 20
 問：今天有哪些庫存交易？ → SELECT it.*, p.part_number, p.name as part_name FROM inventory_transactions it JOIN parts p ON it.part_id = p.id WHERE date(it.transaction_date) = date('now') ORDER BY it.transaction_date DESC LIMIT 50
@@ -208,39 +332,10 @@ class AIService:
             messages.append({'role': 'assistant', 'content': item['sql_query']})
         
         # 添加當前問題
-        messages.append({'role': 'user', 'content': f'{sql_instructions}\n\n現在請為以下問題生成SQL：\n{user_question}'})
+        messages.append({'role': 'user', 'content': f'{sql_instructions}\n\n禁止輸出推理、分析、思考過程、Markdown 或說明文字。只輸出一行 SQL。\n現在請為以下問題生成SQL：\n{user_question}'})
         
         try:
-            sql_query = self._chat(messages)
-            
-            # 清理SQL查詢，移除可能的格式化字符
-            if sql_query.startswith('```sql'):
-                sql_query = sql_query[6:]
-            if sql_query.startswith('```'):
-                sql_query = sql_query[3:]
-            if sql_query.endswith('```'):
-                sql_query = sql_query[:-3]
-            
-            # 移除可能的前綴
-            prefixes_to_remove = ['SQL:', 'sql:', '查詢:', '答案:', 'Query:', 'Answer:']
-            for prefix in prefixes_to_remove:
-                if sql_query.upper().startswith(prefix.upper()):
-                    sql_query = sql_query[len(prefix):].strip()
-            
-            # 移除可能的多餘空白和換行
-            sql_query = ' '.join(sql_query.split())
-            
-            # 移除可能的不可見字符
-            sql_query = ''.join(char for char in sql_query if ord(char) >= 32 or char in ['\t', '\n'])
-            
-            # 保持SQLite標準的引號格式
-            # SQLite支持雙引號，不需要統一改成單引號
-            
-            # 驗證SQL查詢是否以SELECT開頭
-            if not sql_query.upper().startswith('SELECT'):
-                raise Exception(f"生成的查詢不是有效的SELECT語句: {sql_query}")
-            
-            return sql_query
+            return self._extract_sql_query(self._chat_completion(messages, max_tokens=512))
             
         except Exception as e:
             raise Exception(f"生成SQL查詢失敗: {str(e)}")
@@ -293,19 +388,7 @@ class AIService:
 請生成一個修正後的 SQL SELECT 語句。只返回 SQL，不要包含任何解釋。
 """
         try:
-            sql_query = self._chat([{'role': 'user', 'content': retry_prompt}])
-            # 清理格式
-            if sql_query.startswith('```sql'):
-                sql_query = sql_query[6:]
-            if sql_query.startswith('```'):
-                sql_query = sql_query[3:]
-            if sql_query.endswith('```'):
-                sql_query = sql_query[:-3]
-            sql_query = ' '.join(sql_query.split())
-
-            if not sql_query.upper().startswith('SELECT'):
-                raise Exception(f"修正後的查詢不是有效的SELECT語句: {sql_query}")
-            return sql_query
+            return self._extract_sql_query(self._chat_completion([{'role': 'user', 'content': retry_prompt}], max_tokens=512))
         except Exception as e:
             raise Exception(f"SQL 修正失敗: {str(e)}")
     
@@ -434,32 +517,40 @@ class AIService:
         }
     
     def check_ollama_connection(self) -> Dict[str, Any]:
-        """檢查Ollama連接"""
+        """保留舊方法名稱，實際檢查 vLLM 連接與模型"""
+        return self.check_vllm_connection()
+
+    def check_vllm_connection(self) -> Dict[str, Any]:
+        """檢查 vLLM 連接，並自動同步目前模型"""
         try:
-            # 嘗試列出可用模型
-            models = self.ollama_client.list()
-            
-            # 檢查我們的模型是否可用
-            model_available = any(model['name'].startswith(self.model_name) for model in models.get('models', []))
-            
+            available_models = self._get_vllm_models()
+            if available_models and self.model_name not in available_models:
+                self.model_name = available_models[0]
+
             return {
                 'success': True,
-                'model_available': model_available,
-                'available_models': [model['name'] for model in models.get('models', [])],
+                'provider': self.llm_provider,
+                'endpoint': self.vllm_api_base,
+                'endpoints': self.vllm_api_bases,
+                'model_available': bool(available_models and self.model_name in available_models),
+                'available_models': available_models,
                 'current_model': self.model_name
             }
             
         except Exception as e:
             return {
                 'success': False,
+                'provider': self.llm_provider,
+                'endpoint': self.vllm_api_base,
+                'endpoints': self.vllm_api_bases,
                 'error': str(e),
-                'message': '無法連接到Ollama服務，請確認Ollama已啟動並且模型已下載'
+                'message': '無法連接到 vLLM 服務，請確認主機已啟動並提供 /v1/models'
             }
     
     def query_database(self, user_question: str, session_id: str = "default") -> Dict[str, Any]:
         """主要查詢方法，支持對話歷史和 SQL 自動重試"""
         try:
-            # 1. 檢查Ollama連接
+            # 1. 檢查 vLLM 連接並同步模型
             connection_status = self.check_ollama_connection()
             if not connection_status['success']:
                 return {
@@ -471,7 +562,7 @@ class AIService:
             if not connection_status['model_available']:
                 return {
                     'success': False,
-                    'error': f'模型 {self.model_name} 不可用',
+                    'error': f'模型 {self.model_name or "(未設定)"} 不可用',
                     'details': f'可用模型: {", ".join(connection_status["available_models"])}'
                 }
             
