@@ -432,6 +432,22 @@ def get_registration_detail(registration_id):
     registration = OrderRegistration.query.get_or_404(registration_id)
     return jsonify(registration.to_dict())
 
+@weekly_order_bp.route('/weekly_orders/registration/<int:registration_id>/update', methods=['POST'])
+@login_required
+def update_registration(registration_id):
+    """更新登記項目資料（主管或管理員修正資訊）"""
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': '您沒有權限執行此操作'}), 403
+    
+    data = request.get_json() or request.form
+    result = WeeklyOrderService.update_order_registration(
+        registration_id=registration_id,
+        form_data=data,
+        modifier_name=current_user.full_name
+    )
+    status_code = 200 if result.get('success') else 400
+    return jsonify(result), status_code
+
 @weekly_order_bp.route('/api/weekly_orders/inbound_item', methods=['POST'])
 @login_required
 def inbound_item():

@@ -873,25 +873,40 @@ class WeeklyOrderService:
                 return {'success': False, 'message': '申請週期已截止，無法新增登記'}
 
             part_number = form_data.get('part_number', '').strip()
+            if not part_number:
+                return {'success': False, 'message': '請輸入品號'}
+
             part = Part.query.filter_by(part_number=part_number).first()
-            if part and not part.location_associations:
+            if not part:
+                return {'success': False, 'message': f'找不到品號「{part_number}」，請確認是否為系統中已建立的品號（不可填寫規格或中文品名）'}
+
+            # 儲位處理：優先使用使用者選取的儲位；若未選且零件有既定儲位，自動採用第一儲位
+            warehouse_location_id = form_data.get('warehouse_location_id', type=int)
+            if not warehouse_location_id and part.location_associations:
+                warehouse_location_id = part.location_associations[0].warehouse_location_id
+
+            # 若零件無任何儲位，強制檢查「台份用/備註」
+            if not warehouse_location_id and not part.location_associations:
                 if not form_data.get('purpose_notes', '').strip():
                     return {'success': False, 'message': '此零件無指定儲位，請務必填寫「台份用/備註」'}
 
             max_sequence = db.session.query(db.func.max(OrderRegistration.item_sequence)).filter_by(cycle_id=current_cycle.id).scalar()
             next_sequence = (max_sequence or 0) + 1
             
-            warehouse_location_id = form_data.get('warehouse_location_id', type=int)
+            # 品名、單位、類型一律自動從零件主檔 Part 帶入，杜絕空值或舊值
+            part_name = part.name or form_data.get('part_name', '').strip()
+            unit = part.unit or form_data.get('unit', '').strip() or '個'
+            category = part.type or form_data.get('part_type', '').strip() or ''
 
             registration = OrderRegistration(
                 cycle_id=current_cycle.id,
                 item_sequence=next_sequence,
-                part_number=form_data.get('part_number', '').strip(),
-                part_name=form_data.get('part_name', '').strip(),
+                part_number=part.part_number,
+                part_name=part_name,
                 warehouse_location_id=warehouse_location_id,
                 quantity=int(form_data.get('quantity', 0)),
-                unit=form_data.get('unit', '').strip(),
-                category=form_data.get('part_type', '').strip(),
+                unit=unit,
+                category=category,
                 required_date=datetime.strptime(form_data.get('required_date'), '%Y-%m-%d') if form_data.get('required_date') else None,
                 priority=form_data.get('priority', 'normal').strip(),
                 purpose_notes=form_data.get('purpose_notes', '').strip(),
@@ -903,7 +918,7 @@ class WeeklyOrderService:
             db.session.add(registration)
             db.session.commit()
             
-            return {'success': True, 'message': f'項目 #{next_sequence} 登記成功'}
+            return {'success': True, 'message': f'項目 #{next_sequence} ({part.part_number} - {part_name}) 登記成功'}
             
         except Exception as e:
             db.session.rollback()
@@ -926,20 +941,31 @@ class WeeklyOrderService:
             added_count = 0
             
             for part_data in parts_data:
+                part_number = part_data.get('part_number', '').strip()
+                if not part_number:
+                    continue
+
+                part = Part.query.filter_by(part_number=part_number).first()
+                part_name = part.name if part else part_data.get('part_name', '').strip()
+                unit = (part.unit if part else None) or part_data.get('unit', '個').strip() or '個'
+                category = (part.type if part else None) or part_data.get('category', '').strip() or ''
+
+                warehouse_location_id = part_data.get('warehouse_location_id', type=int)
+                if not warehouse_location_id and part and part.location_associations:
+                    warehouse_location_id = part.location_associations[0].warehouse_location_id
+
                 max_sequence = db.session.query(db.func.max(OrderRegistration.item_sequence)).filter_by(cycle_id=current_cycle.id).scalar()
                 next_sequence = (max_sequence or 0) + 1
-                
-                warehouse_location_id = part_data.get('warehouse_location_id', type=int)
 
                 registration = OrderRegistration()
                 registration.cycle_id = current_cycle.id
                 registration.item_sequence = next_sequence
-                registration.part_number = part_data.get('part_number', '').strip()
-                registration.part_name = part_data.get('part_name', '').strip()
+                registration.part_number = part_number
+                registration.part_name = part_name
                 registration.warehouse_location_id = warehouse_location_id
                 registration.quantity = int(part_data.get('quantity', 1))
-                registration.unit = part_data.get('unit', '個').strip()
-                registration.category = part_data.get('category', '').strip()
+                registration.unit = unit
+                registration.category = category
                 registration.priority = part_data.get('priority', 'normal').strip()
                 registration.purpose_notes = f'自動匯入自{source}'
                 registration.applicant_name = '系統自動'
@@ -959,6 +985,61 @@ class WeeklyOrderService:
         except Exception as e:
             db.session.rollback()
             return {'success': False, 'message': f'批量登記失敗：{str(e)}'}
+
+    @staticmethod
+    def update_order_registration(registration_id, form_data, modifier_name=''):
+        """修改/更正登記項目資料"""
+        from models.weekly_order import OrderRegistration
+        from models.part import Part
+        try:
+            reg = OrderRegistration.query.get(registration_id)
+            if not reg:
+                return {'success': False, 'message': '找不到此登記項目'}
+
+            part_number = form_data.get('part_number', '').strip()
+            if not part_number:
+                return {'success': False, 'message': '品號不能為空'}
+
+            part = Part.query.filter_by(part_number=part_number).first()
+            if not part:
+                return {'success': False, 'message': f'找不到品號「{part_number}」，請確認是否為系統中已建立的品號'}
+
+            # 更新品號與關聯資訊（自動以零件主檔為主）
+            reg.part_number = part.part_number
+            reg.part_name = part.name
+            reg.unit = part.unit or '個'
+            reg.category = part.type or ''
+
+            # 數量
+            if 'quantity' in form_data and form_data.get('quantity'):
+                new_qty = int(form_data.get('quantity'))
+                if new_qty > 0:
+                    reg.quantity = new_qty
+
+            # 儲位
+            if 'warehouse_location_id' in form_data:
+                loc_id = form_data.get('warehouse_location_id')
+                reg.warehouse_location_id = int(loc_id) if loc_id else None
+            elif not reg.warehouse_location_id and part.location_associations:
+                reg.warehouse_location_id = part.location_associations[0].warehouse_location_id
+
+            # 備註
+            if 'purpose_notes' in form_data:
+                reg.purpose_notes = form_data.get('purpose_notes', '').strip()
+
+            if 'admin_notes' in form_data:
+                reg.admin_notes = form_data.get('admin_notes', '').strip()
+
+            if 'status' in form_data and form_data.get('status') in ['registered', 'approved', 'rejected']:
+                reg.status = form_data.get('status')
+
+            reg.updated_at = get_taipei_time()
+
+            db.session.commit()
+            return {'success': True, 'message': f'項目 #{reg.item_sequence} ({reg.part_number} - {reg.part_name}) 已成功更新'}
+        except Exception as e:
+            db.session.rollback()
+            return {'success': False, 'message': f'更新失敗：{str(e)}'}
 
     @staticmethod
     def batch_inbound_weekly_orders(items):

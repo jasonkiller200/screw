@@ -1370,3 +1370,115 @@ function formatPendingItemsTable(items) {
     }
     return html;
 }
+
+/**
+ * 開啟修正登記資料模態框
+ */
+function openEditModal(registrationId) {
+    fetch(`/weekly_orders/registration/${registrationId}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('editRegId').value = data.id;
+            document.getElementById('editItemSequence').textContent = data.item_sequence;
+            document.getElementById('editPartNumber').value = data.part_number;
+            document.getElementById('editPartName').value = data.part_name || '';
+            document.getElementById('editQuantity').value = data.quantity;
+            document.getElementById('editUnit').value = data.unit || '';
+            document.getElementById('editPurposeNotes').value = data.purpose_notes || '';
+            document.getElementById('editAdminNotes').value = data.admin_notes || '';
+            document.getElementById('editStatus').value = data.status || 'registered';
+
+            // 載入儲位選項
+            loadEditLocationOptions(data.part_number, data.warehouse_location_id);
+
+            const modal = new bootstrap.Modal(document.getElementById('editRegistrationModal'));
+            modal.show();
+        })
+        .catch(err => {
+            alert('載入項目資料失敗：' + err);
+        });
+}
+
+function loadEditLocationOptions(partNumber, selectedLocId) {
+    const locSelect = document.getElementById('editWarehouseLocationId');
+    locSelect.innerHTML = '<option value="">載入中...</option>';
+    fetch(`/api/part/${partNumber}/locations`)
+        .then(r => r.json())
+        .then(data => {
+            locSelect.innerHTML = '<option value="">無指定儲位</option>';
+            if (data.locations && data.locations.length > 0) {
+                data.locations.forEach(loc => {
+                    const opt = document.createElement('option');
+                    opt.value = loc.id;
+                    opt.textContent = `${loc.warehouse_name} - ${loc.location_code}`;
+                    if (selectedLocId && parseInt(selectedLocId, 10) === loc.id) {
+                        opt.selected = true;
+                    }
+                    locSelect.appendChild(opt);
+                });
+            }
+        })
+        .catch(e => {
+            locSelect.innerHTML = '<option value="">無指定儲位</option>';
+        });
+}
+
+function onEditPartNumberChange() {
+    const pno = document.getElementById('editPartNumber').value.trim();
+    if (!pno) return;
+    fetch(`/api/part/${pno}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.part_info) {
+                document.getElementById('editPartName').value = data.part_info.name || '';
+                document.getElementById('editUnit').value = data.part_info.unit || '個';
+                loadEditLocationOptions(pno, null);
+            }
+        });
+}
+
+function submitEditRegistration() {
+    const regId = document.getElementById('editRegId').value;
+    const partNumber = document.getElementById('editPartNumber').value.trim();
+    const quantity = document.getElementById('editQuantity').value.trim();
+    const warehouseLocationId = document.getElementById('editWarehouseLocationId').value;
+    const purposeNotes = document.getElementById('editPurposeNotes').value.trim();
+    const adminNotes = document.getElementById('editAdminNotes').value.trim();
+    const status = document.getElementById('editStatus').value;
+
+    if (!partNumber) {
+        alert('品號不能為空');
+        return;
+    }
+    if (!quantity || parseInt(quantity, 10) <= 0) {
+        alert('請輸入有效數量');
+        return;
+    }
+
+    const payload = {
+        part_number: partNumber,
+        quantity: parseInt(quantity, 10),
+        warehouse_location_id: warehouseLocationId ? parseInt(warehouseLocationId, 10) : null,
+        purpose_notes: purposeNotes,
+        admin_notes: adminNotes,
+        status: status
+    };
+
+    fetch(`/weekly_orders/registration/${regId}/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) {
+            alert(res.message);
+            location.reload();
+        } else {
+            alert('更新失敗：' + res.message);
+        }
+    })
+    .catch(err => {
+        alert('更新出錯：' + err);
+    });
+}

@@ -201,6 +201,29 @@ document.addEventListener('DOMContentLoaded', function() {
         searchParts(this.value.trim());
     });
 
+    // 監聽失去焦點 (blur) 與變更 (change) 事件，自動帶入零件詳細資料
+    function handlePartNumberChange() {
+        const val = partNumberInput.value.trim();
+        if (val) {
+            autoFillPartDetails(val);
+        }
+    }
+
+    partNumberInput.addEventListener('blur', handlePartNumberChange);
+    partNumberInput.addEventListener('change', handlePartNumberChange);
+
+    // 貼上或打字長度大於等於 10 碼（常見 12 碼零件品號）時自動觸發查詢
+    let inputTimeout = null;
+    partNumberInput.addEventListener('input', function() {
+        clearTimeout(inputTimeout);
+        const val = this.value.trim();
+        if (val.length >= 10) {
+            inputTimeout = setTimeout(() => {
+                autoFillPartDetails(val);
+            }, 400);
+        }
+    });
+
     // If prefill_data exists and has a part_number, trigger auto-fill on load
     // Ensure prefill_data is defined and not null
     if (typeof prefill_data !== 'undefined' && prefill_data && prefill_data.part_number) {
@@ -248,6 +271,20 @@ function updateTimeRemaining() {
         }
 
         const partNumber = (document.getElementById('part_number')?.value || '').trim();
+        const partName = (document.getElementById('part_name')?.value || '').trim();
+        const unit = (document.getElementById('unit')?.value || '').trim();
+
+        if (!partNumber) {
+            alert('請輸入品號！');
+            e.preventDefault();
+            return;
+        }
+
+        if (!partName || !unit) {
+            alert('⚠️ 尚未取得品名或單位！\n請確認輸入的品號是否為系統中已建立的正確零件編號（例如 101000044700），切勿輸入中文品名或規格。');
+            e.preventDefault();
+            return;
+        }
         const locationId = document.getElementById('warehouse_location_id')?.value || null;
 
         if (!partNumber) return; // let normal validation handle it
