@@ -279,9 +279,14 @@
             const badge = document.getElementById('onlineCount');
             if (badge) {
                 badge.textContent = data.count;
-                badge.title = `目前有 ${data.count} 位使用者在線上`;
+                const userList = (data.users && data.users.length > 0)
+                    ? data.users.map(u => u.username).join(', ')
+                    : '';
+                badge.title = userList
+                    ? `目前有 ${data.count} 位使用者在線上: ${userList}`
+                    : `目前有 ${data.count} 位使用者在線上`;
             }
-            console.log(`👥 線上人數: ${data.count}`);
+            console.log(`👥 線上人數: ${data.count}`, data.users);
         });
         
         // 通知系統功能
