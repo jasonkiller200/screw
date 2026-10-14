@@ -217,7 +217,12 @@
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2><i class="fas fa-robot"></i> AI 資料庫查詢助手</h2>
+                <div>
+                    <h2 class="mb-1"><i class="fas fa-robot text-primary"></i> AI 資料庫查詢助手</h2>
+                    <div class="text-muted small">
+                        <i class="far fa-clock text-primary"></i> 系統時間：<span id="currentTimeDisplay" class="fw-bold text-dark">載入中...</span>
+                    </div>
+                </div>
                 <button id="refreshStatusBtn" class="btn btn-outline-primary">
                     <i class="fas fa-sync-alt"></i> 檢查連接狀態
                 </button>
@@ -351,10 +356,36 @@ function generateSessionId() {
     return `session_${timestamp}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
+let serverTimeOffset = 0; // 伺服器時間與前端時間毫秒差
+
+function startClock() {
+    const timeDisplay = document.getElementById('currentTimeDisplay');
+    const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+    
+    function tick() {
+        const now = new Date(Date.now() + serverTimeOffset);
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        const h = String(now.getHours()).padStart(2, '0');
+        const min = String(now.getMinutes()).padStart(2, '0');
+        const s = String(now.getSeconds()).padStart(2, '0');
+        const weekday = weekdays[now.getDay()];
+        
+        if (timeDisplay) {
+            timeDisplay.textContent = `${y}-${m}-${d} ${h}:${min}:${s} (${weekday})`;
+        }
+    }
+    
+    tick();
+    setInterval(tick, 1000);
+}
+
 // 頁面載入時檢查狀態
 document.addEventListener('DOMContentLoaded', function() {
     currentSessionId = generateSessionId();
     updateSessionDisplay();
+    startClock();
     checkAIStatus();
     loadSuggestedQuestions();
     loadAvailableModels();
@@ -457,6 +488,12 @@ function checkAIStatus() {
     fetch('/ai/status')
         .then(response => response.json())
         .then(data => {
+            if (data && data.server_time) {
+                const serverTimeMs = new Date(data.server_time.replace(/-/g, '/')).getTime();
+                if (!isNaN(serverTimeMs)) {
+                    serverTimeOffset = serverTimeMs - Date.now();
+                }
+            }
             updateStatusIndicator(data);
         })
         .catch(error => {

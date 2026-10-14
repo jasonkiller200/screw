@@ -10,6 +10,7 @@ import sqlite3
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import os
+from utils.datetime_utils import get_taipei_time
 from models.part import Part, Warehouse, WarehouseLocation, PartWarehouseLocation
 from models.inventory import CurrentInventory, InventoryTransaction
 from models.work_order import WorkOrderDemand
@@ -25,6 +26,37 @@ class AIService:
         self.model_name = os.getenv("VLLM_MODEL_NAME", "")  # 會由 /v1/models 自動載入
         self.db_path = "instance/hardware.db"  # 正確的資料庫路徑
         self.conversation_history = {}  # 存儲對話歷史，按會話ID分組
+
+    def _get_current_time_context(self) -> Dict[str, Any]:
+        """獲取台北時區當前時間詳細資訊"""
+        now = get_taipei_time()
+        weekdays = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日']
+        weekday = weekdays[now.weekday()]
+        return {
+            'now': now,
+            'datetime_str': now.strftime('%Y-%m-%d %H:%M:%S'),
+            'date_str': now.strftime('%Y-%m-%d'),
+            'time_str': now.strftime('%H:%M:%S'),
+            'weekday': weekday,
+            'year': now.year,
+            'month': now.month,
+            'day': now.day
+        }
+
+    def _is_pure_time_query(self, question: str) -> bool:
+        """檢查是否為純粹詢問當前時間/日期的問題"""
+        q = re.sub(r'[？?！!\s,，。]', '', question.strip().lower())
+        patterns = [
+            r'^(現在|目前|今天|請問現在|請問目前)?(幾點|幾點了|時間|現在時間|目前時間|系統時間)$',
+            r'^(今天|現在|目前|請問今天)?(幾號|何日|日期|星期幾|禮拜幾|今天是幾號|今天日期|現在日期)$',
+            r'^(現在|目前|今天)是什麼時間$',
+            r'^(現在|今年)是?西元?哪一年$',
+            r'^(現在|今年)是?哪一年$'
+        ]
+        for pattern in patterns:
+            if re.match(pattern, q):
+                return True
+        return False
 
     def _chat(self, messages: List[Dict[str, str]]) -> str:
         """透過 OpenAI-compatible REST API 呼叫 vLLM chat completions"""
@@ -279,19 +311,34 @@ class AIService:
         """
         
     def _generate_sql_query_with_context(self, user_question: str, session_id: str) -> str:
-        """使用AI生成SQL查詢，考慮對話歷史"""
+        """使用AI生成SQL查詢，考慮對話歷史與系統時間"""
+        
+        # 若是純粹詢問當前時間/日期/星期，直接返回查詢本地時間的 SQL，避免模型幻覺
+        if self._is_pure_time_query(user_question):
+            return "SELECT datetime('now', 'localtime') as current_time;"
+
+        # 獲取台北時區當前時間上下文
+        time_ctx = self._get_current_time_context()
         
         # 獲取對話歷史
         conversation_history = self._get_conversation_history(session_id)
         
         sql_instructions = f"""你是SQL查詢生成器。根據用戶的問題，生成一個SQLite SQL SELECT語句。只返回SQL，不要包含任何解釋。
 
+【當前系統時間資訊】
+- 當前系統時間（台北時間，UTC+8）：{time_ctx['datetime_str']} ({time_ctx['weekday']})
+- 今日日期：{time_ctx['date_str']}（年份：{time_ctx['year']}，月份：{time_ctx['month']}）
+
 {self._get_schema_info()}
 
 重要規則：
 - 只返回一個 SELECT 語句，不要有其他文字
 - 加上 LIMIT 50（除非用戶要求全部）
-- 時間查詢用 date('now','-7 days') 格式
+- 若用戶詢問當前時間/日期/星期，可使用：SELECT datetime('now', 'localtime') as current_time;
+- 時間查詢請特別注意時區：SQLite 請使用 date('now', 'localtime') 或直接使用今日日期 '{time_ctx['date_str']}'
+  例如查詢今天：WHERE date(it.transaction_date) = '{time_ctx['date_str']}'
+  查詢最近一週（7天）：WHERE it.transaction_date >= date('now', 'localtime', '-7 days')
+  查詢最近三天：WHERE it.transaction_date >= date('now', 'localtime', '-3 days')
 - 入庫: transaction_type LIKE 'IN_%'，出庫: transaction_type LIKE 'OUT_%'
 - 查詢異動記錄用 inventory_transactions，查詢當前庫存用 current_inventory
 - 需要零件名稱就 JOIN parts，需要倉庫名稱就 JOIN warehouses
@@ -304,23 +351,24 @@ class AIService:
   - 預設問「阿良出庫」一律視為倉庫查詢，除非明確說「操作人員」或「誰」
 
 範例：
+問：現在幾點？/ 今天幾號？ → SELECT datetime('now', 'localtime') as current_time
 問：有多少個零件？ → SELECT COUNT(*) as total FROM parts
-問：最近一週入庫記錄？ → SELECT it.*, p.part_number, p.name as part_name FROM inventory_transactions it JOIN parts p ON it.part_id = p.id WHERE it.transaction_type LIKE 'IN_%' AND it.transaction_date >= date('now', '-7 days') ORDER BY it.transaction_date DESC LIMIT 50
+問：最近一週入庫記錄？ → SELECT it.*, p.part_number, p.name as part_name FROM inventory_transactions it JOIN parts p ON it.part_id = p.id WHERE it.transaction_type LIKE 'IN_%' AND it.transaction_date >= date('now', 'localtime', '-7 days') ORDER BY it.transaction_date DESC LIMIT 50
 問：庫存不足的零件？ → SELECT p.part_number, p.name, ci.available_quantity, ci.safety_stock, ci.reorder_point FROM parts p JOIN current_inventory ci ON p.id = ci.part_id WHERE ci.available_quantity < ci.reorder_point ORDER BY ci.available_quantity ASC LIMIT 50
 問：庫存最高的零件詳情？ → SELECT p.part_number, p.name, p.description, p.unit, SUM(ci.quantity_on_hand) as total_quantity_on_hand, SUM(ci.available_quantity) as total_available_quantity FROM parts p JOIN current_inventory ci ON p.id = ci.part_id GROUP BY p.id, p.part_number, p.name, p.description, p.unit ORDER BY total_quantity_on_hand DESC LIMIT 50
 問：哪些倉庫零件種類最多？ → SELECT w.code, w.name, COUNT(DISTINCT ci.part_id) as part_count FROM warehouses w JOIN current_inventory ci ON w.id = ci.warehouse_id GROUP BY w.id ORDER BY part_count DESC
 問：零件 P001 的最近異動？ → SELECT it.transaction_type, it.quantity, it.transaction_date, it.notes, w.name as warehouse_name FROM inventory_transactions it JOIN parts p ON it.part_id = p.id JOIN warehouses w ON it.warehouse_id = w.id WHERE p.part_number = 'P001' ORDER BY it.transaction_date DESC LIMIT 20
-問：今天有哪些庫存交易？ → SELECT it.*, p.part_number, p.name as part_name FROM inventory_transactions it JOIN parts p ON it.part_id = p.id WHERE date(it.transaction_date) = date('now') ORDER BY it.transaction_date DESC LIMIT 50
+問：今天有哪些庫存交易？ → SELECT it.*, p.part_number, p.name as part_name FROM inventory_transactions it JOIN parts p ON it.part_id = p.id WHERE date(it.transaction_date) = '{time_ctx['date_str']}' ORDER BY it.transaction_date DESC LIMIT 50
 問：工單需求量最高前10零件？ → SELECT wod.part_number, SUM(wod.required_quantity) as total_demand, COUNT(*) as order_count FROM work_order_demand wod GROUP BY wod.part_number ORDER BY total_demand DESC LIMIT 10
 問：待處理採購訂單數量？ → SELECT COUNT(*) as pending_count FROM order_history WHERE status = 'pending'
 問：庫存價值最高前10零件？ → SELECT p.part_number, p.name, ci.quantity_on_hand, p.standard_cost, (ci.quantity_on_hand * p.standard_cost) as total_value FROM parts p JOIN current_inventory ci ON p.id = ci.part_id WHERE p.standard_cost > 0 ORDER BY total_value DESC LIMIT 10
-問：最近三天出庫最多零件？ → SELECT p.part_number, p.name, SUM(ABS(it.quantity)) as total_out FROM inventory_transactions it JOIN parts p ON it.part_id = p.id WHERE it.transaction_type LIKE 'OUT_%' AND it.transaction_date >= date('now', '-3 days') GROUP BY it.part_id ORDER BY total_out DESC LIMIT 10
+問：最近三天出庫最多零件？ → SELECT p.part_number, p.name, SUM(ABS(it.quantity)) as total_out FROM inventory_transactions it JOIN parts p ON it.part_id = p.id WHERE it.transaction_type LIKE 'OUT_%' AND it.transaction_date >= date('now', 'localtime', '-3 days') GROUP BY it.part_id ORDER BY total_out DESC LIMIT 10
 問：各倉庫庫存總量？ → SELECT w.code, w.name, SUM(ci.quantity_on_hand) as total_qty, COUNT(DISTINCT ci.part_id) as part_types FROM warehouses w JOIN current_inventory ci ON w.id = ci.warehouse_id GROUP BY w.id ORDER BY total_qty DESC
 問：工單需求但庫存為零的零件？ → SELECT DISTINCT wod.part_number, wod.material_description, COALESCE(ci.quantity_on_hand, 0) as on_hand FROM work_order_demand wod LEFT JOIN parts p ON wod.part_number = p.part_number LEFT JOIN current_inventory ci ON p.id = ci.part_id WHERE COALESCE(ci.quantity_on_hand, 0) = 0 LIMIT 50
-問：阿良倉本週出庫哪些零件？ → SELECT p.part_number, p.name, it.quantity, it.transaction_type, it.transaction_date, it.notes FROM inventory_transactions it JOIN parts p ON it.part_id = p.id JOIN warehouses w ON it.warehouse_id = w.id WHERE w.name LIKE '%阿良%' AND it.transaction_type LIKE 'OUT_%' AND it.transaction_date >= date('now', 'weekday 0', '-7 days') ORDER BY it.transaction_date DESC LIMIT 50
+問：阿良倉本週出庫哪些零件？ → SELECT p.part_number, p.name, it.quantity, it.transaction_type, it.transaction_date, it.notes FROM inventory_transactions it JOIN parts p ON it.part_id = p.id JOIN warehouses w ON it.warehouse_id = w.id WHERE w.name LIKE '%阿良%' AND it.transaction_type LIKE 'OUT_%' AND it.transaction_date >= date('now', 'localtime', 'weekday 0', '-7 days') ORDER BY it.transaction_date DESC LIMIT 50
 問：柏元倉最近入庫了什麼？ → SELECT p.part_number, p.name, it.quantity, it.transaction_type, it.transaction_date FROM inventory_transactions it JOIN parts p ON it.part_id = p.id JOIN warehouses w ON it.warehouse_id = w.id WHERE w.name LIKE '%柏元%' AND it.transaction_type LIKE 'IN_%' ORDER BY it.transaction_date DESC LIMIT 50
-問：誰今天出庫最多？ → SELECT u.full_name, COUNT(*) as tx_count, SUM(ABS(it.quantity)) as total_qty FROM inventory_transactions it JOIN users u ON it.user_id = u.id WHERE it.transaction_type LIKE 'OUT_%' AND date(it.transaction_date) = date('now') GROUP BY it.user_id ORDER BY total_qty DESC LIMIT 10
-問：棁柏章今天操作了哪些出庫？ → SELECT p.part_number, p.name, it.quantity, it.transaction_date, w.name as warehouse_name, it.notes FROM inventory_transactions it JOIN parts p ON it.part_id = p.id JOIN warehouses w ON it.warehouse_id = w.id JOIN users u ON it.user_id = u.id WHERE u.full_name LIKE '%棁柏章%' AND it.transaction_type LIKE 'OUT_%' AND date(it.transaction_date) = date('now') ORDER BY it.transaction_date DESC LIMIT 50
+問：誰今天出庫最多？ → SELECT u.full_name, COUNT(*) as tx_count, SUM(ABS(it.quantity)) as total_qty FROM inventory_transactions it JOIN users u ON it.user_id = u.id WHERE it.transaction_type LIKE 'OUT_%' AND date(it.transaction_date) = '{time_ctx['date_str']}' GROUP BY it.user_id ORDER BY total_qty DESC LIMIT 10
+問：棁柏章今天操作了哪些出庫？ → SELECT p.part_number, p.name, it.quantity, it.transaction_date, w.name as warehouse_name, it.notes FROM inventory_transactions it JOIN parts p ON it.part_id = p.id JOIN warehouses w ON it.warehouse_id = w.id JOIN users u ON it.user_id = u.id WHERE u.full_name LIKE '%棁柏章%' AND it.transaction_type LIKE 'OUT_%' AND date(it.transaction_date) = '{time_ctx['date_str']}' ORDER BY it.transaction_date DESC LIMIT 50
 """
         
         # 構建對話訊息（不用 system role）
@@ -374,8 +422,13 @@ class AIService:
 
     def _retry_sql_with_error(self, user_question: str, failed_sql: str, error_msg: str, session_id: str) -> str:
         """SQL 執行失敗時，讓 LLM 根據錯誤訊息修正 SQL"""
+        time_ctx = self._get_current_time_context()
         retry_prompt = f"""
 你之前生成的 SQL 查詢執行失敗了，請根據錯誤訊息修正。
+
+【當前系統時間資訊】
+- 當前系統時間（台北時間，UTC+8）：{time_ctx['datetime_str']} ({time_ctx['weekday']})
+- 今日日期：{time_ctx['date_str']}
 
 用戶的問題：{user_question}
 
@@ -393,9 +446,10 @@ class AIService:
             raise Exception(f"SQL 修正失敗: {str(e)}")
     
     def _format_answer_with_context(self, user_question: str, query_results: List[Dict[str, Any]], sql_query: str, session_id: str) -> str:
-        """使用AI格式化答案，考慮對話歷史"""
+        """使用AI格式化答案，考慮對話歷史與系統時間"""
         
         conversation_history = self._get_conversation_history(session_id)
+        time_ctx = self._get_current_time_context()
         
         # 構建精確的查詢上下文
         result_text = json.dumps(query_results[:30], ensure_ascii=False, indent=2) if query_results else '[]'
@@ -403,7 +457,16 @@ class AIService:
         # 將指令和數據合併到單一 prompt，避免模型忽略查詢結果
         prompt = f"""以下是螺絲庫存系統的資料庫查詢結果，請直接根據這些數據回答用戶的問題。
 
-規則：繁體中文回答、用 Markdown 表格呈現多筆數據、粗體標示重點數字、不要詢問用戶提供資料。
+【當前系統時間資訊】
+- 當前系統時間（台北時間，UTC+8）：{time_ctx['datetime_str']} ({time_ctx['weekday']})
+- 今日日期：{time_ctx['date_str']}（年份：{time_ctx['year']}，月份：{time_ctx['month']}）
+
+規則：
+1. 繁體中文回答。
+2. 若用戶問題包含詢問當前時間、現在幾點、今天日期、星期或年份，請務必根據上方提供的當前系統時間明確回答。
+3. 若有多筆數據，請用 Markdown 表格呈現。
+4. 粗體標示重點數字與關鍵零件/倉庫。
+5. 不要詢問用戶提供資料，直接依據查詢結果與系統時間給出完整解答。
 
 用戶問題：{user_question}
 
@@ -412,7 +475,7 @@ class AIService:
 查詢結果（共 {len(query_results)} 筆）：
 {result_text}
 
-請根據以上查詢結果直接回答。"""
+請根據以上資訊直接回答。"""
 
         # 構建對話訊息（不用 system role，全部放 user/assistant）
         messages = []
@@ -433,9 +496,15 @@ class AIService:
 
     def _format_answer(self, user_question: str, query_results: List[Dict[str, Any]], sql_query: str) -> str:
         """使用AI格式化答案（舊方法，保持向後兼容）"""
+        time_ctx = self._get_current_time_context()
         result_text = json.dumps(query_results[:30], ensure_ascii=False, indent=2) if query_results else '[]'
         prompt = f"""以下是螺絲庫存系統的資料庫查詢結果，請直接根據這些數據回答用戶的問題。
-規則：繁體中文回答、用 Markdown 表格呈現多筆數據、粗體標示重點數字。
+
+【當前系統時間資訊】
+- 當前系統時間（台北時間，UTC+8）：{time_ctx['datetime_str']} ({time_ctx['weekday']})
+- 今日日期：{time_ctx['date_str']}
+
+規則：繁體中文回答、若問及目前時間/日期請直接根據當前系統時間明確回答、用 Markdown 表格呈現多筆數據、粗體標示重點數字。
 
 用戶問題：{user_question}
 
@@ -444,7 +513,7 @@ class AIService:
 查詢結果（共 {len(query_results)} 筆）：
 {result_text}
 
-請根據以上查詢結果直接回答。"""
+請根據以上資訊直接回答。"""
         
         try:
             return self._chat([{'role': 'user', 'content': prompt}])
@@ -621,6 +690,8 @@ class AIService:
     def get_suggested_questions(self) -> List[str]:
         """獲取建議的查詢問題"""
         return [
+            "現在系統時間是幾點？",
+            "今天有哪些庫存交易？",
             "目前有哪些零件庫存不足？",
             "最近一週有哪些入庫記錄？",
             "最近三天有哪些出庫記錄？",
@@ -631,6 +702,5 @@ class AIService:
             "最近的庫存異動記錄有哪些？",
             "哪些倉庫的零件種類最多？",
             "即將到期的採購訂單有哪些？",
-            "工單需求但零件庫沒有的零件有哪些？",
-            "今天有哪些庫存交易？"
+            "工單需求但零件庫沒有的零件有哪些？"
         ]

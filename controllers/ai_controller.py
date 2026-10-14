@@ -6,6 +6,7 @@ AI查詢控制器
 from flask import Blueprint, request, jsonify, render_template
 from flask_login import login_required
 from services.ai_service import AIService
+from utils.datetime_utils import get_taipei_time
 from datetime import datetime
 import logging
 
@@ -39,6 +40,9 @@ def ai_query():
         
         # 執行AI查詢
         result = ai_service.query_database(user_question, session_id)
+        if isinstance(result, dict):
+            now = get_taipei_time()
+            result['server_time'] = now.strftime('%Y-%m-%d %H:%M:%S')
         
         return jsonify(result)
         
@@ -55,6 +59,10 @@ def ai_status():
     """檢查AI服務狀態"""
     try:
         status = ai_service.check_vllm_connection()
+        now = get_taipei_time()
+        weekdays = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日']
+        status['server_time'] = now.strftime('%Y-%m-%d %H:%M:%S')
+        status['weekday'] = weekdays[now.weekday()]
         return jsonify(status)
         
     except Exception as e:
