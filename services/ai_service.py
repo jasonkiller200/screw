@@ -359,6 +359,8 @@ class AIService:
 問：哪些倉庫零件種類最多？ → SELECT w.code, w.name, COUNT(DISTINCT ci.part_id) as part_count FROM warehouses w JOIN current_inventory ci ON w.id = ci.warehouse_id GROUP BY w.id ORDER BY part_count DESC
 問：零件 P001 的最近異動？ → SELECT it.transaction_type, it.quantity, it.transaction_date, it.notes, w.name as warehouse_name FROM inventory_transactions it JOIN parts p ON it.part_id = p.id JOIN warehouses w ON it.warehouse_id = w.id WHERE p.part_number = 'P001' ORDER BY it.transaction_date DESC LIMIT 20
 問：今天有哪些庫存交易？ → SELECT it.*, p.part_number, p.name as part_name FROM inventory_transactions it JOIN parts p ON it.part_id = p.id WHERE date(it.transaction_date) = '{time_ctx['date_str']}' ORDER BY it.transaction_date DESC LIMIT 50
+問：10/13 有哪些零件入庫？ → SELECT it.*, p.part_number, p.name as part_name, w.name as warehouse_name FROM inventory_transactions it JOIN parts p ON it.part_id = p.id JOIN warehouses w ON it.warehouse_id = w.id WHERE it.transaction_type LIKE 'IN_%' AND date(it.transaction_date) = '2026-10-13' ORDER BY it.transaction_date DESC LIMIT 50
+問：10/13 總入庫數是多少？ → SELECT COUNT(*) as total_records, SUM(it.quantity) as total_inbound_quantity FROM inventory_transactions it WHERE it.transaction_type LIKE 'IN_%' AND date(it.transaction_date) = '2026-10-13'
 問：工單需求量最高前10零件？ → SELECT wod.part_number, SUM(wod.required_quantity) as total_demand, COUNT(*) as order_count FROM work_order_demand wod GROUP BY wod.part_number ORDER BY total_demand DESC LIMIT 10
 問：待處理採購訂單數量？ → SELECT COUNT(*) as pending_count FROM order_history WHERE status = 'pending'
 問：庫存價值最高前10零件？ → SELECT p.part_number, p.name, ci.quantity_on_hand, p.standard_cost, (ci.quantity_on_hand * p.standard_cost) as total_value FROM parts p JOIN current_inventory ci ON p.id = ci.part_id WHERE p.standard_cost > 0 ORDER BY total_value DESC LIMIT 10
@@ -445,11 +447,85 @@ class AIService:
         except Exception as e:
             raise Exception(f"SQL 修正失敗: {str(e)}")
     
+    def _compute_results_summary(self, query_results: List[Dict[str, Any]]) -> str:
+        """
+        以 Python 精確計算查詢結果的數值統計（筆數、數量總計、出入庫合計等），
+        避免 LLM 自行心算加總產生幻覺或計算錯誤。
+        """
+        if not query_results:
+            return "【系統統計數據】\n- 總記錄筆數：0 筆"
+
+        count = len(query_results)
+        summary_lines = [f"- 總記錄筆數：{count} 筆"]
+
+        numeric_keys = [
+            'quantity', 'quantity_on_hand', 'available_quantity',
+            'required_quantity', 'quantity_ordered', 'total_qty',
+            'total_quantity', 'total_out', 'total_value', 'item_count',
+            'tx_count', 'total'
+        ]
+
+        found_keys = set()
+        first_row = query_results[0]
+        for key in first_row.keys():
+            k_lower = key.lower()
+            if any(target in k_lower for target in numeric_keys) or isinstance(first_row[key], (int, float)):
+                try:
+                    vals = [float(row[key]) for row in query_results if row.get(key) is not None]
+                    if vals:
+                        found_keys.add(key)
+                except (ValueError, TypeError):
+                    continue
+
+        for key in found_keys:
+            if any(sub in key.lower() for sub in ['id', 'seq', 'code', 'date', 'year', 'month', 'day', 'time', 'status']):
+                continue
+
+            vals = []
+            for row in query_results:
+                v = row.get(key)
+                if isinstance(v, (int, float)):
+                    vals.append(v)
+                elif isinstance(v, str) and v.replace('.', '', 1).replace('-', '', 1).isdigit():
+                    try:
+                        vals.append(float(v))
+                    except ValueError:
+                        pass
+
+            if not vals:
+                continue
+
+            total_val = sum(vals)
+            if all(isinstance(v, int) or (isinstance(v, float) and v.is_integer()) for v in vals):
+                total_str = f"{int(total_val):,}"
+            else:
+                total_str = f"{total_val:,.2f}"
+
+            if 'quantity' in key.lower():
+                pos_vals = [v for v in vals if v > 0]
+                neg_vals = [abs(v) for v in vals if v < 0]
+                if pos_vals and neg_vals:
+                    summary_lines.append(f"- 【入庫總數量（正數合計）】：{int(sum(pos_vals)):,} 件")
+                    summary_lines.append(f"- 【出庫總數量（負數絕對值合計）】：{int(sum(neg_vals)):,} 件")
+                    summary_lines.append(f"- 【淨異動總數】：{int(total_val):,} 件")
+                elif pos_vals:
+                    summary_lines.append(f"- 【總入庫/數量合計（總計）】：{int(sum(pos_vals)):,} 件")
+                elif neg_vals:
+                    summary_lines.append(f"- 【總出庫數量（總計）】：{int(sum(neg_vals)):,} 件")
+            else:
+                summary_lines.append(f"- 【{key}】合計：{total_str}")
+
+        if len(summary_lines) == 1:
+            return f"【系統統計數據】\n- 總記錄筆數：{count} 筆"
+
+        return "【系統精確統計數據（已由程式精確計算，若回答涉及總數必須直接引用此數字，嚴禁自行心算加總）】\n" + "\n".join(summary_lines)
+
     def _format_answer_with_context(self, user_question: str, query_results: List[Dict[str, Any]], sql_query: str, session_id: str) -> str:
-        """使用AI格式化答案，考慮對話歷史與系統時間"""
+        """使用AI格式化答案，考慮對話歷史、系統時間與精確統計數據"""
         
         conversation_history = self._get_conversation_history(session_id)
         time_ctx = self._get_current_time_context()
+        summary_text = self._compute_results_summary(query_results)
         
         # 構建精確的查詢上下文
         result_text = json.dumps(query_results[:30], ensure_ascii=False, indent=2) if query_results else '[]'
@@ -461,12 +537,15 @@ class AIService:
 - 當前系統時間（台北時間，UTC+8）：{time_ctx['datetime_str']} ({time_ctx['weekday']})
 - 今日日期：{time_ctx['date_str']}（年份：{time_ctx['year']}，月份：{time_ctx['month']}）
 
+{summary_text}
+
 規則：
 1. 繁體中文回答。
-2. 若用戶問題包含詢問當前時間、現在幾點、今天日期、星期或年份，請務必根據上方提供的當前系統時間明確回答。
-3. 若有多筆數據，請用 Markdown 表格呈現。
+2. 若回答中提及「總數量」、「總計」、「總出庫量」、「總入庫量」或「總筆數」，必須嚴格直接採用上方【系統精確統計數據】所提供的數值（例如：總入庫數量為 3,000 件），絕對不可自行心算加總或猜測數值。
+3. 若有多筆數據，請用 Markdown 表格呈現完整明細。
 4. 粗體標示重點數字與關鍵零件/倉庫。
-5. 不要詢問用戶提供資料，直接依據查詢結果與系統時間給出完整解答。
+5. 若用戶問題包含詢問當前時間、現在幾點、今天日期、星期或年份，請務必根據上方提供的當前系統時間明確回答。
+6. 不要詢問用戶提供資料，直接依據查詢結果與系統時間給出完整解答。
 
 用戶問題：{user_question}
 
@@ -497,6 +576,7 @@ class AIService:
     def _format_answer(self, user_question: str, query_results: List[Dict[str, Any]], sql_query: str) -> str:
         """使用AI格式化答案（舊方法，保持向後兼容）"""
         time_ctx = self._get_current_time_context()
+        summary_text = self._compute_results_summary(query_results)
         result_text = json.dumps(query_results[:30], ensure_ascii=False, indent=2) if query_results else '[]'
         prompt = f"""以下是螺絲庫存系統的資料庫查詢結果，請直接根據這些數據回答用戶的問題。
 
@@ -504,7 +584,9 @@ class AIService:
 - 當前系統時間（台北時間，UTC+8）：{time_ctx['datetime_str']} ({time_ctx['weekday']})
 - 今日日期：{time_ctx['date_str']}
 
-規則：繁體中文回答、若問及目前時間/日期請直接根據當前系統時間明確回答、用 Markdown 表格呈現多筆數據、粗體標示重點數字。
+{summary_text}
+
+規則：繁體中文回答、若提及總數量必須嚴格採用系統統計數據不可自行心算、用 Markdown 表格呈現多筆數據、粗體標示重點數字。
 
 用戶問題：{user_question}
 
