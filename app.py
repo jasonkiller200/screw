@@ -96,6 +96,11 @@ def create_app():
     CORS(app, origins=allowed_origins)
     
     # ====== 日誌設定 ======
+    # 降低 geventwebsocket 與 werkzeug 存取日誌層級，避免輪詢請求（如通知數量輪詢）洗版終端機
+    logging.getLogger('geventwebsocket.handler').setLevel(logging.WARNING)
+    logging.getLogger('geventwebsocket').setLevel(logging.WARNING)
+    logging.getLogger('werkzeug').setLevel(logging.WARNING)
+    
     if not app.debug:
         # 確保日誌目錄存在
         log_dir = os.path.join(app.root_path, 'logs')

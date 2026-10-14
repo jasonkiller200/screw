@@ -285,17 +285,39 @@
         });
         
         // 通知系統功能
-        let notificationUpdateInterval;
+        let notificationUpdateInterval = null;
+        const NOTIFICATION_POLL_INTERVAL = 60000; // 每 60 秒更新一次通知數量
+
+        function startNotificationPolling() {
+            if (!notificationUpdateInterval) {
+                notificationUpdateInterval = setInterval(updateNotificationCount, NOTIFICATION_POLL_INTERVAL);
+            }
+        }
+
+        function stopNotificationPolling() {
+            if (notificationUpdateInterval) {
+                clearInterval(notificationUpdateInterval);
+                notificationUpdateInterval = null;
+            }
+        }
         
         // 頁面載入後初始化通知系統
         document.addEventListener('DOMContentLoaded', function() {
             updateNotificationCount();
-            
-            // 每30秒更新一次通知數量
-            notificationUpdateInterval = setInterval(updateNotificationCount, 30000);
+            startNotificationPolling();
             
             // 檢查是否剛登入（透過 sessionStorage）
             checkLoginNotification();
+
+            // 頁面能見度偵測：分頁隱藏/最小化時暫停輪詢，切回分頁時立即刷新並恢復輪詢
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                    stopNotificationPolling();
+                } else {
+                    updateNotificationCount();
+                    startNotificationPolling();
+                }
+            });
         });
         
         // 更新通知數量徽章
@@ -306,9 +328,7 @@
                         if (response.status === 401) {
                             // 用戶未認證，可能需要重新登入
                             console.log('用戶未認證，停止通知更新');
-                            if (notificationUpdateInterval) {
-                                clearInterval(notificationUpdateInterval);
-                            }
+                            stopNotificationPolling();
                             return;
                         }
                         throw new Error(`HTTP ${response.status}`);
